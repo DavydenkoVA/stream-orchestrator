@@ -194,7 +194,7 @@ class RouterService:
                 )
             except Exception as e:
                 logger.exception("Dossier generation failed")
-                reply = f"Не удалось собрать досье на @{target}: {type(e).__name__}: {e}"
+                reply = f"Не удалось собрать досье на @{target}"
 
             reply = prepare_chat_text(reply, settings.twitch_message_limit)
             return reply, "dossier"
@@ -204,7 +204,7 @@ class RouterService:
                 reply = await self.handle_weekly_movies_reply(normalized_text)
             except Exception as e:
                 logger.exception("Weekly movies reply failed")
-                reply = f"Не удалось прочитать список фильмов: {type(e).__name__}: {e}"
+                reply = f"Не удалось прочитать список фильмов"
 
             return reply, "weekly_movies"
 
@@ -227,7 +227,7 @@ class RouterService:
             )
         except Exception as e:
             logger.exception("Chat reply generation failed")
-            reply = f"@{username}, ошибка: {type(e).__name__}: {e}"
+            reply = f"@{username}, не удалось получить ответ"
 
         reply = prepare_chat_text(reply, settings.twitch_message_limit)
         return reply, "chat"
