@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+from app.config import settings
 from app.services.features import ChatRequest, DossierFeatureHandler, FeatureSelector, WeeklyMoviesFeatureHandler
 from app.services.router import RouterService
 
@@ -61,7 +62,7 @@ def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
     request = ChatRequest(
         stream_id="stream-1",
         username="viewer",
-        text="досье на @stream_bot",
+        text=f"досье на @{settings.bot_username}",
         mentions_bot=False,
     )
     context = SimpleNamespace()
