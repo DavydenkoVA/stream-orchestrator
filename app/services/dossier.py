@@ -5,27 +5,34 @@ from app.models.chat import ChatMessage
 from app.models.user_memory import UserMemoryItem
 
 
+def normalize_username(username: str) -> str:
+    return username.strip().lstrip("@").lower()
+
+
 class DossierService:
     def build_context(self, db: Session, username: str) -> dict:
+        normalized_username = normalize_username(username)
+
         messages = list(
             db.scalars(
                 select(ChatMessage)
-                .where(ChatMessage.username == username)
-                .order_by(ChatMessage.created_at.desc())
+                .where(ChatMessage.username == normalized_username)
+                .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
                 .limit(30)
             )
         )
+
         memory_items = list(
             db.scalars(
                 select(UserMemoryItem)
-                .where(UserMemoryItem.username == username)
+                .where(UserMemoryItem.username == normalized_username)
                 .order_by(UserMemoryItem.confidence.desc(), UserMemoryItem.created_at.desc())
                 .limit(20)
             )
         )
 
         return {
-            "username": username,
+            "username": normalized_username,
             "recent_messages": [m.text for m in messages],
             "memory_items": [
                 {

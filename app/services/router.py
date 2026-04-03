@@ -1,4 +1,5 @@
 import logging
+import re
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,18 @@ class RouterService:
         self.llm = llm or build_llm_provider()
         self.prompts = prompt_store or PromptStore()
 
+    def normalize_username(self, username: str) -> str:
+        return username.strip().lstrip("@").lower()
+
+    def extract_dossier_target(self, text: str) -> str | None:
+        match = re.search(r"досье\s+на\s+@?([A-Za-z0-9_]+)", text, flags=re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).strip()
+
+    def is_dossier_request(self, text: str) -> bool:
+        return self.extract_dossier_target(text) is not None
+
     def ingest_chat_event(
         self,
         db: Session,
@@ -36,10 +49,12 @@ class RouterService:
         mentions_bot: bool,
         role: str = "viewer",
     ) -> None:
+        normalized_username = self.normalize_username(username)
+
         self.chat_memory.save_message(
             db,
             stream_id=stream_id,
-            username=username,
+            username=normalized_username,
             text=text,
             mentions_bot=mentions_bot,
             role=role,
@@ -73,6 +88,8 @@ class RouterService:
         username: str,
         text: str,
     ) -> dict:
+        normalized_username = self.normalize_username(username)
+
         global_recent = self.chat_memory.recent_messages(
             db,
             stream_id=stream_id,
@@ -81,13 +98,13 @@ class RouterService:
         user_recent = self.chat_memory.recent_user_messages(
             db,
             stream_id=stream_id,
-            username=username,
+            username=normalized_username,
             limit=settings.chat_user_context_limit,
         )
         dialog_recent = self.chat_memory.recent_dialog_messages(
             db,
             stream_id=stream_id,
-            username=username,
+            username=normalized_username,
             limit=settings.chat_dialog_context_limit,
         )
 
@@ -160,11 +177,18 @@ class RouterService:
             mentions_bot=mentions_bot,
             role=role,
         )
+        if role == "bot":
+            return "", "ignored"
 
         normalized_text = text.strip()
 
-        if normalized_text.lower().startswith("досье на @"):
-            target = normalized_text.split("@", 1)[1].strip()
+        dossier_target = self.extract_dossier_target(normalized_text)
+        if dossier_target is not None:
+            target = self.normalize_username(dossier_target)
+
+            if target == self.normalize_username(settings.bot_username):
+                return "На себя досье не веду — конфликт интересов. Kappa", "dossier"
+
             context = self.dossier.build_context(db, target)
 
             recent_block = "\n".join(
@@ -180,19 +204,25 @@ class RouterService:
                 or "- Нет данных"
             )
 
+            recent_messages = context.get("recent_messages", [])
+            memory_items = context.get("memory_items", [])
+
+            if len(recent_messages) < 2 and len(memory_items) == 0:
+                return f"На @{target} пока мало данных для нормального досье TPFufun", "dossier"
+
             try:
                 reply = await self.llm.generate_text(
                     system_prompt=self.prompts.read("dossier_system.txt"),
                     user_prompt=self.prompts.render(
                         "dossier_user_template.txt",
-                        username=target,
+                        username = dossier_target,
                         recent_block=recent_block,
                         memory_block=memory_block,
                     ),
                     temperature=settings.llm_temperature,
                     max_output_tokens=settings.llm_max_output_tokens,
                 )
-            except Exception as e:
+            except Exception:
                 logger.exception("Dossier generation failed")
                 reply = f"Не удалось собрать досье на @{target}"
 
