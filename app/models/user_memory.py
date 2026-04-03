@@ -16,3 +16,4 @@ class UserMemoryItem(Base):
     evidence_count: Mapped[int] = mapped_column(Integer, default=1)
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

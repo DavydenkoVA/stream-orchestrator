@@ -9,6 +9,7 @@ from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.dossier import DossierService
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
+from app.services.user_memory_service import UserMemoryService
 
 
 @dataclass(slots=True)
@@ -34,6 +35,7 @@ class FeatureContext:
     chat_memory: ChatMemoryService
     dossier: DossierService
     weekly_movies: WeeklyMoviesFileService
+    user_memory: UserMemoryService
 
 
 class FeatureHandler:

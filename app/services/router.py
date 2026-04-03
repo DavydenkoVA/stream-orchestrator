@@ -20,7 +20,7 @@ from app.services.features import (
     WeeklyMoviesFeatureHandler,
 )
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
-
+from app.services.user_memory_service import UserMemoryService
 
 class RouterService:
     def __init__(
@@ -34,6 +34,11 @@ class RouterService:
         self.weekly_movies = WeeklyMoviesFileService(settings.weekly_movies_file)
         self.llm = llm or build_llm_provider()
         self.prompts = prompt_store or PromptStore()
+        self.user_memory = UserMemoryService(
+            llm=self.llm,
+            prompts=self.prompts,
+            chat_memory=self.chat_memory,
+        )
         self.selector = selector or FeatureSelector(
             [
                 DossierFeatureHandler(),
@@ -175,6 +180,7 @@ class RouterService:
             chat_memory=self.chat_memory,
             dossier=self.dossier,
             weekly_movies=self.weekly_movies,
+            user_memory=self.user_memory,
         )
 
         handler = self.selector.select(request)

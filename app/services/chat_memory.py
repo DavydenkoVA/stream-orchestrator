@@ -1,4 +1,4 @@
-from sqlalchemy import or_, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
@@ -69,6 +69,8 @@ class ChatMemoryService:
         username: str,
         limit: int = 12,
     ) -> list[ChatMessage]:
+        from sqlalchemy import or_
+
         stmt = (
             select(ChatMessage)
             .where(
@@ -82,3 +84,82 @@ class ChatMemoryService:
             .limit(limit)
         )
         return list(reversed(list(db.scalars(stmt))))
+
+    def count_user_messages(
+        self,
+        db: Session,
+        *,
+        username: str,
+    ) -> int:
+        stmt = select(func.count(ChatMessage.id)).where(
+            ChatMessage.username == username,
+            ChatMessage.role == "viewer",
+        )
+        return int(db.scalar(stmt) or 0)
+
+    def count_unprocessed_user_messages(
+        self,
+        db: Session,
+        *,
+        username: str,
+    ) -> int:
+        stmt = select(func.count(ChatMessage.id)).where(
+            ChatMessage.username == username,
+            ChatMessage.role == "viewer",
+            ChatMessage.is_memory_processed.is_(False),
+        )
+        return int(db.scalar(stmt) or 0)
+
+    def recent_user_messages_for_memory(
+        self,
+        db: Session,
+        *,
+        username: str,
+        limit: int,
+    ) -> list[ChatMessage]:
+        stmt = (
+            select(ChatMessage)
+            .where(
+                ChatMessage.username == username,
+                ChatMessage.role == "viewer",
+            )
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(limit)
+        )
+        return list(reversed(list(db.scalars(stmt))))
+
+    def unprocessed_user_messages_for_memory(
+        self,
+        db: Session,
+        *,
+        username: str,
+        limit: int,
+    ) -> list[ChatMessage]:
+        stmt = (
+            select(ChatMessage)
+            .where(
+                ChatMessage.username == username,
+                ChatMessage.role == "viewer",
+                ChatMessage.is_memory_processed.is_(False),
+            )
+            .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+            .limit(limit)
+        )
+        return list(db.scalars(stmt))
+
+    def mark_messages_memory_processed(
+        self,
+        db: Session,
+        *,
+        message_ids: list[int],
+    ) -> None:
+        if not message_ids:
+            return
+
+        stmt = (
+            update(ChatMessage)
+            .where(ChatMessage.id.in_(message_ids))
+            .values(is_memory_processed=True)
+        )
+        db.execute(stmt)
+        db.commit()

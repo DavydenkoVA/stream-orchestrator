@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     twitch_message_limit: int = 450
     prompts_dir: str = str(BASE_DIR / "prompts")
 
+    user_memory_bootstrap_message_threshold: int = 10
+    user_memory_min_unprocessed_messages: int = 50
+    user_memory_extract_message_limit: int = 80
+    user_memory_max_items_per_user: int = 12
+    user_memory_min_confidence: float = 0.6
+
     chat_global_context_limit: int = 20
     chat_user_context_limit: int = 8
     chat_dialog_context_limit: int = 12

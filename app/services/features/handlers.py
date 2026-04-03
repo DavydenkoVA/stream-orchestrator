@@ -38,6 +38,10 @@ class DossierFeatureHandler(FeatureHandler):
                 route=self.route_name,
             )
 
+        await context.user_memory.refresh_user_memory_if_needed(
+            context.db,
+            normalized_target,
+        )
         context_data = context.dossier.build_context(context.db, normalized_target)
         recent_messages = context_data.get("recent_messages", [])
         memory_items = context_data.get("memory_items", [])
@@ -50,12 +54,12 @@ class DossierFeatureHandler(FeatureHandler):
 
         recent_block = "\n".join(f"- {msg}" for msg in recent_messages[:15]) or "- Нет данных"
         memory_block = (
-            "\n".join(
-                f"- [{item['kind']}] {item['text']} "
-                f"(confidence={item['confidence']}, evidence={item['evidence_count']})"
-                for item in memory_items[:10]
-            )
-            or "- Нет данных"
+                "\n".join(
+                    f"- type: {item['kind']}; fact: {item['text']}; "
+                    f"confidence: {item['confidence']}; evidence: {item['evidence_count']}"
+                    for item in memory_items[:10]
+                )
+                or "- Нет данных"
         )
 
         try:

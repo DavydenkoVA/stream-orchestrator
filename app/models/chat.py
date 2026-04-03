@@ -16,3 +16,4 @@ class ChatMessage(Base):
     text: Mapped[str] = mapped_column(Text)
     mentions_bot: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    is_memory_processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

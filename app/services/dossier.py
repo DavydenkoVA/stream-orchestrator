@@ -21,12 +21,11 @@ class DossierService:
                 .limit(30)
             )
         )
-
         memory_items = list(
             db.scalars(
                 select(UserMemoryItem)
                 .where(UserMemoryItem.username == normalized_username)
-                .order_by(UserMemoryItem.confidence.desc(), UserMemoryItem.created_at.desc())
+                .order_by(UserMemoryItem.confidence.desc(), UserMemoryItem.updated_at.desc(), UserMemoryItem.created_at.desc())
                 .limit(20)
             )
         )

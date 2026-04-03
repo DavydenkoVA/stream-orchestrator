@@ -1,0 +1,16 @@
+Пользователь: {username}
+
+Сообщения:
+{messages_block}
+
+Выдели не более 5 memory items.
+
+Верни JSON строго в формате:
+[
+  {{
+    "kind": "preference | pattern | topic | joke | quote | meta",
+    "text": "краткое наблюдение",
+    "evidence_count": 1,
+    "confidence": 0.0
+  }}
+]
