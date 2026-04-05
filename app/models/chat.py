@@ -15,5 +15,11 @@ class ChatMessage(Base):
     role: Mapped[str] = mapped_column(String(32), default="viewer", index=True)
     text: Mapped[str] = mapped_column(Text)
     mentions_bot: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    message_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    reply_to_message_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    reply_to_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reply_to_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     is_memory_processed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

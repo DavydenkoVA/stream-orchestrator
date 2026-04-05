@@ -6,14 +6,18 @@ from app.models.chat import ChatMessage
 
 class ChatMemoryService:
     def save_message(
-        self,
-        db: Session,
-        *,
-        stream_id: str,
-        username: str,
-        text: str,
-        mentions_bot: bool,
-        role: str = "viewer",
+            self,
+            db: Session,
+            *,
+            stream_id: str,
+            username: str,
+            text: str,
+            mentions_bot: bool,
+            role: str = "viewer",
+            message_id: str | None = None,
+            reply_to_message_id: str | None = None,
+            reply_to_username: str | None = None,
+            reply_to_text: str | None = None,
     ) -> ChatMessage:
         message = ChatMessage(
             stream_id=stream_id,
@@ -21,6 +25,10 @@ class ChatMemoryService:
             role=role,
             text=text,
             mentions_bot=mentions_bot,
+            message_id=message_id,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_username=reply_to_username,
+            reply_to_text=reply_to_text,
         )
         db.add(message)
         db.commit()

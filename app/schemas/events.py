@@ -13,5 +13,10 @@ class ChatEvent(BaseModel):
 
     channel: str | None = None
     message_id: str | None = None
+
+    reply_to_message_id: str | None = None
+    reply_to_username: str | None = None
+    reply_to_text: str | None = None
+
     is_mod: bool = False
     is_broadcaster: bool = False

@@ -66,16 +66,25 @@ class RouterService:
         return any(trigger in normalized for trigger in triggers)
 
     def ingest_chat_event(
-        self,
-        db: Session,
-        *,
-        stream_id: str,
-        username: str,
-        text: str,
-        mentions_bot: bool,
-        role: str = "viewer",
+            self,
+            db: Session,
+            *,
+            stream_id: str,
+            username: str,
+            text: str,
+            mentions_bot: bool,
+            role: str = "viewer",
+            message_id: str | None = None,
+            reply_to_message_id: str | None = None,
+            reply_to_username: str | None = None,
+            reply_to_text: str | None = None,
     ) -> None:
         normalized_username = self.normalize_username(username)
+        normalized_reply_to_username = (
+            self.normalize_username(reply_to_username)
+            if reply_to_username
+            else None
+        )
 
         self.chat_memory.save_message(
             db,
@@ -84,6 +93,10 @@ class RouterService:
             text=text,
             mentions_bot=mentions_bot,
             role=role,
+            message_id=message_id,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_username=normalized_reply_to_username,
+            reply_to_text=reply_to_text,
         )
 
     def build_chat_context(
@@ -146,14 +159,18 @@ class RouterService:
         }
 
     async def handle_chat_reply(
-        self,
-        db: Session,
-        *,
-        stream_id: str,
-        username: str,
-        text: str,
-        mentions_bot: bool,
-        role: str = "viewer",
+            self,
+            db: Session,
+            *,
+            stream_id: str,
+            username: str,
+            text: str,
+            mentions_bot: bool,
+            role: str = "viewer",
+            message_id: str | None = None,
+            reply_to_message_id: str | None = None,
+            reply_to_username: str | None = None,
+            reply_to_text: str | None = None,
     ) -> tuple[str, str]:
         self.ingest_chat_event(
             db,
@@ -162,7 +179,12 @@ class RouterService:
             text=text,
             mentions_bot=mentions_bot,
             role=role,
+            message_id=message_id,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_username=reply_to_username,
+            reply_to_text=reply_to_text,
         )
+
         if role == "bot":
             return "", "ignored"
 
@@ -172,7 +194,12 @@ class RouterService:
             text=text.strip(),
             mentions_bot=mentions_bot,
             role=role,
+            message_id=message_id,
+            reply_to_message_id=reply_to_message_id,
+            reply_to_username=reply_to_username,
+            reply_to_text=reply_to_text,
         )
+
         context = FeatureContext(
             db=db,
             llm=self.llm,

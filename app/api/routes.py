@@ -31,6 +31,10 @@ def ingest_chat_event(
         text=payload.text,
         mentions_bot=payload.mentions_bot,
         role=payload.role,
+        message_id=payload.message_id,
+        reply_to_message_id=payload.reply_to_message_id,
+        reply_to_username=payload.reply_to_username,
+        reply_to_text=payload.reply_to_text,
     )
     return IngestResponse()
 
@@ -48,6 +52,10 @@ async def reply_chat_event(
             text=payload.text,
             mentions_bot=payload.mentions_bot,
             role=payload.role,
+            message_id=payload.message_id,
+            reply_to_message_id=payload.reply_to_message_id,
+            reply_to_username=payload.reply_to_username,
+            reply_to_text=payload.reply_to_text,
         )
 
         return ChatReply(

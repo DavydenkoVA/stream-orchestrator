@@ -176,11 +176,18 @@ class MentionChatFeatureHandler(FeatureHandler):
             f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent
         ) or "Нет данных."
 
+        reply_context_block = "Нет"
+
+        if request.reply_to_text:
+            parent_user = request.reply_to_username or "unknown"
+            reply_context_block = f"{parent_user}: {request.reply_to_text}"
+
         system_prompt = context.prompts.read("chat_system.txt")
         user_prompt = context.prompts.render(
             "chat_user_template.txt",
             username=request.username,
             text=request.text.strip(),
+            reply_context_block=reply_context_block,
             user_recent_block=user_recent_block,
             global_recent_block=global_recent_block,
             dialog_recent_block=dialog_recent_block,

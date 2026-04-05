@@ -19,6 +19,10 @@ class ChatRequest:
     text: str
     mentions_bot: bool
     role: str = "viewer"
+    message_id: str | None = None
+    reply_to_message_id: str | None = None
+    reply_to_username: str | None = None
+    reply_to_text: str | None = None
 
 
 @dataclass(slots=True)
