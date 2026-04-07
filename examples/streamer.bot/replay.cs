@@ -7,6 +7,11 @@ public class CPHInline
 {
     public bool Execute()
     {
+        string orchestratorUrl = "http://127.0.0.1:8000";
+        string botMention = "@robokot_bot";
+        string botUserName = "robokot_bot";
+        string streamId = "main-stream";
+
         CPH.TryGetArg("userName", out string userName);
         CPH.TryGetArg("message", out string message);
         CPH.TryGetArg("reply.threadMsgId", out string msgId);
@@ -17,10 +22,12 @@ public class CPHInline
             return true;
         }
 
-        string orchestratorUrl = "http://127.0.0.1:8000";
-        string botMention = "@robokot_bot";
-        string botUserName = "robokot_bot";
-        string streamId = "main-stream";
+        // Не реагировать на собственные сообщения бота
+        if (string.Equals(userName, botUserName, StringComparison.OrdinalIgnoreCase))
+        {
+            CPH.LogInfo("DEBUG: ignore own bot message");
+            return true;
+        }
 
         if (message.IndexOf(botMention, StringComparison.OrdinalIgnoreCase) < 0)
         {
@@ -63,7 +70,6 @@ public class CPHInline
                 if (!shouldReply || string.IsNullOrWhiteSpace(replyText))
                     return true;
 
-                // reply в тред
                 if (!string.IsNullOrWhiteSpace(msgId))
                 {
                     CPH.SetArgument("replyMessageId", msgId);
@@ -71,7 +77,6 @@ public class CPHInline
 
                 CPH.SendMessage(replyText, true, true);
 
-                // лог бота обратно
                 string botPayload =
                     "{"
                     + "\"stream_id\":\"" + EscapeJson(streamId) + "\","
