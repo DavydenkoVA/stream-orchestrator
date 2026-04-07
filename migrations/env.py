@@ -1,54 +1,139 @@
-from logging.config import fileConfig
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.RegularExpressions;
 
-from sqlalchemy import engine_from_config, pool
-from alembic import context
+public class CPHInline
+{
+    public bool Execute()
+    {
+        CPH.TryGetArg("userName", out string userName);
+        CPH.TryGetArg("rawInput", out string message);
+        CPH.TryGetArg("reply.threadMsgId", out string msgId);
 
-from app.config import settings
-from app.db import Base
-import app.models  # noqa: F401
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(message))
+        {
+            CPH.LogInfo("DEBUG: empty userName or message");
+            return true;
+        }
 
-config = context.config
+        string orchestratorUrl = "http://127.0.0.1:8000";
+        string botMention = "@robokot_bot";
+        string botUserName = "robokot_bot";
+        string streamId = "main-stream";
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+        if (message.IndexOf(botMention, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            CPH.LogInfo("DEBUG: no bot mention");
+            return true;
+        }
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+        string payload =
+            "{"
+            + "\"stream_id\":\"" + EscapeJson(streamId) + "\","
+            + "\"username\":\"" + EscapeJson(userName) + "\","
+            + "\"text\":\"" + EscapeJson(message) + "\","
+            + "\"mentions_bot\":true,"
+            + "\"role\":\"viewer\""
+            + "}";
 
-target_metadata = Base.metadata
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                client.Timeout = TimeSpan.FromSeconds(20);
 
+                using (var content = new StringContent(payload, Encoding.UTF8, "application/json"))
+                {
+                    var response = client.PostAsync(orchestratorUrl + "/events/chat_reply", content)
+                        .GetAwaiter()
+                        .GetResult();
 
-def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-    context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        compare_type=True,
-    )
+                    string responseBody = response.Content.ReadAsStringAsync()
+                        .GetAwaiter()
+                        .GetResult();
 
-    with context.begin_transaction():
-        context.run_migrations()
+                    CPH.LogInfo("AI reply status: " + ((int)response.StatusCode));
+                    CPH.LogInfo("AI reply body: " + responseBody);
 
+                    if (!response.IsSuccessStatusCode)
+                        return true;
 
-def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+                    bool shouldReply = ExtractBool(responseBody, "should_reply");
+                    string replyText = ExtractString(responseBody, "reply_text");
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-        )
+                    if (!shouldReply || string.IsNullOrWhiteSpace(replyText))
+                        return true;
 
-        with context.begin_transaction():
-            context.run_migrations()
+                    if (!string.IsNullOrWhiteSpace(msgId))
+                    {
+                        CPH.SetArgument("replyMessageId", msgId);
+                    }
 
+                    CPH.SendMessage(replyText, true, true);
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+                    // логируем ответ бота обратно в оркестратор
+                    string botPayload =
+                        "{"
+                        + "\"stream_id\":\"" + EscapeJson(streamId) + "\","
+                        + "\"username\":\"" + EscapeJson(botUserName) + "\","
+                        + "\"text\":\"" + EscapeJson(replyText) + "\","
+                        + "\"mentions_bot\":false,"
+                        + "\"role\":\"bot\""
+                        + "}";
+
+                    using (var botContent = new StringContent(botPayload, Encoding.UTF8, "application/json"))
+                    {
+                        client.PostAsync(orchestratorUrl + "/events/chat_ingest", botContent)
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CPH.LogError("AI reply action failed: " + ex.ToString());
+        }
+
+        return true;
+    }
+
+    private string EscapeJson(string value)
+    {
+        if (value == null)
+            return "";
+
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n")
+            .Replace("\t", "\\t");
+    }
+
+    private bool ExtractBool(string json, string fieldName)
+    {
+        string pattern = "\"" + Regex.Escape(fieldName) + "\"\\s*:\\s*(true|false)";
+        Match match = Regex.Match(json, pattern, RegexOptions.IgnoreCase);
+        return match.Success && match.Groups[1].Value.ToLower() == "true";
+    }
+
+    private string ExtractString(string json, string fieldName)
+    {
+        string pattern = "\"" + Regex.Escape(fieldName) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"";
+        Match match = Regex.Match(json, pattern, RegexOptions.Singleline);
+
+        if (!match.Success)
+            return "";
+
+        string value = match.Groups[1].Value;
+
+        return value
+            .Replace("\\n", "\n")
+            .Replace("\\r", "\r")
+            .Replace("\\t", "\t")
+            .Replace("\\\"", "\"")
+            .Replace("\\\\", "\\");
+    }
+}
