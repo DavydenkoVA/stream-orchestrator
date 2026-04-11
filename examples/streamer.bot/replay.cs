@@ -8,8 +8,8 @@ public class CPHInline
     public bool Execute()
     {
         string orchestratorUrl = "http://127.0.0.1:8000";
-        string botMention = "@streamer_bot";
-        string botUserName = "streamer_bot";
+        string botMention = "@robokot_bot";
+        string botUserName = "robokot_bot";
         string streamId = "main-stream";
 
         CPH.TryGetArg("userName", out string userName);
