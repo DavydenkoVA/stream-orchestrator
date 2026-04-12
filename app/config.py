@@ -22,24 +22,12 @@ class Settings(BaseSettings):
 
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
-    llm_provider: str = "mock"
-    llm_api_key: str = ""
-    llm_base_url: str = ""
-    llm_model: str = ""
-    llm_temperature: float = 0.7
-    llm_max_output_tokens: int = 400
+    llm_timeout_seconds: int = 30
 
-    llm_profiles_config_path: str = str(BASE_DIR / "config" / "llm_profiles.yml")
-
-    twitch_message_limit: int = 500
+    twitch_message_limit: int = 450
     prompts_dir: str = str(BASE_DIR / "prompts")
 
-    chat_global_context_limit: int = 20
-    chat_user_context_limit: int = 8
-    chat_dialog_context_limit: int = 12
-
-    bot_username: str = "stream_bot"
-    weekly_movies_file: str = ""
+    llm_profiles_config_path: str = str(BASE_DIR / "config" / "llm_profiles.yml")
 
     user_memory_bootstrap_message_threshold: int = 10
     user_memory_min_unprocessed_messages: int = 50
@@ -47,5 +35,18 @@ class Settings(BaseSettings):
     user_memory_max_items_per_user: int = 12
     user_memory_min_confidence: float = 0.6
 
+    chat_global_context_limit: int = 20
+    chat_user_context_limit: int = 8
+    chat_dialog_context_limit: int = 12
+
+    bot_username: str = "stream_bot"
+
+    streamerbot_base_url: str = "http://127.0.0.1:7474"
+    streamerbot_auth_token: str = ""
+
+    obs_ws_url: str = "ws://127.0.0.1:4455"
+    obs_ws_password: str = ""
+
+    weekly_movies_file: str = ""
 
 settings = Settings()
