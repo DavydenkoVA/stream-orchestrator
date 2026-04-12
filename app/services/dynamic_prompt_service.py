@@ -44,6 +44,9 @@ class DynamicPromptService:
         prompt_name: str,
         user: str,
         data: dict[str, Any],
+        llm_provider_override: str | None = None,
+        temperature_override: float | None = None,
+        max_output_tokens_override: int | None = None,
     ) -> tuple[str, str]:
         try:
             system_name, template_name = self._resolve_prompt_names(prompt_name)
@@ -82,7 +85,12 @@ class DynamicPromptService:
             logger.exception("Dynamic prompt render failed: prompt=%s", prompt_name)
             return "fallback", ""
 
-        llm, feature_cfg = self.llm_registry.get_for_feature("dynamic_prompt")
+        llm, feature_cfg = self.llm_registry.get_for_feature_with_override(
+            "dynamic_prompt",
+            provider_override=llm_provider_override,
+            temperature_override=temperature_override,
+            max_output_tokens_override=max_output_tokens_override,
+        )
 
         try:
             reply = await llm.generate_text(
