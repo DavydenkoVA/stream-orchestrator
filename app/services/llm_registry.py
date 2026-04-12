@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,8 +48,9 @@ class LLMRegistry:
         feature_settings: dict[str, FeatureLLMSettings] = {}
 
         for name, cfg in providers_raw.items():
-            api_key_env = str(cfg.get("api_key_env", "")).strip()
-            api_key = os.getenv(api_key_env, "") if api_key_env else ""
+            api_key = str(cfg.get("api_key", "")).strip()
+            if not api_key:
+                raise ValueError(f"Provider '{name}' has empty api_key")
 
             providers[name] = ProviderProfile(
                 name=name,

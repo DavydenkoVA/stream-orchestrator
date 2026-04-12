@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     llm_timeout_seconds: int = 30
+    llm_temperature: float = 0.7
+    llm_max_output_tokens: int = 400
 
     twitch_message_limit: int = 450
     prompts_dir: str = str(BASE_DIR / "prompts")
