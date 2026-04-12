@@ -7,12 +7,17 @@ from app.db import get_db
 from app.schemas.events import ChatEvent
 from app.schemas.responses import ChatReply, DebugContextResponse, IngestResponse
 from app.services.router import RouterService
+from app.schemas.dynamic_prompt import DynamicPromptRequest, DynamicPromptResponse
+from app.services.dynamic_prompt_service import DynamicPromptService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 service = RouterService()
-
+dynamic_prompt_service = DynamicPromptService(
+    llm=service.llm,
+    prompts=service.prompts,
+)
 
 @router.get("/health")
 def healthcheck() -> dict:
@@ -86,3 +91,13 @@ def get_prompt(name: str) -> dict:
     from app.prompt_store import PromptStore
     store = PromptStore()
     return {"name": name, "content": store.read(name)}
+
+@router.post("/events/dynamic_prompt", response_model=DynamicPromptResponse)
+async def dynamic_prompt_event(payload: DynamicPromptRequest) -> DynamicPromptResponse:
+    result, message = await dynamic_prompt_service.generate(
+        prompt_name=payload.prompt,
+        user=payload.user,
+        data=payload.data,
+    )
+    return DynamicPromptResponse(result=result, message=message)
+

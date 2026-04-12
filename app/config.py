@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     llm_max_output_tokens: int = 400
 
     twitch_message_limit: int = 450
-    prompts_dir: str = str(BASE_DIR / "prompts")
+    prompts_dir: str = str(BASE_DIR / "example-prompts")
 
     user_memory_bootstrap_message_threshold: int = 10
     user_memory_min_unprocessed_messages: int = 50
