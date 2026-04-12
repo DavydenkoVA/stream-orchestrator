@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
@@ -6,10 +8,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.integrations.llm.base import LLMProvider
 from app.models.user_memory import UserMemoryItem
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
+from app.services.llm_registry import LLMRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +20,11 @@ class UserMemoryService:
     def __init__(
         self,
         *,
-        llm: LLMProvider,
+        llm_registry: LLMRegistry,
         prompts: PromptStore,
         chat_memory: ChatMemoryService,
     ) -> None:
-        self.llm = llm
+        self.llm_registry = llm_registry
         self.prompts = prompts
         self.chat_memory = chat_memory
 
@@ -74,6 +76,8 @@ class UserMemoryService:
         if not messages:
             return []
 
+        llm, feature_cfg = self.llm_registry.get_for_feature("user_memory")
+
         messages_block = "\n".join(f"- {msg}" for msg in messages)
 
         system_prompt = self.prompts.read("user_memory_system.txt")
@@ -83,11 +87,11 @@ class UserMemoryService:
             messages_block=messages_block,
         )
 
-        raw = await self.llm.generate_text(
+        raw = await llm.generate_text(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.2,
-            max_output_tokens=800,
+            temperature=feature_cfg.temperature,
+            max_output_tokens=feature_cfg.max_output_tokens,
         )
 
         try:

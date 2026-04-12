@@ -4,11 +4,11 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.integrations.llm.base import LLMProvider
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.dossier import DossierService
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
+from app.services.llm_registry import LLMRegistry
 from app.services.user_memory_service import UserMemoryService
 
 
@@ -34,7 +34,7 @@ class FeatureResponse:
 @dataclass(slots=True)
 class FeatureContext:
     db: Session
-    llm: LLMProvider
+    llm_registry: LLMRegistry
     prompts: PromptStore
     chat_memory: ChatMemoryService
     dossier: DossierService

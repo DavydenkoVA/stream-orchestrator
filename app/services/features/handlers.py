@@ -62,8 +62,10 @@ class DossierFeatureHandler(FeatureHandler):
                 or "- Нет данных"
         )
 
+        llm, feature_cfg = context.llm_registry.get_for_feature("dossier")
+
         try:
-            reply = await context.llm.generate_text(
+            reply = await llm.generate_text(
                 system_prompt=context.prompts.read("dossier_system.txt"),
                 user_prompt=context.prompts.render(
                     "dossier_user_template.txt",
@@ -71,8 +73,8 @@ class DossierFeatureHandler(FeatureHandler):
                     recent_block=recent_block,
                     memory_block=memory_block,
                 ),
-                temperature=settings.llm_temperature,
-                max_output_tokens=settings.llm_max_output_tokens,
+                temperature=feature_cfg.temperature,
+                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Dossier generation failed")
@@ -116,16 +118,18 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
                 weekly_movies_data["message"] or "Список фильмов на эту неделю пока пуст."
             )
 
+        llm, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
+
         try:
-            reply = await context.llm.generate_text(
+            reply = await llm.generate_text(
                 system_prompt=context.prompts.read("weekly_movies_system.txt"),
                 user_prompt=context.prompts.render(
                     "weekly_movies_user_template.txt",
                     user_text=request.text.strip(),
                     file_content=file_content,
                 ),
-                temperature=settings.llm_temperature,
-                max_output_tokens=settings.llm_max_output_tokens,
+                temperature=feature_cfg.temperature,
+                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Weekly movies reply failed")
@@ -193,12 +197,14 @@ class MentionChatFeatureHandler(FeatureHandler):
             dialog_recent_block=dialog_recent_block,
         )
 
+        llm, feature_cfg = context.llm_registry.get_for_feature("chat")
+
         try:
-            reply = await context.llm.generate_text(
+            reply = await llm.generate_text(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                temperature=settings.llm_temperature,
-                max_output_tokens=settings.llm_max_output_tokens,
+                temperature=feature_cfg.temperature,
+                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Chat reply generation failed")

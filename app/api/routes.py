@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 service = RouterService()
 dynamic_prompt_service = DynamicPromptService(
-    llm=service.llm,
+    llm_registry=service.llm_registry,
     prompts=service.prompts,
 )
 

@@ -5,8 +5,6 @@ import re
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.integrations.llm.base import LLMProvider
-from app.integrations.llm.factory import build_llm_provider
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.dossier import DossierService
@@ -20,22 +18,23 @@ from app.services.features import (
     WeeklyMoviesFeatureHandler,
 )
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
+from app.services.llm_registry import LLMRegistry
 from app.services.user_memory_service import UserMemoryService
+
 
 class RouterService:
     def __init__(
         self,
-        llm: LLMProvider | None = None,
         prompt_store: PromptStore | None = None,
         selector: FeatureSelector | None = None,
     ) -> None:
         self.chat_memory = ChatMemoryService()
         self.dossier = DossierService()
         self.weekly_movies = WeeklyMoviesFileService(settings.weekly_movies_file)
-        self.llm = llm or build_llm_provider()
         self.prompts = prompt_store or PromptStore()
+        self.llm_registry = LLMRegistry()
         self.user_memory = UserMemoryService(
-            llm=self.llm,
+            llm_registry=self.llm_registry,
             prompts=self.prompts,
             chat_memory=self.chat_memory,
         )
@@ -202,7 +201,7 @@ class RouterService:
 
         context = FeatureContext(
             db=db,
-            llm=self.llm,
+            llm_registry=self.llm_registry,
             prompts=self.prompts,
             chat_memory=self.chat_memory,
             dossier=self.dossier,

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
-from app.integrations.llm.base import LLMProvider
 from app.prompt_store import PromptStore
+from app.services.llm_registry import LLMRegistry
 from app.text_utils import prepare_chat_text
 
 logger = logging.getLogger(__name__)
@@ -17,10 +17,10 @@ class DynamicPromptService:
     def __init__(
         self,
         *,
-        llm: LLMProvider,
+        llm_registry: LLMRegistry,
         prompts: PromptStore,
     ) -> None:
-        self.llm = llm
+        self.llm_registry = llm_registry
         self.prompts = prompts
 
     def _validate_prompt_name(self, prompt_name: str) -> str:
@@ -45,11 +45,6 @@ class DynamicPromptService:
         user: str,
         data: dict[str, Any],
     ) -> tuple[str, str]:
-        """
-        Returns:
-            ("success", "<message>") on success
-            ("fallback", "") on any recoverable failure
-        """
         try:
             system_name, template_name = self._resolve_prompt_names(prompt_name)
         except Exception:
@@ -63,6 +58,9 @@ class DynamicPromptService:
                 system_name,
                 template_name,
             )
+            return "fallback", ""
+
+        if not isinstance(data, dict):
             return "fallback", ""
 
         try:
@@ -84,12 +82,14 @@ class DynamicPromptService:
             logger.exception("Dynamic prompt render failed: prompt=%s", prompt_name)
             return "fallback", ""
 
+        llm, feature_cfg = self.llm_registry.get_for_feature("dynamic_prompt")
+
         try:
-            reply = await self.llm.generate_text(
+            reply = await llm.generate_text(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                temperature=settings.llm_temperature,
-                max_output_tokens=settings.llm_max_output_tokens,
+                temperature=feature_cfg.temperature,
+                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Dynamic prompt LLM call failed: prompt=%s", prompt_name)

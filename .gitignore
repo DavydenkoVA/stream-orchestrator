@@ -2,3 +2,4 @@
 data/sqlite/app.db
 /.venv/
 /.idea/
+config/llm_profiles.yml
