@@ -1,3 +1,6 @@
+import logging
+from collections.abc import Callable
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -25,6 +28,22 @@ dynamic_prompt_service = DynamicPromptService(
     prompts=service.prompts,
     style_prompt=service.style_prompt,
 )
+logger = logging.getLogger(__name__)
+
+
+def _run_trace_safely(action: str, operation: Callable[[], None]) -> None:
+    try:
+        operation()
+    except Exception:
+        logger.warning("trace operation failed: %s", action, exc_info=True)
+
+
+def _start_request_trace(*, route: str, stream_id: str | None, db: Session) -> None:
+    def _operation() -> None:
+        start_trace(route=route, stream_id=stream_id, db=db)
+        trace_info("request.start", "request started", payload={"route": route})
+
+    _run_trace_safely("start_request_trace", _operation)
 
 def _error_code_for_exception(exc: Exception) -> str:
     if isinstance(exc, HTTPException):
@@ -48,8 +67,8 @@ def ingest_chat_event(
     request: Request,
     db: Session = Depends(get_db),
 ) -> IngestResponse:
-    start_trace(route=str(request.url.path), stream_id=payload.stream_id, db=db)
-    trace_info("request.start", "chat ingest request started", payload={"route": str(request.url.path)})
+    route = str(request.url.path)
+    _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
     try:
         service.ingest_chat_event(
             db,
@@ -63,13 +82,19 @@ def ingest_chat_event(
             reply_to_username=payload.reply_to_username,
             reply_to_text=payload.reply_to_text,
         )
-        trace_success("request.finish", "chat ingest request finished")
-        finish_trace_success(summary="chat_ingest success")
+        _run_trace_safely("chat_ingest_finish_success", lambda: trace_success("request.finish", "chat ingest request finished"))
+        _run_trace_safely("chat_ingest_mark_success", lambda: finish_trace_success(summary="chat_ingest success"))
         return IngestResponse()
     except Exception as exc:
         error_code = _error_code_for_exception(exc)
-        trace_failure("request.finish", "chat ingest request failed", error_code=error_code)
-        finish_trace_failure(error_code=error_code, summary="chat_ingest failed")
+        _run_trace_safely(
+            "chat_ingest_finish_failure",
+            lambda: trace_failure("request.finish", "chat ingest request failed", error_code=error_code),
+        )
+        _run_trace_safely(
+            "chat_ingest_mark_failure",
+            lambda: finish_trace_failure(error_code=error_code, summary="chat_ingest failed"),
+        )
         raise
 
 
@@ -79,8 +104,8 @@ async def reply_chat_event(
     request: Request,
     db: Session = Depends(get_db),
 ) -> ChatReply:
-    start_trace(route=str(request.url.path), stream_id=payload.stream_id, db=db)
-    trace_info("request.start", "chat reply request started", payload={"route": str(request.url.path)})
+    route = str(request.url.path)
+    _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
     try:
         reply_text, route = await service.handle_chat_reply(
             db,
@@ -95,8 +120,11 @@ async def reply_chat_event(
             reply_to_text=payload.reply_to_text,
         )
 
-        trace_success("request.finish", "chat reply request finished", payload={"route_result": route})
-        finish_trace_success(summary=f"chat_reply {route}")
+        _run_trace_safely(
+            "chat_reply_finish_success",
+            lambda: trace_success("request.finish", "chat reply request finished", payload={"route_result": route}),
+        )
+        _run_trace_safely("chat_reply_mark_success", lambda: finish_trace_success(summary=f"chat_reply {route}"))
         return ChatReply(
             reply_text=reply_text,
             route=route,
@@ -104,8 +132,14 @@ async def reply_chat_event(
         )
     except Exception as exc:
         error_code = _error_code_for_exception(exc)
-        trace_failure("request.finish", "chat reply request failed", error_code=error_code)
-        finish_trace_failure(error_code=error_code, summary="chat_reply failed")
+        _run_trace_safely(
+            "chat_reply_finish_failure",
+            lambda: trace_failure("request.finish", "chat reply request failed", error_code=error_code),
+        )
+        _run_trace_safely(
+            "chat_reply_mark_failure",
+            lambda: finish_trace_failure(error_code=error_code, summary="chat_reply failed"),
+        )
         raise
 
 
@@ -170,8 +204,8 @@ async def dynamic_prompt_event(
     request: Request,
     db: Session = Depends(get_db),
 ) -> DynamicPromptResponse:
-    start_trace(route=str(request.url.path), stream_id=None, db=db)
-    trace_info("request.start", "dynamic prompt request started", payload={"route": str(request.url.path)})
+    route = str(request.url.path)
+    _start_request_trace(route=route, stream_id=None, db=db)
     try:
         result, message = await dynamic_prompt_service.generate(
             db=db,
@@ -187,11 +221,23 @@ async def dynamic_prompt_event(
         if result != "success":
             message = ""
 
-        trace_success("request.finish", "dynamic prompt request finished", payload={"result": result})
-        finish_trace_success(summary=f"dynamic_prompt {result}")
+        _run_trace_safely(
+            "dynamic_prompt_finish_success",
+            lambda: trace_success("request.finish", "dynamic prompt request finished", payload={"result": result}),
+        )
+        _run_trace_safely(
+            "dynamic_prompt_mark_success",
+            lambda: finish_trace_success(summary=f"dynamic_prompt {result}"),
+        )
         return DynamicPromptResponse(result=result, message=message)
     except Exception as exc:
         error_code = _error_code_for_exception(exc)
-        trace_failure("request.finish", "dynamic prompt request failed", error_code=error_code)
-        finish_trace_failure(error_code=error_code, summary="dynamic_prompt failed")
+        _run_trace_safely(
+            "dynamic_prompt_finish_failure",
+            lambda: trace_failure("request.finish", "dynamic prompt request failed", error_code=error_code),
+        )
+        _run_trace_safely(
+            "dynamic_prompt_mark_failure",
+            lambda: finish_trace_failure(error_code=error_code, summary="dynamic_prompt failed"),
+        )
         raise
