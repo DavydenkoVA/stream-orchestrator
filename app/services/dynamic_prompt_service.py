@@ -4,12 +4,15 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.prompt_store import PromptStore
 from app.services.llm_registry import LLMRegistry
 from app.text_utils import prepare_chat_text
 from app.services.style_prompt import StylePromptService
+from app.services.llm_execution_service import LLMExecutionService
+
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +22,12 @@ class DynamicPromptService:
         self,
         *,
         llm_registry: LLMRegistry,
+        llm_executor: LLMExecutionService,
         prompts: PromptStore,
         style_prompt: StylePromptService,
     ) -> None:
         self.llm_registry = llm_registry
+        self.llm_executor = llm_executor
         self.prompts = prompts
         self.style_prompt = style_prompt
 
@@ -44,6 +49,7 @@ class DynamicPromptService:
     async def generate(
         self,
         *,
+        db: Session,
         prompt_name: str,
         user: str,
         data: dict[str, Any],
@@ -70,7 +76,7 @@ class DynamicPromptService:
         if not isinstance(data, dict):
             return "fallback", ""
 
-        llm, feature_cfg = self.llm_registry.get_for_feature_with_override(
+        pool, feature_cfg = self.llm_registry.get_for_feature_with_override(
             "dynamic_prompt",
             provider_override=llm_provider_override,
             style_override=style_override,
@@ -102,11 +108,12 @@ class DynamicPromptService:
             return "fallback", ""
 
         try:
-            reply = await llm.generate_text(
+            reply = await self.llm_executor.generate_text_with_pool(
+                db=db,
+                pool=pool,
+                feature_settings=feature_cfg,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                temperature=feature_cfg.temperature,
-                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Dynamic prompt LLM call failed: prompt=%s", prompt_name)

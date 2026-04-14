@@ -62,7 +62,7 @@ class DossierFeatureHandler(FeatureHandler):
                 or "- Нет данных"
         )
 
-        llm, feature_cfg = context.llm_registry.get_for_feature("dossier")
+        pool, feature_cfg = context.llm_registry.get_for_feature("dossier")
         base_system_prompt = context.prompts.read("dossier_system.txt")
         system_prompt = context.style_prompt.apply_style(
             base_system_prompt,
@@ -70,7 +70,10 @@ class DossierFeatureHandler(FeatureHandler):
         )
 
         try:
-            reply = await llm.generate_text(
+            reply = await context.llm_executor.generate_text_with_pool(
+                db=context.db,
+                pool=pool,
+                feature_settings=feature_cfg,
                 system_prompt=system_prompt,
                 user_prompt=context.prompts.render(
                     "dossier_user_template.txt",
@@ -78,8 +81,6 @@ class DossierFeatureHandler(FeatureHandler):
                     recent_block=recent_block,
                     memory_block=memory_block,
                 ),
-                temperature=feature_cfg.temperature,
-                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Dossier generation failed")
@@ -123,7 +124,7 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
                 weekly_movies_data["message"] or "Список фильмов на эту неделю пока пуст."
             )
 
-        llm, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
+        pool, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
         base_system_prompt = context.prompts.read("weekly_movies_system.txt")
         system_prompt = context.style_prompt.apply_style(
             base_system_prompt,
@@ -131,15 +132,16 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
         )
 
         try:
-            reply = await llm.generate_text(
+            reply = await context.llm_executor.generate_text_with_pool(
+                db=context.db,
+                pool=pool,
+                feature_settings=feature_cfg,
                 system_prompt=system_prompt,
                 user_prompt=context.prompts.render(
                     "weekly_movies_user_template.txt",
                     user_text=request.text.strip(),
                     file_content=file_content,
                 ),
-                temperature=feature_cfg.temperature,
-                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Weekly movies reply failed")
@@ -197,7 +199,7 @@ class MentionChatFeatureHandler(FeatureHandler):
             reply_context_block = f"{parent_user}: {request.reply_to_text}"
 
         base_system_prompt = context.prompts.read("chat_system.txt")
-        llm, feature_cfg = context.llm_registry.get_for_feature("chat")
+        pool, feature_cfg = context.llm_registry.get_for_feature("chat")
         system_prompt = context.style_prompt.apply_style(
             base_system_prompt,
             feature_cfg.style,
@@ -213,11 +215,12 @@ class MentionChatFeatureHandler(FeatureHandler):
         )
 
         try:
-            reply = await llm.generate_text(
+            reply = await context.llm_executor.generate_text_with_pool(
+                db=context.db,
+                pool=pool,
+                feature_settings=feature_cfg,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                temperature=feature_cfg.temperature,
-                max_output_tokens=feature_cfg.max_output_tokens,
             )
         except Exception:
             logger.exception("Chat reply generation failed")

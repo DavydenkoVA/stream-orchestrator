@@ -8,9 +8,11 @@ from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.dossier import DossierService
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
+from app.services.llm_execution_service import LLMExecutionService
 from app.services.llm_registry import LLMRegistry
-from app.services.user_memory_service import UserMemoryService
 from app.services.style_prompt import StylePromptService
+from app.services.user_memory_service import UserMemoryService
+
 
 @dataclass(slots=True)
 class ChatRequest:
@@ -35,6 +37,7 @@ class FeatureResponse:
 class FeatureContext:
     db: Session
     llm_registry: LLMRegistry
+    llm_executor: LLMExecutionService
     prompts: PromptStore
     chat_memory: ChatMemoryService
     dossier: DossierService

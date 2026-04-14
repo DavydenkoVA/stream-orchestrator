@@ -11,12 +11,18 @@ from app.integrations.llm.factory import build_llm_provider_from_config
 
 
 @dataclass(slots=True)
-class ProviderProfile:
+class ModelEndpointConfig:
     name: str
-    provider: str
     api_key: str
     base_url: str
     model: str
+
+
+@dataclass(slots=True)
+class ProviderPoolConfig:
+    name: str
+    provider: str
+    models: list[ModelEndpointConfig]
 
 
 @dataclass(slots=True)
@@ -33,7 +39,7 @@ class LLMRegistry:
         self.config_path = Path(config_path or settings.llm_profiles_config_path)
         self._provider_instances: dict[str, tuple[str, LLMProvider]] = {}
 
-    def _load(self) -> tuple[dict[str, ProviderProfile], dict[str, FeatureLLMSettings]]:
+    def _load(self) -> tuple[dict[str, ProviderPoolConfig], dict[str, FeatureLLMSettings]]:
         if not self.config_path.exists():
             raise FileNotFoundError(f"LLM profiles config not found: {self.config_path}")
 
@@ -45,20 +51,37 @@ class LLMRegistry:
         if not providers_raw:
             raise ValueError("llm_profiles.yml: 'providers' section is empty")
 
-        providers: dict[str, ProviderProfile] = {}
+        providers: dict[str, ProviderPoolConfig] = {}
         feature_settings: dict[str, FeatureLLMSettings] = {}
 
-        for name, cfg in providers_raw.items():
-            api_key = str(cfg.get("api_key", "")).strip()
-            if not api_key:
-                raise ValueError(f"Provider '{name}' has empty api_key")
+        for provider_name, cfg in providers_raw.items():
+            model_items = cfg.get("models", []) or []
+            if not model_items:
+                raise ValueError(
+                    f"llm_profiles.yml: provider '{provider_name}' has empty models list"
+                )
 
-            providers[name] = ProviderProfile(
-                name=name,
+            models: list[ModelEndpointConfig] = []
+            for item in model_items:
+                api_key = str(item.get("api_key", "")).strip()
+                if not api_key:
+                    raise ValueError(
+                        f"llm_profiles.yml: provider '{provider_name}' has model with empty api_key"
+                    )
+
+                models.append(
+                    ModelEndpointConfig(
+                        name=str(item["name"]).strip(),
+                        api_key=api_key,
+                        base_url=str(item.get("base_url", "")).strip(),
+                        model=str(item["model"]).strip(),
+                    )
+                )
+
+            providers[provider_name] = ProviderPoolConfig(
+                name=provider_name,
                 provider=str(cfg["provider"]).strip(),
-                api_key=api_key,
-                base_url=str(cfg.get("base_url", "")).strip(),
-                model=str(cfg["model"]).strip(),
+                models=models,
             )
 
         for feature_name, cfg in feature_settings_raw.items():
@@ -91,8 +114,8 @@ class LLMRegistry:
 
         return providers, feature_settings
 
-    def _provider_cache_key(self, profile: ProviderProfile) -> str:
-        return f"{profile.provider}|{profile.base_url}|{profile.api_key}|{profile.model}"
+    def _provider_cache_key(self, provider_kind: str, endpoint: ModelEndpointConfig) -> str:
+        return f"{provider_kind}|{endpoint.base_url}|{endpoint.api_key}|{endpoint.model}"
 
     def get_feature_settings(self, feature_name: str) -> FeatureLLMSettings:
         _, feature_settings = self._load()
@@ -100,30 +123,38 @@ class LLMRegistry:
             return feature_settings[feature_name]
         return feature_settings["chat"]
 
-    def get_provider(self, provider_name: str) -> LLMProvider:
+    def get_provider_pool(self, provider_name: str) -> ProviderPoolConfig:
         providers, _ = self._load()
-        profile = providers[provider_name]
-        cache_key = self._provider_cache_key(profile)
+        return providers[provider_name]
 
-        cached = self._provider_instances.get(provider_name)
+    def get_provider_instance(
+        self,
+        *,
+        provider_kind: str,
+        endpoint: ModelEndpointConfig,
+    ) -> LLMProvider:
+        instance_key = f"{provider_kind}:{endpoint.name}"
+        cache_key = self._provider_cache_key(provider_kind, endpoint)
+
+        cached = self._provider_instances.get(instance_key)
         if cached is not None:
             old_cache_key, instance = cached
             if old_cache_key == cache_key:
                 return instance
 
         provider = build_llm_provider_from_config(
-            provider_name=profile.provider,
-            api_key=profile.api_key,
-            base_url=profile.base_url,
-            model=profile.model,
+            provider_name=provider_kind,
+            api_key=endpoint.api_key,
+            base_url=endpoint.base_url,
+            model=endpoint.model,
         )
-        self._provider_instances[provider_name] = (cache_key, provider)
+        self._provider_instances[instance_key] = (cache_key, provider)
         return provider
 
-    def get_for_feature(self, feature_name: str) -> tuple[LLMProvider, FeatureLLMSettings]:
+    def get_for_feature(self, feature_name: str) -> tuple[ProviderPoolConfig, FeatureLLMSettings]:
         feature_settings = self.get_feature_settings(feature_name)
-        provider = self.get_provider(feature_settings.provider_name)
-        return provider, feature_settings
+        pool = self.get_provider_pool(feature_settings.provider_name)
+        return pool, feature_settings
 
     def get_for_feature_with_override(
         self,
@@ -133,11 +164,10 @@ class LLMRegistry:
         temperature_override: float | None = None,
         max_output_tokens_override: int | None = None,
         style_override: str | None = None,
-    ) -> tuple[LLMProvider, FeatureLLMSettings]:
+    ) -> tuple[ProviderPoolConfig, FeatureLLMSettings]:
         base_settings = self.get_feature_settings(feature_name)
-
         provider_name = provider_override or base_settings.provider_name
-        provider = self.get_provider(provider_name)
+        pool = self.get_provider_pool(provider_name)
 
         effective_settings = FeatureLLMSettings(
             feature_name=feature_name,
@@ -154,5 +184,4 @@ class LLMRegistry:
             ),
             style=(style_override if style_override is not None else base_settings.style),
         )
-
-        return provider, effective_settings
+        return pool, effective_settings

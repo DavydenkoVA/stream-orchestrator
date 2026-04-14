@@ -22,6 +22,8 @@ from app.services.llm_registry import LLMRegistry
 from app.services.user_memory_service import UserMemoryService
 from app.services.style_prompt import StylePromptService
 from app.services.style_registry import StyleRegistry
+from app.services.llm_execution_service import LLMExecutionService
+from app.services.provider_state_store import ProviderStateStore
 
 
 class RouterService:
@@ -50,6 +52,11 @@ class RouterService:
         )
         self.style_registry = StyleRegistry()
         self.style_prompt = StylePromptService(self.style_registry)
+        self.provider_state_store = ProviderStateStore()
+        self.llm_executor = LLMExecutionService(
+            llm_registry=self.llm_registry,
+            state_store=self.provider_state_store,
+        )
 
     def normalize_username(self, username: str) -> str:
         return username.strip().lstrip("@").lower()
@@ -206,6 +213,7 @@ class RouterService:
         context = FeatureContext(
             db=db,
             llm_registry=self.llm_registry,
+            llm_executor=self.llm_executor,
             prompts=self.prompts,
             chat_memory=self.chat_memory,
             dossier=self.dossier,

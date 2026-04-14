@@ -12,6 +12,7 @@ from app.models.user_memory import UserMemoryItem
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.llm_registry import LLMRegistry
+from app.services.llm_execution_service import LLMExecutionService
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,12 @@ class UserMemoryService:
         self,
         *,
         llm_registry: LLMRegistry,
+        llm_executor: LLMExecutionService,
         prompts: PromptStore,
         chat_memory: ChatMemoryService,
     ) -> None:
         self.llm_registry = llm_registry
+        self.llm_executor = llm_executor
         self.prompts = prompts
         self.chat_memory = chat_memory
 
@@ -72,11 +75,16 @@ class UserMemoryService:
             limit=settings.user_memory_extract_message_limit,
         )
 
-    async def extract_memory_candidates(self, username: str, messages: list[str]) -> list[dict]:
+    async def extract_memory_candidates(
+        self,
+        db: Session,
+        username: str,
+        messages: list[str],
+    ) -> list[dict]:
         if not messages:
             return []
 
-        llm, feature_cfg = self.llm_registry.get_for_feature("user_memory")
+        pool, feature_cfg = self.llm_registry.get_for_feature("user_memory")
 
         messages_block = "\n".join(f"- {msg}" for msg in messages)
 
@@ -87,11 +95,12 @@ class UserMemoryService:
             messages_block=messages_block,
         )
 
-        raw = await llm.generate_text(
+        raw = await self.llm_executor.generate_text_with_pool(
+            db=db,
+            pool=pool,
+            feature_settings=feature_cfg,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=feature_cfg.temperature,
-            max_output_tokens=feature_cfg.max_output_tokens,
         )
 
         try:
@@ -213,7 +222,7 @@ class UserMemoryService:
         message_ids = [m.id for m in messages]
         message_texts = [m.text for m in messages]
 
-        candidates = await self.extract_memory_candidates(username, message_texts)
+        candidates = await self.extract_memory_candidates(db, username, message_texts)
         self.merge_memory_candidates(db, username, candidates)
         self.trim_user_memory(db, username)
         self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)

@@ -16,6 +16,7 @@ router = APIRouter()
 service = RouterService()
 dynamic_prompt_service = DynamicPromptService(
     llm_registry=service.llm_registry,
+    llm_executor=service.llm_executor,
     prompts=service.prompts,
     style_prompt=service.style_prompt,
 )
@@ -94,8 +95,9 @@ def get_prompt(name: str) -> dict:
     return {"name": name, "content": store.read(name)}
 
 @router.post("/events/dynamic_prompt", response_model=DynamicPromptResponse)
-async def dynamic_prompt_event(payload: DynamicPromptRequest) -> DynamicPromptResponse:
+async def dynamic_prompt_event(payload: DynamicPromptRequest, db: Session = Depends(get_db)) -> DynamicPromptResponse:
     result, message = await dynamic_prompt_service.generate(
+        db=db,
         prompt_name=payload.prompt,
         user=payload.user,
         data=payload.data,
