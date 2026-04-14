@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -34,17 +35,28 @@ class FeatureLLMSettings:
     style: str = "default"
 
 
+@dataclass(slots=True)
+class LLMSnapshot:
+    providers: dict[str, ProviderPoolConfig]
+    feature_settings: dict[str, FeatureLLMSettings]
+    loaded_at: datetime
+
+
 class LLMRegistry:
     def __init__(self, config_path: str | None = None) -> None:
         self.config_path = Path(config_path or settings.llm_profiles_config_path)
         self._provider_instances: dict[str, tuple[str, LLMProvider]] = {}
+        self._snapshot: LLMSnapshot | None = None
+        self._last_reload_success: bool = False
+        self._last_reload_error: str | None = None
+        self.reload_from_disk()
 
-    def _load(self) -> tuple[dict[str, ProviderPoolConfig], dict[str, FeatureLLMSettings]]:
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"LLM profiles config not found: {self.config_path}")
-
-        raw = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
-
+    def _build_snapshot(
+        self,
+        raw: dict,
+        *,
+        loaded_at: datetime | None = None,
+    ) -> LLMSnapshot:
         providers_raw = raw.get("providers", {})
         feature_settings_raw = raw.get("feature_settings", {})
 
@@ -62,30 +74,54 @@ class LLMRegistry:
                 )
 
             models: list[ModelEndpointConfig] = []
+            seen_model_names: set[str] = set()
             for item in model_items:
+                model_name = str(item.get("name", "")).strip()
+                if not model_name:
+                    raise ValueError(
+                        f"llm_profiles.yml: provider '{provider_name}' has model with empty name"
+                    )
+                if model_name in seen_model_names:
+                    raise ValueError(
+                        f"llm_profiles.yml: provider '{provider_name}' has duplicate model name '{model_name}'"
+                    )
+                seen_model_names.add(model_name)
+
                 api_key = str(item.get("api_key", "")).strip()
                 if not api_key:
                     raise ValueError(
                         f"llm_profiles.yml: provider '{provider_name}' has model with empty api_key"
                     )
 
+                model_id = str(item.get("model", "")).strip()
+                if not model_id:
+                    raise ValueError(
+                        f"llm_profiles.yml: provider '{provider_name}' has model with empty model"
+                    )
+
                 models.append(
                     ModelEndpointConfig(
-                        name=str(item["name"]).strip(),
+                        name=model_name,
                         api_key=api_key,
                         base_url=str(item.get("base_url", "")).strip(),
-                        model=str(item["model"]).strip(),
+                        model=model_id,
                     )
+                )
+
+            provider_kind = str(cfg.get("provider", "")).strip()
+            if not provider_kind:
+                raise ValueError(
+                    f"llm_profiles.yml: provider '{provider_name}' has empty provider type"
                 )
 
             providers[provider_name] = ProviderPoolConfig(
                 name=provider_name,
-                provider=str(cfg["provider"]).strip(),
+                provider=provider_kind,
                 models=models,
             )
 
         for feature_name, cfg in feature_settings_raw.items():
-            provider_name = str(cfg["provider"]).strip()
+            provider_name = str(cfg.get("provider", "")).strip()
 
             if provider_name not in providers:
                 raise ValueError(
@@ -112,19 +148,67 @@ class LLMRegistry:
                 style="default",
             )
 
-        return providers, feature_settings
+        return LLMSnapshot(
+            providers=providers,
+            feature_settings=feature_settings,
+            loaded_at=loaded_at or datetime.now(timezone.utc),
+        )
+
+    def _read_raw_from_disk(self) -> dict:
+        if not self.config_path.exists():
+            example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
+            if example_path.exists():
+                return yaml.safe_load(example_path.read_text(encoding="utf-8")) or {}
+            raise FileNotFoundError(f"LLM profiles config not found: {self.config_path}")
+        return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
 
     def _provider_cache_key(self, provider_kind: str, endpoint: ModelEndpointConfig) -> str:
         return f"{provider_kind}|{endpoint.base_url}|{endpoint.api_key}|{endpoint.model}"
 
+    def validate_raw(self, raw: dict) -> None:
+        self._build_snapshot(raw)
+
+    def build_snapshot_from_raw(self, raw: dict) -> LLMSnapshot:
+        return self._build_snapshot(raw)
+
+    def reload_from_disk(self) -> None:
+        raw = self._read_raw_from_disk()
+        snapshot = self._build_snapshot(raw)
+        self._snapshot = snapshot
+        self._last_reload_success = True
+        self._last_reload_error = None
+
+    def apply_snapshot(self, snapshot: LLMSnapshot) -> None:
+        self._snapshot = snapshot
+        self._last_reload_success = True
+        self._last_reload_error = None
+
+    def get_snapshot_metadata(self) -> dict[str, str | int | bool | None]:
+        snapshot = self._require_snapshot()
+        model_count = sum(len(provider.models) for provider in snapshot.providers.values())
+        return {
+            "config_path": str(self.config_path),
+            "loaded_at": snapshot.loaded_at.isoformat(),
+            "reload_success": self._last_reload_success,
+            "reload_error": self._last_reload_error,
+            "providers_count": len(snapshot.providers),
+            "models_count": model_count,
+            "feature_settings_count": len(snapshot.feature_settings),
+        }
+
+    def _require_snapshot(self) -> LLMSnapshot:
+        if self._snapshot is None:
+            raise RuntimeError("LLM registry snapshot is not initialized")
+        return self._snapshot
+
     def get_feature_settings(self, feature_name: str) -> FeatureLLMSettings:
-        _, feature_settings = self._load()
+        feature_settings = self._require_snapshot().feature_settings
         if feature_name in feature_settings:
             return feature_settings[feature_name]
         return feature_settings["chat"]
 
     def get_provider_pool(self, provider_name: str) -> ProviderPoolConfig:
-        providers, _ = self._load()
+        providers = self._require_snapshot().providers
         return providers[provider_name]
 
     def get_provider_instance(

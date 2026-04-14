@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
 
+from app.api.admin_routes import router as admin_router
 from app.api.routes import router
 from app.config import settings
 from app.logging_setup import setup_logging
@@ -42,3 +43,4 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 app.include_router(router)
+app.include_router(admin_router)

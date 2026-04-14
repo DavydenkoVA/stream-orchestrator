@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "dev"
+    enable_admin_ui: bool = False
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     log_level: str = "INFO"

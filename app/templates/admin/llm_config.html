@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LLM Config Admin</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    h1, h2, h3 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .row { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    label { font-size: 12px; color: #444; display: block; }
+    input { width: 100%; padding: 4px 6px; }
+    .actions { display: flex; gap: 8px; margin: 16px 0; }
+    .danger { background: #fff0f0; border: 1px solid #cc0000; color: #a60000; }
+    .ok { background: #f0fff2; border: 1px solid #00a636; color: #06661f; }
+    .muted { color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>LLM Config Admin</h1>
+
+  <div class="card">
+    <h3>Active snapshot metadata</h3>
+    <div>Config path: <code>{{ metadata.config_path }}</code></div>
+    <div>Loaded at: <code>{{ metadata.loaded_at }}</code></div>
+    <div>Last reload success: <strong>{{ metadata.reload_success }}</strong></div>
+    <div>Last reload error: <code>{{ metadata.reload_error or '-' }}</code></div>
+    <div class="muted">
+      Summary: providers={{ metadata.providers_count }}, models={{ metadata.models_count }}, feature_settings={{ metadata.feature_settings_count }}
+    </div>
+  </div>
+
+  <form id="llm-config-form">
+    <h2>Providers</h2>
+    <div id="providers-container"></div>
+    <button type="button" onclick="addProvider()">+ Add provider</button>
+
+    <h2 style="margin-top:20px;">Feature settings</h2>
+    <div id="features-container"></div>
+    <button type="button" onclick="addFeature()">+ Add feature</button>
+
+    <div class="actions">
+      <button
+        type="button"
+        hx-post="/admin/llm-config/validate"
+        hx-include="#llm-config-form"
+        hx-target="#status-panel"
+        hx-swap="innerHTML"
+      >Validate</button>
+
+      <button
+        type="button"
+        hx-post="/admin/llm-config/apply"
+        hx-include="#llm-config-form"
+        hx-target="#status-panel"
+        hx-swap="innerHTML"
+      >Apply</button>
+    </div>
+  </form>
+
+  <div id="status-panel"></div>
+
+  <div class="card">
+    <h3>Styles config (read-only preview)</h3>
+    <pre>{{ styles_preview }}</pre>
+  </div>
+
+  <template id="provider-template">
+    <div class="card provider-item" data-provider-index="__P_INDEX__">
+      <div class="row">
+        <div><label>Provider name<input name="providers[__P_INDEX__][name]" value="__P_NAME__"></label></div>
+        <div><label>Provider type<input name="providers[__P_INDEX__][provider]" value="__P_TYPE__"></label></div>
+      </div>
+      <div class="models-container"></div>
+      <button type="button" class="remove-provider">Remove provider</button>
+      <button type="button" class="add-model">+ Add model</button>
+    </div>
+  </template>
+
+  <template id="model-template">
+    <div class="card model-item" data-model-index="__M_INDEX__">
+      <div class="row">
+        <div><label>Name<input name="providers[__P_INDEX__][models][__M_INDEX__][name]" value="__M_NAME__"></label></div>
+        <div><label>API key<input name="providers[__P_INDEX__][models][__M_INDEX__][api_key]" value="__M_API__"></label></div>
+        <div><label>Base URL<input name="providers[__P_INDEX__][models][__M_INDEX__][base_url]" value="__M_BASE__"></label></div>
+        <div><label>Model<input name="providers[__P_INDEX__][models][__M_INDEX__][model]" value="__M_MODEL__"></label></div>
+      </div>
+      <button type="button" class="remove-model">Remove model</button>
+    </div>
+  </template>
+
+  <template id="feature-template">
+    <div class="card feature-item" data-feature-index="__F_INDEX__">
+      <div class="row">
+        <div><label>Feature name<input name="feature_settings[__F_INDEX__][name]" value="__F_NAME__"></label></div>
+        <div><label>Provider<input name="feature_settings[__F_INDEX__][provider]" value="__F_PROVIDER__"></label></div>
+        <div><label>Temperature<input name="feature_settings[__F_INDEX__][temperature]" value="__F_TEMP__"></label></div>
+        <div><label>Max output tokens<input name="feature_settings[__F_INDEX__][max_output_tokens]" value="__F_TOKENS__"></label></div>
+      </div>
+      <div class="row">
+        <div><label>Style<input name="feature_settings[__F_INDEX__][style]" value="__F_STYLE__"></label></div>
+      </div>
+      <button type="button" class="remove-feature">Remove feature</button>
+    </div>
+  </template>
+
+  <script>
+    let providerIndex = 0;
+    let featureIndex = 0;
+
+    function htmlFromTemplate(templateId, replacements) {
+      let html = document.getElementById(templateId).innerHTML;
+      for (const [key, value] of Object.entries(replacements)) {
+        html = html.replaceAll(key, value ?? "");
+      }
+      return html;
+    }
+
+    function addProvider(provider = {name: '', provider: '', models: []}) {
+      const currentIndex = providerIndex++;
+      const container = document.getElementById('providers-container');
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = htmlFromTemplate('provider-template', {
+        '__P_INDEX__': String(currentIndex),
+        '__P_NAME__': provider.name,
+        '__P_TYPE__': provider.provider,
+      });
+      const node = wrapper.firstElementChild;
+      container.appendChild(node);
+
+      const modelsContainer = node.querySelector('.models-container');
+      const addModelButton = node.querySelector('.add-model');
+
+      let modelIndex = 0;
+      function addModel(model = {name: '', api_key: '', base_url: '', model: ''}) {
+        const currentModelIndex = modelIndex++;
+        const modelWrap = document.createElement('div');
+        modelWrap.innerHTML = htmlFromTemplate('model-template', {
+          '__P_INDEX__': String(currentIndex),
+          '__M_INDEX__': String(currentModelIndex),
+          '__M_NAME__': model.name,
+          '__M_API__': model.api_key,
+          '__M_BASE__': model.base_url,
+          '__M_MODEL__': model.model,
+        });
+        const modelNode = modelWrap.firstElementChild;
+        modelNode.querySelector('.remove-model').addEventListener('click', () => modelNode.remove());
+        modelsContainer.appendChild(modelNode);
+      }
+
+      addModelButton.addEventListener('click', () => addModel());
+      node.querySelector('.remove-provider').addEventListener('click', () => node.remove());
+
+      if (provider.models && provider.models.length) {
+        provider.models.forEach(addModel);
+      } else {
+        addModel();
+      }
+    }
+
+    function addFeature(feature = {name: '', provider: '', temperature: '0.7', max_output_tokens: '200', style: 'default'}) {
+      const currentIndex = featureIndex++;
+      const container = document.getElementById('features-container');
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = htmlFromTemplate('feature-template', {
+        '__F_INDEX__': String(currentIndex),
+        '__F_NAME__': feature.name,
+        '__F_PROVIDER__': feature.provider,
+        '__F_TEMP__': String(feature.temperature ?? ''),
+        '__F_TOKENS__': String(feature.max_output_tokens ?? ''),
+        '__F_STYLE__': feature.style,
+      });
+      const node = wrapper.firstElementChild;
+      node.querySelector('.remove-feature').addEventListener('click', () => node.remove());
+      container.appendChild(node);
+    }
+
+    const initialProviders = {{ providers | tojson }};
+    const initialFeatures = {{ features | tojson }};
+
+    if (initialProviders.length === 0) {
+      addProvider();
+    } else {
+      initialProviders.forEach(addProvider);
+    }
+
+    initialFeatures.forEach(addFeature);
+  </script>
+</body>
+</html>
