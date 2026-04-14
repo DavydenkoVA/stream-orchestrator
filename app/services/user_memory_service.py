@@ -192,7 +192,7 @@ class UserMemoryService:
                 )
                 db.add(new_item)
 
-        db.commit()
+        db.flush()
 
     def trim_user_memory(self, db: Session, username: str) -> None:
         items = self.get_memory_items(db, username)
@@ -208,7 +208,7 @@ class UserMemoryService:
 
         stmt = delete(UserMemoryItem).where(UserMemoryItem.id.in_(ids_to_delete))
         db.execute(stmt)
-        db.commit()
+        db.flush()
 
     async def refresh_user_memory_if_needed(self, db: Session, username: str) -> bool:
         should_refresh, mode = self.should_refresh_user_memory(db, username)
@@ -222,10 +222,15 @@ class UserMemoryService:
         message_ids = [m.id for m in messages]
         message_texts = [m.text for m in messages]
 
-        candidates = await self.extract_memory_candidates(db, username, message_texts)
-        self.merge_memory_candidates(db, username, candidates)
-        self.trim_user_memory(db, username)
-        self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
+        try:
+            candidates = await self.extract_memory_candidates(db, username, message_texts)
+            self.merge_memory_candidates(db, username, candidates)
+            self.trim_user_memory(db, username)
+            self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
         logger.info(
             "User memory refreshed: username=%s mode=%s messages=%s candidates=%s",
