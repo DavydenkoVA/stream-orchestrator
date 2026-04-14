@@ -1,6 +1,4 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,7 +8,6 @@ from app.services.router import RouterService
 from app.schemas.dynamic_prompt import DynamicPromptRequest, DynamicPromptResponse
 from app.services.dynamic_prompt_service import DynamicPromptService
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 service = RouterService()
@@ -51,28 +48,24 @@ async def reply_chat_event(
     payload: ChatEvent,
     db: Session = Depends(get_db),
 ) -> ChatReply:
-    try:
-        reply_text, route = await service.handle_chat_reply(
-            db,
-            stream_id=payload.stream_id,
-            username=payload.username,
-            text=payload.text,
-            mentions_bot=payload.mentions_bot,
-            role=payload.role,
-            message_id=payload.message_id,
-            reply_to_message_id=payload.reply_to_message_id,
-            reply_to_username=payload.reply_to_username,
-            reply_to_text=payload.reply_to_text,
-        )
+    reply_text, route = await service.handle_chat_reply(
+        db,
+        stream_id=payload.stream_id,
+        username=payload.username,
+        text=payload.text,
+        mentions_bot=payload.mentions_bot,
+        role=payload.role,
+        message_id=payload.message_id,
+        reply_to_message_id=payload.reply_to_message_id,
+        reply_to_username=payload.reply_to_username,
+        reply_to_text=payload.reply_to_text,
+    )
 
-        return ChatReply(
-            reply_text=reply_text,
-            route=route,
-            should_reply=bool(reply_text),
-        )
-    except Exception as e:
-        logger.exception("Unhandled error in /events/chat_reply")
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+    return ChatReply(
+        reply_text=reply_text,
+        route=route,
+        should_reply=bool(reply_text),
+    )
 
 
 @router.get("/debug/prompts/{name}")
@@ -131,7 +124,10 @@ def debug_context(
     )
 
 @router.post("/events/dynamic_prompt", response_model=DynamicPromptResponse)
-async def dynamic_prompt_event(payload: DynamicPromptRequest, db: Session = Depends(get_db)) -> DynamicPromptResponse:
+async def dynamic_prompt_event(
+    payload: DynamicPromptRequest,
+    db: Session = Depends(get_db),
+) -> DynamicPromptResponse:
     result, message = await dynamic_prompt_service.generate(
         db=db,
         prompt_name=payload.prompt,
@@ -142,4 +138,8 @@ async def dynamic_prompt_event(payload: DynamicPromptRequest, db: Session = Depe
         temperature_override=payload.llm.temperature if payload.llm else None,
         max_output_tokens_override=payload.llm.max_output_tokens if payload.llm else None,
     )
+
+    if result != "success":
+        message = ""
+
     return DynamicPromptResponse(result=result, message=message)
