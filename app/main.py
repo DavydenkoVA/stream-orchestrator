@@ -3,8 +3,9 @@ import logging
 
 from app.api.routes import router
 from app.config import settings
-from app.db import Base, engine
 from app.logging_setup import setup_logging
+from app.db import engine
+from sqlalchemy import inspect
 import app.models  # noqa: F401
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,7 +17,12 @@ setup_logging(settings.log_level)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+
+    if not inspector.get_table_names():
+        raise RuntimeError(
+            "Database is not initialized. Run migrations: alembic upgrade head"
+        )
     yield
 
 
