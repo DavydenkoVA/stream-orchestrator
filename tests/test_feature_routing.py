@@ -124,3 +124,37 @@ def test_router_normalizes_usernames_and_extracts_dossier_target() -> None:
     assert router.normalize_username("  @TeSt_User  ") == "test_user"
     assert router.extract_dossier_target("сделай досье на @Target_1") == "Target_1"
     assert router.extract_dossier_target("обычное сообщение") is None
+
+
+def test_router_dossier_route_is_selected(db_session) -> None:
+    router = RouterService()
+
+    reply_text, route = asyncio.run(
+        router.handle_chat_reply(
+            db=db_session,
+            stream_id="stream-1",
+            username="viewer",
+            text="сделай досье на @new_user",
+            mentions_bot=False,
+        )
+    )
+
+    assert route == "dossier"
+    assert "мало данных" in reply_text.lower()
+
+
+def test_router_weekly_movies_route_is_selected(db_session) -> None:
+    router = RouterService()
+
+    reply_text, route = asyncio.run(
+        router.handle_chat_reply(
+            db=db_session,
+            stream_id="stream-1",
+            username="viewer",
+            text="подскажи, что смотрим на этой неделе",
+            mentions_bot=False,
+        )
+    )
+
+    assert route == "weekly_movies"
+    assert reply_text
