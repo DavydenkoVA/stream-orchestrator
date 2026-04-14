@@ -83,6 +83,42 @@ class DynamicPromptService:
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_data"})
             return "fallback", ""
 
+        try:
+            required_fields = self.prompts.get_required_fields(template_name)
+        except ValueError as exc:
+            logger.warning(
+                "Dynamic prompt template validation failed: prompt=%s template=%s error=%s",
+                prompt_name,
+                template_name,
+                str(exc),
+            )
+            trace_failure(
+                "dynamic_prompt.template.invalid",
+                "dynamic prompt template validation failed",
+                error_code="prompt_template_invalid",
+            )
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "template_invalid"})
+            return "fallback", ""
+
+        available_fields = {"user", *data.keys()}
+        missing_fields = sorted(required_fields - available_fields)
+        if missing_fields:
+            logger.warning(
+                "Dynamic prompt preflight failed: prompt=%s template=%s missing_fields=%s available_keys=%s",
+                prompt_name,
+                template_name,
+                missing_fields,
+                sorted(available_fields),
+            )
+            trace_failure(
+                "dynamic_prompt.render.preflight_failed",
+                "dynamic prompt preflight missing fields",
+                payload={"missing_fields": missing_fields},
+                error_code="prompt_render_preflight_error",
+            )
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "preflight_missing_field"})
+            return "fallback", ""
+
         pool, feature_cfg = self.llm_registry.get_for_feature_with_override(
             "dynamic_prompt",
             provider_override=llm_provider_override,
@@ -104,16 +140,16 @@ class DynamicPromptService:
             )
         except KeyError as e:
             logger.warning(
-                "Dynamic prompt render failed due to missing field: prompt=%s missing=%s data_keys=%s",
+                "Dynamic prompt render failed due to missing field after preflight: prompt=%s missing=%s available_keys=%s",
                 prompt_name,
                 str(e),
-                sorted(data.keys()),
+                sorted(available_fields),
             )
             trace_failure("dynamic_prompt.render.failed", "dynamic prompt render missing fields", payload={"missing": str(e)}, error_code="prompt_render_error")
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_missing_field"})
             return "fallback", ""
         except Exception:
-            logger.exception("Dynamic prompt render failed: prompt=%s", prompt_name)
+            logger.exception("Dynamic prompt render failed: prompt=%s template=%s", prompt_name, template_name)
             trace_failure("dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error")
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_failed"})
             return "fallback", ""
