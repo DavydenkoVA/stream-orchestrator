@@ -12,6 +12,7 @@ from app.services.llm_registry import LLMRegistry
 from app.text_utils import prepare_chat_text
 from app.services.style_prompt import StylePromptService
 from app.services.llm_execution_service import LLMExecutionService
+from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class DynamicPromptService:
     def _validate_prompt_name(self, prompt_name: str) -> str:
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", prompt_name):
             raise ValueError("Invalid prompt name")
+        trace_success("dynamic_prompt.validate.success", "dynamic prompt name validated", payload={"prompt_name": prompt_name})
         return prompt_name
 
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
@@ -62,6 +64,8 @@ class DynamicPromptService:
             system_name, template_name = self._resolve_prompt_names(prompt_name)
         except Exception:
             logger.warning("Dynamic prompt name validation failed: %s", prompt_name)
+            trace_failure("dynamic_prompt.validate.failed", "dynamic prompt validation failed", error_code="validation_error")
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_prompt_name"})
             return "fallback", ""
 
         if not self._prompt_exists(system_name) or not self._prompt_exists(template_name):
@@ -71,9 +75,12 @@ class DynamicPromptService:
                 system_name,
                 template_name,
             )
+            trace_info("dynamic_prompt.template.missing", "dynamic prompt files not found", payload={"prompt_name": prompt_name})
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "template_missing"})
             return "fallback", ""
 
         if not isinstance(data, dict):
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_data"})
             return "fallback", ""
 
         pool, feature_cfg = self.llm_registry.get_for_feature_with_override(
@@ -102,9 +109,13 @@ class DynamicPromptService:
                 str(e),
                 sorted(data.keys()),
             )
+            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render missing fields", payload={"missing": str(e)}, error_code="prompt_render_error")
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_missing_field"})
             return "fallback", ""
         except Exception:
             logger.exception("Dynamic prompt render failed: prompt=%s", prompt_name)
+            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error")
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_failed"})
             return "fallback", ""
 
         try:
@@ -117,16 +128,21 @@ class DynamicPromptService:
             )
         except Exception:
             logger.exception("Dynamic prompt LLM call failed: prompt=%s", prompt_name)
+            trace_failure("dynamic_prompt.llm.failed", "dynamic prompt llm call failed", error_code="llm_error")
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "llm_failed"})
             return "fallback", ""
 
         if not reply or not reply.strip():
             logger.info("Dynamic prompt returned empty reply: prompt=%s", prompt_name)
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "empty_reply"})
             return "fallback", ""
 
         reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()
 
         if not reply:
             logger.info("Dynamic prompt reply became empty after trim: prompt=%s", prompt_name)
+            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "empty_after_trim"})
             return "fallback", ""
 
+        trace_success("dynamic_prompt.llm.success", "dynamic prompt llm call succeeded", payload={"prompt_name": prompt_name, "reply_length": len(reply)})
         return "success", reply

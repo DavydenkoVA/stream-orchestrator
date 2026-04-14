@@ -13,6 +13,7 @@ from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.llm_registry import LLMRegistry
 from app.services.llm_execution_service import LLMExecutionService
+from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 
 logger = logging.getLogger(__name__)
 
@@ -213,23 +214,36 @@ class UserMemoryService:
     async def refresh_user_memory_if_needed(self, db: Session, username: str) -> bool:
         should_refresh, mode = self.should_refresh_user_memory(db, username)
         if not should_refresh:
+            trace_info("user_memory.refresh.skipped", "user memory refresh skipped", payload={"username": username})
             return False
 
         messages = self.get_messages_for_refresh(db, username, mode)
         if not messages:
+            trace_info("user_memory.refresh.skipped", "user memory refresh skipped: no messages", payload={"username": username})
             return False
 
         message_ids = [m.id for m in messages]
         message_texts = [m.text for m in messages]
+        trace_info(
+            "user_memory.refresh.start",
+            "user memory refresh started",
+            payload={"username": username, "mode": mode, "messages_count": len(message_texts)},
+        )
 
         try:
             candidates = await self.extract_memory_candidates(db, username, message_texts)
+            trace_success("user_memory.extract.success", "memory extraction finished", payload={"candidates_count": len(candidates)})
             self.merge_memory_candidates(db, username, candidates)
+            trace_success("user_memory.merge.success", "memory merge completed")
             self.trim_user_memory(db, username)
+            trace_success("user_memory.trim.success", "memory trim completed")
             self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
+            trace_success("user_memory.mark_processed.success", "marked messages as processed", payload={"messages_count": len(message_ids)})
             db.commit()
+            trace_success("user_memory.refresh.success", "user memory refresh committed", payload={"username": username})
         except Exception:
             db.rollback()
+            trace_failure("user_memory.refresh.failed", "user memory refresh failed", error_code="internal_error")
             raise
 
         logger.info(
