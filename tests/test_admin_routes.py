@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.api import admin_routes
+from app.config import settings
 from app.main import app
 
 
@@ -22,7 +23,8 @@ def _minimal_valid_payload() -> dict[str, str]:
     }
 
 
-def test_get_admin_llm_config_page_returns_404_when_disabled() -> None:
+def test_get_admin_llm_config_page_returns_404_when_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "enable_admin_ui", False)
     client = TestClient(app)
 
     response = client.get("/admin/llm-config")
