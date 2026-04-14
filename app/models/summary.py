@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,4 +13,8 @@ class StreamSummary(Base):
     stream_id: Mapped[str] = mapped_column(String(128), index=True)
     window_label: Mapped[str] = mapped_column(String(64), index=True)
     summary_text: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        index=True,
+    )

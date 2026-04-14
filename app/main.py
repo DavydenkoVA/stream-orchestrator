@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import logging
 
 from app.api.routes import router
 from app.config import settings
@@ -8,17 +9,18 @@ import app.models  # noqa: F401
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-import logging
 
 logger = logging.getLogger(__name__)
 
 setup_logging(settings.log_level)
 
-app = FastAPI(title="Stream Orchestrator")
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="Stream Orchestrator", lifespan=lifespan)
 
 
 @app.exception_handler(RequestValidationError)
@@ -31,4 +33,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": exc.errors()},
     )
+
+
 app.include_router(router)
