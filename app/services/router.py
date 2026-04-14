@@ -24,6 +24,7 @@ from app.services.style_prompt import StylePromptService
 from app.services.style_registry import StyleRegistry
 from app.services.llm_execution_service import LLMExecutionService
 from app.services.provider_state_store import ProviderStateStore
+from app.observability.trace_helpers import trace_info, trace_success
 
 
 class RouterService:
@@ -97,6 +98,7 @@ class RouterService:
             else None
         )
 
+        trace_info("chat_message.save.start", "saving chat message", payload={"stream_id": stream_id, "role": role})
         self.chat_memory.save_message(
             db,
             stream_id=stream_id,
@@ -110,6 +112,7 @@ class RouterService:
             reply_to_text=reply_to_text,
         )
         db.commit()
+        trace_success("chat_message.save.success", "chat message saved", payload={"stream_id": stream_id})
 
     async def handle_chat_reply(
             self,
@@ -166,5 +169,11 @@ class RouterService:
         )
 
         handler = self.selector.select(request)
+        trace_success(
+            "feature.select.success",
+            "feature handler selected",
+            payload={"handler": handler.__class__.__name__},
+        )
         response = await handler.handle(context, request)
+        trace_success("route.result.success", "route produced result", payload={"route": response.route})
         return response.reply_text, response.route

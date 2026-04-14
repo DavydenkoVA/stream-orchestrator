@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.integrations.llm.base import LLMProvider
 from app.services.llm_registry import FeatureLLMSettings, LLMRegistry, ModelEndpointConfig, ProviderPoolConfig
 from app.services.provider_state_store import ProviderStateStore
+from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,11 @@ class LLMExecutionService:
         user_prompt: str,
     ) -> str:
         current_model_name = self.state_store.get_current_model_name(db, pool.name)
+        trace_info(
+            "llm.generate.start",
+            "starting llm generation",
+            payload={"provider": pool.provider, "pool": pool.name, "feature": feature_settings.feature_name},
+        )
         ordered_models = self._build_attempt_order(
             pool=pool,
             current_model_name=current_model_name,
@@ -103,6 +109,16 @@ class LLMExecutionService:
                 db.commit()
 
                 if endpoint.name != current_model_name:
+                    trace_info(
+                        "llm.pool.switch",
+                        "llm pool switched active model",
+                        payload={
+                            "provider": pool.provider,
+                            "pool": pool.name,
+                            "old_model": current_model_name,
+                            "new_model": endpoint.name,
+                        },
+                    )
                     logger.warning(
                         "LLM pool switched active model: provider=%s old=%s new=%s",
                         pool.name,
@@ -110,10 +126,21 @@ class LLMExecutionService:
                         endpoint.name,
                     )
 
+                trace_success(
+                    "llm.generate.success",
+                    "llm generation succeeded",
+                    payload={"provider": pool.provider, "model": endpoint.name, "reply_length": len(reply or "")},
+                )
                 return reply
 
             except Exception as exc:
                 last_exc = exc
+                trace_failure(
+                    "llm.model.failed",
+                    "llm model failed",
+                    payload={"provider": pool.provider, "model": endpoint.name},
+                    error_code="llm_error",
+                )
                 logger.warning(
                     "LLM model failed: provider=%s model_name=%s feature=%s error=%s",
                     pool.name,
@@ -131,6 +158,12 @@ class LLMExecutionService:
             "LLM pool exhausted: provider=%s attempted=%s",
             pool.name,
             attempted_names,
+        )
+        trace_failure(
+            "llm.generate.failed",
+            "llm provider pool exhausted",
+            payload={"provider": pool.provider, "attempted_models": attempted_names},
+            error_code="llm_error",
         )
 
         if last_exc is not None:

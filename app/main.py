@@ -15,6 +15,7 @@ from app.api.routes import router
 from app.db import engine
 from app.logging_setup import setup_logging
 from app.config import settings
+from app.observability.request_context import clear_current_request_id, set_current_request_id
 
 
 setup_logging(settings.log_level)
@@ -38,10 +39,14 @@ app = FastAPI(title="Stream Orchestrator", lifespan=lifespan)
 async def request_id_middleware(request: Request, call_next):
     request_id = generate_request_id()
     set_request_id(request, request_id)
+    set_current_request_id(request_id)
 
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        clear_current_request_id()
 
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
