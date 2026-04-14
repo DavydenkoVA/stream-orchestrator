@@ -212,6 +212,7 @@ class MentionChatFeatureHandler(FeatureHandler):
             user_recent_block=user_recent_block,
             global_recent_block=global_recent_block,
             dialog_recent_block=dialog_recent_block,
+            reply_context_block=reply_context_block,
         )
 
         try:

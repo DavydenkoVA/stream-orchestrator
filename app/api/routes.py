@@ -75,19 +75,6 @@ async def reply_chat_event(
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
-@router.post("/debug/context", response_model=DebugContextResponse)
-def debug_context(
-    payload: ChatEvent,
-    db: Session = Depends(get_db),
-) -> DebugContextResponse:
-    context = service.build_chat_context(
-        db,
-        stream_id=payload.stream_id,
-        username=payload.username,
-        text=payload.text,
-    )
-    return DebugContextResponse(**context)
-
 @router.get("/debug/prompts/{name}")
 def get_prompt(name: str) -> dict:
     from app.prompt_store import PromptStore

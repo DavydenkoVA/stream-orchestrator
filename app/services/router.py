@@ -37,8 +37,14 @@ class RouterService:
         self.weekly_movies = WeeklyMoviesFileService(settings.weekly_movies_file)
         self.prompts = prompt_store or PromptStore()
         self.llm_registry = LLMRegistry()
+        self.provider_state_store = ProviderStateStore()
+        self.llm_executor = LLMExecutionService(
+            llm_registry=self.llm_registry,
+            state_store=self.provider_state_store,
+        )
         self.user_memory = UserMemoryService(
             llm_registry=self.llm_registry,
+            llm_executor=self.llm_executor,
             prompts=self.prompts,
             chat_memory=self.chat_memory,
         )
@@ -52,11 +58,6 @@ class RouterService:
         )
         self.style_registry = StyleRegistry()
         self.style_prompt = StylePromptService(self.style_registry)
-        self.provider_state_store = ProviderStateStore()
-        self.llm_executor = LLMExecutionService(
-            llm_registry=self.llm_registry,
-            state_store=self.provider_state_store,
-        )
 
     def normalize_username(self, username: str) -> str:
         return username.strip().lstrip("@").lower()
@@ -108,65 +109,6 @@ class RouterService:
             reply_to_username=normalized_reply_to_username,
             reply_to_text=reply_to_text,
         )
-
-    def build_chat_context(
-        self,
-        db: Session,
-        *,
-        stream_id: str,
-        username: str,
-        text: str,
-    ) -> dict:
-        normalized_username = self.normalize_username(username)
-
-        global_recent = self.chat_memory.recent_messages(
-            db,
-            stream_id=stream_id,
-            limit=settings.chat_global_context_limit,
-        )
-        user_recent = self.chat_memory.recent_user_messages(
-            db,
-            stream_id=stream_id,
-            username=normalized_username,
-            limit=settings.chat_user_context_limit,
-        )
-        dialog_recent = self.chat_memory.recent_dialog_messages(
-            db,
-            stream_id=stream_id,
-            username=normalized_username,
-            limit=settings.chat_dialog_context_limit,
-        )
-
-        global_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in global_recent
-        ) or "Нет данных."
-
-        user_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in user_recent
-        ) or "Нет данных."
-
-        dialog_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent
-        ) or "Нет данных."
-
-        system_prompt = self.prompts.read("chat_system.txt")
-        user_prompt = self.prompts.render(
-            "chat_user_template.txt",
-            username=username,
-            text=text.strip(),
-            user_recent_block=user_recent_block,
-            global_recent_block=global_recent_block,
-            dialog_recent_block=dialog_recent_block,
-        )
-
-        return {
-            "global_recent": [f"{m.username} [{m.role}]: {m.text}" for m in global_recent],
-            "user_recent": [f"{m.username} [{m.role}]: {m.text}" for m in user_recent],
-            "dialog_recent": [f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent],
-            "external_context": "",
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-        }
 
     async def handle_chat_reply(
             self,
