@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     prompts_dir: str = str(BASE_DIR / "prompts")
 
     llm_profiles_config_path: str = str(BASE_DIR / "config" / "llm_profiles.yml")
+    llm_styles_config_path: str = str(BASE_DIR / "config" / "llm_styles.yml")
 
     user_memory_bootstrap_message_threshold: int = 10
     user_memory_min_unprocessed_messages: int = 50

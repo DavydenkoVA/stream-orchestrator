@@ -9,6 +9,7 @@ from app.config import settings
 from app.prompt_store import PromptStore
 from app.services.llm_registry import LLMRegistry
 from app.text_utils import prepare_chat_text
+from app.services.style_prompt import StylePromptService
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,11 @@ class DynamicPromptService:
         *,
         llm_registry: LLMRegistry,
         prompts: PromptStore,
+        style_prompt: StylePromptService,
     ) -> None:
         self.llm_registry = llm_registry
         self.prompts = prompts
+        self.style_prompt = style_prompt
 
     def _validate_prompt_name(self, prompt_name: str) -> str:
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", prompt_name):
@@ -45,6 +48,7 @@ class DynamicPromptService:
         user: str,
         data: dict[str, Any],
         llm_provider_override: str | None = None,
+        style_override: str | None = None,
         temperature_override: float | None = None,
         max_output_tokens_override: int | None = None,
     ) -> tuple[str, str]:
@@ -66,8 +70,20 @@ class DynamicPromptService:
         if not isinstance(data, dict):
             return "fallback", ""
 
+        llm, feature_cfg = self.llm_registry.get_for_feature_with_override(
+            "dynamic_prompt",
+            provider_override=llm_provider_override,
+            style_override=style_override,
+            temperature_override=temperature_override,
+            max_output_tokens_override=max_output_tokens_override,
+        )
+
         try:
-            system_prompt = self.prompts.read(system_name)
+            base_system_prompt = self.prompts.read(system_name)
+            system_prompt = self.style_prompt.apply_style(
+                base_system_prompt,
+                feature_cfg.style,
+            )
             user_prompt = self.prompts.render(
                 template_name,
                 user=user,
@@ -84,13 +100,6 @@ class DynamicPromptService:
         except Exception:
             logger.exception("Dynamic prompt render failed: prompt=%s", prompt_name)
             return "fallback", ""
-
-        llm, feature_cfg = self.llm_registry.get_for_feature_with_override(
-            "dynamic_prompt",
-            provider_override=llm_provider_override,
-            temperature_override=temperature_override,
-            max_output_tokens_override=max_output_tokens_override,
-        )
 
         try:
             reply = await llm.generate_text(

@@ -10,7 +10,7 @@ from app.services.dossier import DossierService
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
 from app.services.llm_registry import LLMRegistry
 from app.services.user_memory_service import UserMemoryService
-
+from app.services.style_prompt import StylePromptService
 
 @dataclass(slots=True)
 class ChatRequest:
@@ -40,6 +40,7 @@ class FeatureContext:
     dossier: DossierService
     weekly_movies: WeeklyMoviesFileService
     user_memory: UserMemoryService
+    style_prompt: StylePromptService
 
 
 class FeatureHandler:

@@ -17,6 +17,7 @@ service = RouterService()
 dynamic_prompt_service = DynamicPromptService(
     llm_registry=service.llm_registry,
     prompts=service.prompts,
+    style_prompt=service.style_prompt,
 )
 
 @router.get("/health")
@@ -99,6 +100,7 @@ async def dynamic_prompt_event(payload: DynamicPromptRequest) -> DynamicPromptRe
         user=payload.user,
         data=payload.data,
         llm_provider_override=payload.llm.provider if payload.llm else None,
+        style_override=payload.llm.style if payload.llm else None,
         temperature_override=payload.llm.temperature if payload.llm else None,
         max_output_tokens_override=payload.llm.max_output_tokens if payload.llm else None,
     )

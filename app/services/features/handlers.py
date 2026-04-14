@@ -63,10 +63,15 @@ class DossierFeatureHandler(FeatureHandler):
         )
 
         llm, feature_cfg = context.llm_registry.get_for_feature("dossier")
+        base_system_prompt = context.prompts.read("dossier_system.txt")
+        system_prompt = context.style_prompt.apply_style(
+            base_system_prompt,
+            feature_cfg.style,
+        )
 
         try:
             reply = await llm.generate_text(
-                system_prompt=context.prompts.read("dossier_system.txt"),
+                system_prompt=system_prompt,
                 user_prompt=context.prompts.render(
                     "dossier_user_template.txt",
                     username=dossier_target,
@@ -119,10 +124,15 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
             )
 
         llm, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
+        base_system_prompt = context.prompts.read("weekly_movies_system.txt")
+        system_prompt = context.style_prompt.apply_style(
+            base_system_prompt,
+            feature_cfg.style,
+        )
 
         try:
             reply = await llm.generate_text(
-                system_prompt=context.prompts.read("weekly_movies_system.txt"),
+                system_prompt=system_prompt,
                 user_prompt=context.prompts.render(
                     "weekly_movies_user_template.txt",
                     user_text=request.text.strip(),
@@ -186,18 +196,21 @@ class MentionChatFeatureHandler(FeatureHandler):
             parent_user = request.reply_to_username or "unknown"
             reply_context_block = f"{parent_user}: {request.reply_to_text}"
 
-        system_prompt = context.prompts.read("chat_system.txt")
+        base_system_prompt = context.prompts.read("chat_system.txt")
+        llm, feature_cfg = context.llm_registry.get_for_feature("chat")
+        system_prompt = context.style_prompt.apply_style(
+            base_system_prompt,
+            feature_cfg.style,
+        )
+
         user_prompt = context.prompts.render(
             "chat_user_template.txt",
             username=request.username,
             text=request.text.strip(),
-            reply_context_block=reply_context_block,
             user_recent_block=user_recent_block,
             global_recent_block=global_recent_block,
             dialog_recent_block=dialog_recent_block,
         )
-
-        llm, feature_cfg = context.llm_registry.get_for_feature("chat")
 
         try:
             reply = await llm.generate_text(

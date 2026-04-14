@@ -25,6 +25,7 @@ class FeatureLLMSettings:
     provider_name: str
     temperature: float
     max_output_tokens: int
+    style: str = "default"
 
 
 class LLMRegistry:
@@ -75,6 +76,7 @@ class LLMRegistry:
                 max_output_tokens=int(
                     cfg.get("max_output_tokens", settings.llm_max_output_tokens)
                 ),
+                style=str(cfg.get("style", "default")).strip() or "default",
             )
 
         if "chat" not in feature_settings:
@@ -84,6 +86,7 @@ class LLMRegistry:
                 provider_name=first_provider,
                 temperature=settings.llm_temperature,
                 max_output_tokens=settings.llm_max_output_tokens,
+                style="default",
             )
 
         return providers, feature_settings
@@ -129,6 +132,7 @@ class LLMRegistry:
         provider_override: str | None = None,
         temperature_override: float | None = None,
         max_output_tokens_override: int | None = None,
+        style_override: str | None = None,
     ) -> tuple[LLMProvider, FeatureLLMSettings]:
         base_settings = self.get_feature_settings(feature_name)
 
@@ -148,6 +152,7 @@ class LLMRegistry:
                 if max_output_tokens_override is not None
                 else base_settings.max_output_tokens
             ),
+            style=(style_override if style_override is not None else base_settings.style),
         )
 
         return provider, effective_settings

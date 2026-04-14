@@ -20,6 +20,8 @@ from app.services.features import (
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
 from app.services.llm_registry import LLMRegistry
 from app.services.user_memory_service import UserMemoryService
+from app.services.style_prompt import StylePromptService
+from app.services.style_registry import StyleRegistry
 
 
 class RouterService:
@@ -46,6 +48,8 @@ class RouterService:
                 IgnoreFeatureHandler(),
             ]
         )
+        self.style_registry = StyleRegistry()
+        self.style_prompt = StylePromptService(self.style_registry)
 
     def normalize_username(self, username: str) -> str:
         return username.strip().lstrip("@").lower()
@@ -207,6 +211,7 @@ class RouterService:
             dossier=self.dossier,
             weekly_movies=self.weekly_movies,
             user_memory=self.user_memory,
+            style_prompt=self.style_prompt,
         )
 
         handler = self.selector.select(request)
