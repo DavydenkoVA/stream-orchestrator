@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,11 +33,11 @@ class ProviderStateStore:
             row = ProviderRuntimeState(
                 provider_name=provider_name,
                 current_model_name=model_name,
-                updated_at=datetime.utcnow(),
+                updated_at=datetime.now(UTC),
             )
             db.add(row)
         else:
             row.current_model_name = model_name
-            row.updated_at = datetime.utcnow()
+            row.updated_at = datetime.now(UTC)
 
         db.commit()

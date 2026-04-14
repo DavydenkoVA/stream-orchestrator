@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -167,7 +167,7 @@ class UserMemoryService:
             for item in existing_items
         }
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         for candidate in candidates:
             key = (
