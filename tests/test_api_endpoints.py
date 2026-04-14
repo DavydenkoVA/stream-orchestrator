@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+
 from fastapi.testclient import TestClient
 
 from app.db import get_db
@@ -140,5 +142,99 @@ def test_debug_context_endpoint(db_session) -> None:
     assert isinstance(payload["global_recent"], list)
     assert payload["system_prompt"]
     assert payload["user_prompt"]
+
+    app.dependency_overrides.clear()
+
+
+def test_chat_reply_unhandled_exception_is_sanitized(db_session, monkeypatch) -> None:
+    def override_get_db():
+        yield db_session
+
+    async def crash(*args, **kwargs):
+        raise RuntimeError("provider_key=secret-key stack exploded")
+
+    monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/events/chat_reply",
+        json={
+            "stream_id": "s_err",
+            "username": "viewer",
+            "text": "hello",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
+    )
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert payload["error_code"] == "internal_error"
+    assert payload["message"] == "Internal server error"
+    assert payload["request_id"]
+    assert len(payload["request_id"]) == 32
+    assert "RuntimeError" not in response.text
+    assert "secret-key" not in response.text
+
+    app.dependency_overrides.clear()
+
+
+def test_chat_reply_validation_error_is_normalized(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/events/chat_reply",
+        json={
+            "stream_id": "s_validation",
+            "username": "viewer",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error_code"] == "validation_error"
+    assert payload["message"] == "Validation error"
+    assert payload["request_id"]
+
+    app.dependency_overrides.clear()
+
+
+def test_chat_reply_http_exception_is_sanitized(db_session, monkeypatch) -> None:
+    def override_get_db():
+        yield db_session
+
+    async def fail_with_http(*args, **kwargs):
+        raise HTTPException(status_code=400, detail="internal failure details should stay private")
+
+    monkeypatch.setattr("app.api.routes.service.handle_chat_reply", fail_with_http)
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/events/chat_reply",
+        json={
+            "stream_id": "s_http",
+            "username": "viewer",
+            "text": "hello",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error_code"] == "bad_request"
+    assert payload["message"] == "Bad request"
+    assert payload["request_id"]
+    assert "internal failure details" not in response.text
 
     app.dependency_overrides.clear()
