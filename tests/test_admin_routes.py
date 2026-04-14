@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.api import admin_routes
 from app.main import app
 
 
@@ -21,7 +22,18 @@ def _minimal_valid_payload() -> dict[str, str]:
     }
 
 
-def test_get_admin_llm_config_page_returns_200() -> None:
+def test_get_admin_llm_config_page_returns_404_when_disabled() -> None:
+    client = TestClient(app)
+
+    response = client.get("/admin/llm-config")
+
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "not_found"
+    assert response.json()["message"] == "Not found"
+
+
+def test_get_admin_llm_config_page_returns_200_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
     client = TestClient(app)
 
     response = client.get("/admin/llm-config")
@@ -30,7 +42,8 @@ def test_get_admin_llm_config_page_returns_200() -> None:
     assert "LLM Config Admin" in response.text
 
 
-def test_validate_route_returns_errors_for_invalid_payload() -> None:
+def test_validate_route_returns_errors_for_invalid_payload(monkeypatch) -> None:
+    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
     client = TestClient(app)
     payload = _minimal_valid_payload()
     payload["providers[0][models][0][api_key]"] = ""
@@ -42,7 +55,8 @@ def test_validate_route_returns_errors_for_invalid_payload() -> None:
     assert "api_key is empty" in response.text
 
 
-def test_apply_route_applies_new_config() -> None:
+def test_apply_route_applies_new_config(monkeypatch) -> None:
+    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
     client = TestClient(app)
     payload = _minimal_valid_payload()
     payload["providers[0][models][0][api_key]"] = "admin-applied-key"

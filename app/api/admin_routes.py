@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 def _ensure_admin_ui_enabled() -> None:
-    if settings.app_env == "dev" or settings.enable_admin_ui:
+    if settings.enable_admin_ui:
         return
     raise HTTPException(status_code=404, detail="Admin UI disabled")
 
