@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 
 from sqlalchemy.orm import Session
@@ -25,6 +26,8 @@ from app.services.style_registry import StyleRegistry
 from app.services.llm_execution_service import LLMExecutionService
 from app.services.provider_state_store import ProviderStateStore
 from app.observability.trace_helpers import trace_info, trace_success
+
+logger = logging.getLogger(__name__)
 
 
 class RouterService:
@@ -112,7 +115,10 @@ class RouterService:
             reply_to_text=reply_to_text,
         )
         db.commit()
-        trace_success("chat_message.save.success", "chat message saved", payload={"stream_id": stream_id})
+        try:
+            trace_success("chat_message.save.success", "chat message saved", payload={"stream_id": stream_id})
+        except Exception:
+            logger.warning("trace operation failed: chat_message.save.success", exc_info=True)
 
     async def handle_chat_reply(
             self,

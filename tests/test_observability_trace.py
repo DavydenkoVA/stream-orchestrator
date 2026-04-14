@@ -171,3 +171,51 @@ def test_dynamic_prompt_service_traces_fallback(db_session) -> None:
         if s.startswith("dynamic_prompt.")
     ]
     assert "dynamic_prompt.fallback" in steps
+
+
+def test_chat_ingest_succeeds_when_trace_start_fails(db_session, monkeypatch) -> None:
+    def _explode_start_trace(*args, **kwargs):
+        raise RuntimeError("trace table unavailable")
+
+    monkeypatch.setattr("app.api.routes.start_trace", _explode_start_trace)
+
+    client = _client_with_db(db_session, raise_server_exceptions=False)
+    response = client.post(
+        "/events/chat_ingest",
+        json={"stream_id": "obs_trace_start_fail", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
+    )
+    assert response.status_code == 200
+
+    saved = db_session.scalar(
+        select(ChatMessage).where(
+            ChatMessage.stream_id == "obs_trace_start_fail",
+            ChatMessage.username == "u",
+            ChatMessage.text == "hello",
+        )
+    )
+    assert saved is not None
+    app.dependency_overrides.clear()
+
+
+def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(db_session, monkeypatch) -> None:
+    def _explode_trace_success(*args, **kwargs):
+        raise RuntimeError("trace insert failed")
+
+    monkeypatch.setattr("app.services.router.trace_success", _explode_trace_success)
+
+    client = _client_with_db(db_session, raise_server_exceptions=False)
+    response = client.post(
+        "/events/chat_ingest",
+        json={"stream_id": "obs_trace_post_commit_fail", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
+    )
+    assert response.status_code == 200
+
+    saved = db_session.scalar(
+        select(ChatMessage).where(
+            ChatMessage.stream_id == "obs_trace_post_commit_fail",
+            ChatMessage.username == "u",
+            ChatMessage.text == "hello",
+        )
+    )
+    assert saved is not None
+    app.dependency_overrides.clear()
