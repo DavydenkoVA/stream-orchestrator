@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
@@ -166,6 +168,33 @@ class ChatMemoryService:
         stmt = (
             update(ChatMessage)
             .where(ChatMessage.id.in_(message_ids))
-            .values(is_memory_processed=True)
+            .values(
+                is_memory_processed=True,
+                memory_last_error_code=None,
+            )
+        )
+        db.execute(stmt)
+
+    def mark_messages_memory_extraction_attempted(
+        self,
+        db: Session,
+        *,
+        message_ids: list[int],
+        error_code: str | None,
+    ) -> None:
+        if not message_ids:
+            return
+
+        stmt = (
+            update(ChatMessage)
+            .where(
+                ChatMessage.id.in_(message_ids),
+                ChatMessage.is_memory_processed.is_(False),
+            )
+            .values(
+                memory_process_attempts=ChatMessage.memory_process_attempts + 1,
+                memory_last_attempt_at=datetime.now(UTC),
+                memory_last_error_code=error_code,
+            )
         )
         db.execute(stmt)
