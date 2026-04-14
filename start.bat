@@ -30,7 +30,15 @@ IF ERRORLEVEL 1 (
 )
 
 echo [DB] Applying migrations...
-uv run alembic upgrade head
+
+IF EXIST data\sqlite\app.db (
+    echo [DB] Existing DB detected, stamping...
+    uv run alembic stamp head
+) ELSE (
+    echo [DB] No DB found, applying full migration...
+    uv run alembic upgrade head
+)
+
 IF ERRORLEVEL 1 (
     echo [ERROR] Database migration failed.
     pause
