@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Literal
 
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +19,26 @@ from app.services.llm_execution_service import LLMExecutionService
 from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 
 logger = logging.getLogger(__name__)
+
+
+class MemoryCandidate(BaseModel):
+    kind: Literal["preference", "pattern", "topic", "joke", "quote", "meta"]
+    text: str = Field(min_length=1)
+    evidence_count: int = Field(ge=1)
+    confidence: float
+
+
+class MemoryCandidateList(BaseModel):
+    root: list[MemoryCandidate]
+
+
+@dataclass(slots=True)
+class MemoryExtractionResult:
+    ok: bool
+    status: str
+    candidates: list[MemoryCandidate]
+    error_code: str | None
+    error_details: str | None = None
 
 
 class UserMemoryService:
@@ -81,9 +104,14 @@ class UserMemoryService:
         db: Session,
         username: str,
         messages: list[str],
-    ) -> list[dict]:
+    ) -> MemoryExtractionResult:
         if not messages:
-            return []
+            return MemoryExtractionResult(
+                ok=True,
+                status="success_empty",
+                candidates=[],
+                error_code=None,
+            )
 
         pool, feature_cfg = self.llm_registry.get_for_feature("user_memory")
 
@@ -96,69 +124,81 @@ class UserMemoryService:
             messages_block=messages_block,
         )
 
-        raw = await self.llm_executor.generate_text_with_pool(
-            db=db,
-            pool=pool,
-            feature_settings=feature_cfg,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-        )
+        try:
+            raw = await self.llm_executor.generate_text_with_pool(
+                db=db,
+                pool=pool,
+                feature_settings=feature_cfg,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+        except Exception as exc:
+            return MemoryExtractionResult(
+                ok=False,
+                status="failed_provider",
+                candidates=[],
+                error_code="memory_provider_error",
+                error_details=str(exc),
+            )
 
         try:
             parsed = json.loads(raw)
-        except Exception:
-            logger.warning("User memory extraction returned invalid JSON: %s", raw)
-            return []
-
-        if not isinstance(parsed, list):
-            return []
-
-        valid_kinds = {"preference", "pattern", "topic", "joke", "quote", "meta"}
-        candidates: list[dict] = []
-
-        for item in parsed:
-            if not isinstance(item, dict):
-                continue
-
-            kind = str(item.get("kind", "")).strip()
-            text = str(item.get("text", "")).strip()
-            evidence_count = item.get("evidence_count", 1)
-            confidence = item.get("confidence", 0.0)
-
-            if kind not in valid_kinds:
-                continue
-
-            if not text:
-                continue
-
-            try:
-                evidence_count = int(evidence_count)
-            except Exception:
-                evidence_count = 1
-
-            try:
-                confidence = float(confidence)
-            except Exception:
-                confidence = 0.0
-
-            if confidence < settings.user_memory_min_confidence:
-                continue
-
-            if evidence_count < 1:
-                evidence_count = 1
-
-            candidates.append(
-                {
-                    "kind": kind,
-                    "text": text,
-                    "evidence_count": evidence_count,
-                    "confidence": confidence,
-                }
+        except Exception as exc:
+            logger.warning(
+                "User memory extraction returned invalid JSON: username=%s raw=%s",
+                username,
+                raw[:500],
+            )
+            return MemoryExtractionResult(
+                ok=False,
+                status="failed_parse",
+                candidates=[],
+                error_code="memory_parse_error",
+                error_details=str(exc),
             )
 
-        return candidates
+        try:
+            validated = MemoryCandidateList.model_validate({"root": parsed})
+        except ValidationError as exc:
+            return MemoryExtractionResult(
+                ok=False,
+                status="failed_schema",
+                candidates=[],
+                error_code="memory_schema_error",
+                error_details=str(exc),
+            )
 
-    def merge_memory_candidates(self, db: Session, username: str, candidates: list[dict]) -> None:
+        valid_kinds = {"preference", "pattern", "topic", "joke", "quote", "meta"}
+        candidates = [
+            item
+            for item in validated.root
+            if item.kind in valid_kinds
+            and item.text.strip()
+            and item.evidence_count >= 1
+            and item.confidence >= settings.user_memory_min_confidence
+        ]
+
+        if not candidates:
+            return MemoryExtractionResult(
+                ok=True,
+                status="success_empty",
+                candidates=[],
+                error_code=None,
+            )
+
+        return MemoryExtractionResult(
+            ok=True,
+            status="success",
+            candidates=candidates,
+            error_code=None,
+        )
+
+    def merge_memory_candidates(
+        self,
+        db: Session,
+        username: str,
+        candidates: list[MemoryCandidate],
+    ) -> None:
         if not candidates:
             return
 
@@ -172,22 +212,22 @@ class UserMemoryService:
 
         for candidate in candidates:
             key = (
-                candidate["kind"].strip().lower(),
-                candidate["text"].strip().lower(),
+                candidate.kind.strip().lower(),
+                candidate.text.strip().lower(),
             )
 
             existing = existing_map.get(key)
             if existing is not None:
-                existing.evidence_count += candidate["evidence_count"]
-                existing.confidence = max(existing.confidence, candidate["confidence"])
+                existing.evidence_count += candidate.evidence_count
+                existing.confidence = max(existing.confidence, candidate.confidence)
                 existing.updated_at = now
             else:
                 new_item = UserMemoryItem(
                     username=username,
-                    kind=candidate["kind"],
-                    text=candidate["text"],
-                    evidence_count=candidate["evidence_count"],
-                    confidence=candidate["confidence"],
+                    kind=candidate.kind,
+                    text=candidate.text,
+                    evidence_count=candidate.evidence_count,
+                    confidence=candidate.confidence,
                     created_at=now,
                     updated_at=now,
                 )
@@ -231,9 +271,36 @@ class UserMemoryService:
         )
 
         try:
-            candidates = await self.extract_memory_candidates(db, username, message_texts)
-            trace_success("user_memory.extract.success", "memory extraction finished", payload={"candidates_count": len(candidates)})
-            self.merge_memory_candidates(db, username, candidates)
+            extraction = await self.extract_memory_candidates(db, username, message_texts)
+            self.chat_memory.mark_messages_memory_extraction_attempted(
+                db,
+                message_ids=message_ids,
+                error_code=extraction.error_code,
+            )
+            if not extraction.ok:
+                trace_failure(
+                    "user_memory.extract.failed",
+                    "memory extraction failed",
+                    error_code=extraction.error_code or "memory_extraction_failed",
+                    payload={"status": extraction.status, "messages_count": len(message_ids)},
+                )
+                db.commit()
+                logger.warning(
+                    "User memory extraction failed: username=%s mode=%s status=%s error_code=%s messages=%s",
+                    username,
+                    mode,
+                    extraction.status,
+                    extraction.error_code,
+                    len(messages),
+                )
+                return False
+
+            trace_success(
+                "user_memory.extract.success",
+                "memory extraction finished",
+                payload={"status": extraction.status, "candidates_count": len(extraction.candidates)},
+            )
+            self.merge_memory_candidates(db, username, extraction.candidates)
             trace_success("user_memory.merge.success", "memory merge completed")
             self.trim_user_memory(db, username)
             trace_success("user_memory.trim.success", "memory trim completed")
@@ -246,11 +313,19 @@ class UserMemoryService:
             trace_failure("user_memory.refresh.failed", "user memory refresh failed", error_code="internal_error")
             raise
 
-        logger.info(
-            "User memory refreshed: username=%s mode=%s messages=%s candidates=%s",
-            username,
-            mode,
-            len(messages),
-            len(candidates),
-        )
+        if extraction.status == "success_empty":
+            logger.info(
+                "User memory extraction succeeded with no candidates: username=%s mode=%s messages=%s",
+                username,
+                mode,
+                len(messages),
+            )
+        else:
+            logger.info(
+                "User memory refreshed: username=%s mode=%s messages=%s candidates=%s",
+                username,
+                mode,
+                len(messages),
+                len(extraction.candidates),
+            )
         return True
