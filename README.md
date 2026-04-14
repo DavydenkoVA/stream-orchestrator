@@ -2,18 +2,33 @@
 
 ## Назначение проекта
 
-Проект представляет собой оркестратор для работы LLM (языковой модели) в контексте стрим-чата (например, Twitch).
+`stream-orchestrator` — локальный FastAPI-сервис для оркестрации LLM-ответов в контексте стрим-чата.
 
 Основные задачи:
+- приём событий чата;
+- хранение истории сообщений;
+- маршрутизация встроенных сценариев (`chat`, `dossier`, `weekly_movies`);
+- выполнение динамических prompt-сценариев через отдельный API;
+- формирование контекста для модели;
+- вызов LLM через настраиваемые provider/profile-конфиги;
+- возврат ответа, пригодного для отправки в чат.
 
-* приём событий чата;
-* хранение истории сообщений;
-* маршрутизация запросов (chat / dossier / file-based);
-* формирование контекста для модели;
-* вызов LLM;
-* возврат готового ответа, пригодного для чата.
+Сервис **не управляет сценами, OBS и Streamer.bot напрямую**. Он принимает события и возвращает результат обработки.
 
-Оркестратор **не управляет сценами, OBS и т.п.** — только читает данные и генерирует ответы.
+---
+
+## Что уже есть
+
+- FastAPI API для ingest / reply / debug / dynamic prompt
+- SQLite + Alembic миграции
+- история чата и выборка контекста
+- user memory для накопления фактов о пользователях
+- генерация досье по накопленным данным
+- file-based сценарий `weekly_movies`
+- профили LLM в YAML-конфиге
+- стили ответов в отдельном YAML-конфиге
+- prompt-файлы, подгружаемые с диска без изменения кода
+- тесты на `pytest`
 
 ---
 
@@ -21,94 +36,130 @@
 
 ### Основные компоненты
 
-* **API (FastAPI)** — принимает события чата
-* **RouterService** — решает, как обрабатывать сообщение
-* **ChatMemoryService** — хранение и выборка истории
-* **LLM Provider** — абстракция над моделью (OpenAI / mock / др.)
-* **PromptStore** — загрузка промтов из файлов
-* **File readers** — чтение внешних источников (например, weekly movies)
+- **API (FastAPI)** — принимает HTTP-события и отдаёт результат
+- **RouterService** — оркестрирует встроенные chat-сценарии
+- **FeatureSelector / handlers** — определяют, какой встроенный сценарий обработает сообщение
+- **ChatMemoryService** — сохраняет сообщения и подготавливает контекст
+- **UserMemoryService** — извлекает и обновляет долговременную память по пользователю
+- **DossierService** — строит контекст для досье
+- **DynamicPromptService** — выполняет произвольные prompt-сценарии с ручным набором входных данных
+- **PromptStore** — читает system/user prompt-файлы
+- **LLMRegistry** — загружает provider pools и feature settings из YAML
+- **LLMExecutionService** — вызывает модель и обрабатывает failover по пулу моделей
+- **StylePromptService** — применяет стиль ответа к system prompt
+- **File readers** — читают внешние данные, например список weekly movies
 
 ---
 
 ## Потоки обработки
 
-### 1. Ingest (сбор сообщений)
+### 1. Ingest
 
-```
-/events/chat_ingest
-```
+`POST /events/chat_ingest`
 
-* сохраняет все сообщения в БД
-* не вызывает LLM
+Назначение:
+- сохранить входящее сообщение в БД;
+- не вызывать LLM;
+- использоваться как отдельный канал накопления истории.
 
----
+### 2. Reply
 
-### 2. Reply (ответ бота)
-
-```
-/events/chat_reply
-```
+`POST /events/chat_reply`
 
 Логика:
+1. сохранить сообщение;
+2. выбрать встроенный сценарий;
+3. собрать нужный контекст;
+4. вызвать LLM или deterministic-обработку;
+5. вернуть текст ответа и выбранный route.
 
-1. сохранить сообщение
-2. определить тип запроса:
+Встроенные сценарии на текущем этапе:
+- `dossier`
+- `weekly_movies`
+- `chat`
+- `ignored`
 
-   * `dossier`
-   * `weekly_movies`
-   * `chat`
-3. сформировать контекст
-4. вызвать LLM (или обработать детерминированно)
-5. вернуть ответ
+### 3. Dynamic Prompt
 
----
+`POST /events/dynamic_prompt`
 
-### 3. Debug
+Отдельный механизм для явно вызываемых prompt-сценариев.
 
-```
-/debug/context
-```
+Используется, когда внешний оркестратор сам знает, какой prompt нужно выполнить, и передаёт:
+- имя prompt-а;
+- пользователя;
+- произвольный `data` payload;
+- при необходимости override параметров LLM.
 
-* показывает, какой контекст уходит в модель
+### 4. Debug
 
----
-
-## Установка
-
-### 1. Требования
-
-* Python 3.11+
-* uv (или pip)
-* SQLite (встроен)
-
----
-
-### 2. Установка зависимостей
-
-```bash
-uv venv
-uv pip install -r requirements.txt
-```
+- `GET /debug/context` — показывает контекст, который уйдёт в модель
+- `GET /debug/prompts/{name}` — возвращает содержимое prompt-файла
+- `GET /health` — healthcheck
 
 ---
 
-### 3. Настройка `.env`
+## Структура prompt-сценариев
+
+### Встроенные chat-сценарии
+
+Используются в `RouterService` и вызываются автоматически через `/events/chat_reply`.
+
+Текущие prompt-файлы:
+- `prompts/chat_system.txt`
+- `prompts/chat_user_template.txt`
+- `prompts/dossier_system.txt`
+- `prompts/dossier_user_template.txt`
+- `prompts/weekly_movies_system.txt`
+- `prompts/weekly_movies_user_template.txt`
+- `prompts/user_memory_system.txt`
+- `prompts/user_memory_user_template.txt`
+
+### Dynamic Prompt сценарии
+
+Хранятся в каталоге `prompts/dynamic/` и именуются так:
+- `prompts/dynamic/<name>_system.txt`
+- `prompts/dynamic/<name>_template.txt`
+
+Пример:
+- `prompts/dynamic/test_system.txt`
+- `prompts/dynamic/test_template.txt`
+
+Такой сценарий вызывается через `/events/dynamic_prompt`.
+
+---
+
+## Конфигурация
+
+### `.env`
+
+Базовые runtime-настройки лежат в `.env`.
 
 Пример:
 
 ```env
 APP_ENV=dev
+APP_HOST=127.0.0.1
+APP_PORT=8000
+LOG_LEVEL=INFO
 
 DATABASE_URL=sqlite:///./data/sqlite/app.db
 
-LLM_PROVIDER=mock
-LLM_API_KEY=
-LLM_BASE_URL=
-LLM_MODEL=
+LLM_TIMEOUT_SECONDS=30
+LLM_TEMPERATURE=0.7
+LLM_MAX_OUTPUT_TOKENS=400
 
 TWITCH_MESSAGE_LIMIT=450
-
 PROMPTS_DIR=./prompts
+
+LLM_PROFILES_CONFIG_PATH=./config/llm_profiles.yml
+LLM_STYLES_CONFIG_PATH=./config/llm_styles.yml
+
+USER_MEMORY_BOOTSTRAP_MESSAGE_THRESHOLD=10
+USER_MEMORY_MIN_UNPROCESSED_MESSAGES=50
+USER_MEMORY_EXTRACT_MESSAGE_LIMIT=80
+USER_MEMORY_MAX_ITEMS_PER_USER=12
+USER_MEMORY_MIN_CONFIDENCE=0.6
 
 CHAT_GLOBAL_CONTEXT_LIMIT=20
 CHAT_USER_CONTEXT_LIMIT=8
@@ -116,16 +167,33 @@ CHAT_DIALOG_CONTEXT_LIMIT=12
 
 BOT_USERNAME=stream_bot
 
-WEEKLY_MOVIES_FILE=P:\LLM stream ochestrator\data\dynamic\weekly_movies.txt
+STREAMERBOT_BASE_URL=http://127.0.0.1:7474
+STREAMERBOT_AUTH_TOKEN=
+
+OBS_WS_URL=ws://127.0.0.1:4455
+OBS_WS_PASSWORD=
+
+WEEKLY_MOVIES_FILE=
 ```
 
----
+### `config/llm_profiles.yml`
 
-### 4. Запуск
+Отдельный YAML-конфиг для:
+- provider pools;
+- моделей внутри провайдера;
+- feature settings.
 
-```bash
-uvicorn app.main:app --reload
-```
+Через него настраиваются:
+- какой provider используется для `chat`, `dossier`, `weekly_movies`, `dynamic_prompt`, `user_memory`;
+- temperature;
+- max output tokens;
+- style.
+
+### `config/llm_styles.yml`
+
+Отдельный YAML-конфиг для стилей ответа.
+
+Стиль применяется к system prompt через `StylePromptService`.
 
 ---
 
@@ -133,144 +201,159 @@ uvicorn app.main:app --reload
 
 Используется SQLite.
 
-При первом запуске:
+Схема БД ведётся через **Alembic миграции**.
 
-* файл создаётся автоматически
-* таблицы должны быть инициализированы (через `Base.metadata.create_all()`)
+Рабочая модель:
+- приложение не должно полагаться на runtime `create_all()` как на основной механизм управления схемой;
+- перед запуском нужно применить миграции;
+- для уже существующей старой БД можно выполнить её принятие в Alembic через `stamp head`.
 
----
+### Основной запуск
 
-## Промты (КРИТИЧЕСКАЯ ЧАСТЬ)
+Если используется Windows-скрипт проекта:
 
-Промты вынесены в файлы и читаются **динамически** (без перезапуска сервиса).
+```bat
+start.bat
+```
 
-### Почему это важно
+Он делает:
+1. создание `.venv`, если её ещё нет;
+2. создание каталога `data/sqlite`, если его ещё нет;
+3. `uv sync`;
+4. `uv run alembic upgrade head`;
+5. запуск `uvicorn`.
 
-* можно менять поведение бота без деплоя
-* можно быстро тестировать формулировки
-* разные сценарии используют разные промты
+### Принятие уже существующей БД
 
----
+Если БД уже существует и её нужно привязать к текущей голове миграций:
 
-## Типы промтов
+```bat
+adopt_existing_db.bat
+```
 
-### 1. Общий чат
+Или вручную:
 
-#### `prompts/chat_system.txt`
+```bash
+uv run alembic stamp head
+```
 
-Определяет:
+### Ручной запуск без `.bat`
 
-* стиль ответа
-* ограничения (не выдумывать, краткость)
-* правила работы с контекстом
-
-#### `prompts/chat_user_template.txt`
-
-Формирует вход в модель:
-
-Содержит:
-
-* текущее сообщение
-* историю пользователя
-* общий чат
-* диалог с ботом
-
----
-
-### 2. Досье
-
-#### `prompts/dossier_system.txt`
-
-Правила генерации досье
-
-#### `prompts/dossier_user_template.txt`
-
-Передаёт:
-
-* историю сообщений пользователя
-* накопленную "память"
-
----
-
-### 3. Weekly Movies (файловый источник)
-
-#### `prompts/weekly_movies_system.txt`
-
-Ключевые ограничения:
-
-* использовать **только данные из файла**
-* не добавлять свои фильмы
-* не заменять список рекомендациями
-
-#### `prompts/weekly_movies_user_template.txt`
-
-Передаёт:
-
-* вопрос пользователя
-* содержимое файла
-
----
-
-## Важно про промты
-
-Промты должны:
-
-1. Быть короткими
-2. Быть однозначными
-3. Не содержать противоречий
-
-### Плохой пример
-
-* "используй данные если нужно"
-* "можешь добавить рекомендации"
-
-### Хороший пример
-
-* "используй только данные файла"
-* "не добавляй свои варианты"
-
----
-
-## Контекст
-
-### Типы контекста
-
-* **global_recent** — последние сообщения чата
-* **user_recent** — сообщения пользователя
-* **dialog_recent** — диалог пользователь ↔ бот
-
-Контекст ограничен настройками:
-
-```env
-CHAT_GLOBAL_CONTEXT_LIMIT
-CHAT_USER_CONTEXT_LIMIT
-CHAT_DIALOG_CONTEXT_LIMIT
+```bash
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ---
 
-## File-based источники
+## Установка
 
-Пример: weekly movies
+### Требования
 
-### Принцип работы
+- Python 3.11+
+- `uv`
+- SQLite
 
-1. Оркестратор определяет intent
-2. Читает файл
-3. Делает отдельный LLM-запрос
-4. Использует отдельный prompt
+### Установка зависимостей
 
-### Почему не через общий prompt
-
-* экономия токенов
-* меньше шума
-* предсказуемое поведение
+```bash
+uv venv
+uv sync
+```
 
 ---
 
+## Примеры API
+
+### Ingest
+
+```bash
+curl -X POST http://127.0.0.1:8000/events/chat_ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stream_id": "main-stream",
+    "username": "alice",
+    "text": "всем привет",
+    "mentions_bot": false,
+    "role": "viewer"
+  }'
+```
+
+### Reply
+
+```bash
+curl -X POST http://127.0.0.1:8000/events/chat_reply \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stream_id": "main-stream",
+    "username": "alice",
+    "text": "@stream_bot что смотрим в воскресенье?",
+    "mentions_bot": true,
+    "role": "viewer"
+  }'
+```
+
+### Dynamic Prompt
+
+```bash
+curl -X POST http://127.0.0.1:8000/events/dynamic_prompt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "test",
+    "user": "alice",
+    "data": {
+      "loot": "coins"
+    }
+  }'
+```
+
+---
+
+## Context / Memory
+
+### Контекст чата
+
+Для chat-сценария используются:
+- `global_recent` — последние сообщения чата;
+- `user_recent` — недавние сообщения конкретного пользователя;
+- `dialog_recent` — недавний диалог пользователь ↔ бот.
+
+Лимиты задаются через:
+- `CHAT_GLOBAL_CONTEXT_LIMIT`
+- `CHAT_USER_CONTEXT_LIMIT`
+- `CHAT_DIALOG_CONTEXT_LIMIT`
+
+### User Memory
+
+User memory — это отдельный слой долговременных фактов о пользователях.
+
+Используется для:
+- досье;
+- персонализированных ответов в будущем.
+
+Текущее поведение:
+- память извлекается из накопленных сообщений пользователя;
+- извлечение запускается по threshold-правилам;
+- память хранит `kind`, `text`, `evidence_count`, `confidence`;
+- количество memory items на пользователя ограничивается настройками.
+
+---
+
+## File-based сценарии
+
+Сейчас основной file-based сценарий — `weekly_movies`.
+
+### Принцип работы
+
+1. встроенный router определяет intent;
+2. сервис читает файл;
+3. делает отдельный LLM-запрос;
+4. использует отдельные prompts.
+
 ### Формат файла
 
-Простой текст:
+Допустим простой текст:
 
 ```text
 Alien
@@ -278,63 +361,38 @@ The Thing
 Event Horizon
 ```
 
-Допустимо:
+Допустима строка с метаданными:
 
 ```text
 Alien | added_by=alice
 ```
 
----
-
 ### Поведение
 
-* файл пуст → бот сообщает об этом
-* файл заполнен → бот перечисляет всё
-* файл не найден → бот сообщает об ошибке
-
----
-
-## Роли сообщений
-
-```text
-viewer        — обычный пользователь
-bot           — сообщения бота
-broadcaster   — владелец канала
-system        — системные события
-```
-
-Используются в контексте и могут влиять на поведение модели.
+- файл пуст → бот сообщает об этом;
+- файл заполнен → бот перечисляет содержимое;
+- файл не найден → бот сообщает об ошибке.
 
 ---
 
 ## Ограничение длины ответа
 
-Ответ обрезается до:
+Ответ обрезается через `prepare_chat_text()` до `TWITCH_MESSAGE_LIMIT`.
 
-```env
-TWITCH_MESSAGE_LIMIT
-```
-
-через `prepare_chat_text()`
+Это нужно, чтобы укладываться в ограничения платформы чата.
 
 ---
 
-## LLM Provider
+## Streamer.bot интеграция
 
-Поддерживаются:
+В проекте есть примеры интеграции со Streamer.bot в каталоге `examples/streamer.bot/`.
 
-* `mock` — для тестирования
-* `openai` — реальная модель
-* можно добавить любой другой
+Типичный сценарий:
+- внешний sender отправляет chat events в `/events/chat_ingest`;
+- отдельный sender или automation вызывает `/events/chat_reply` или `/events/dynamic_prompt`;
+- оркестратор возвращает уже готовый ответ.
 
-Конфигурация:
-
-```env
-LLM_PROVIDER=
-LLM_API_KEY=
-LLM_BASE_URL=
-LLM_MODEL=
-```
+`stream_id` уже присутствует в контрактах как задел под разделение нескольких потоков/стримов, даже если локально сейчас часто используется константное значение.
 
 ---
 
@@ -343,62 +401,91 @@ LLM_MODEL=
 ### Проверка контекста
 
 ```bash
-curl -X POST http://127.0.0.1:8000/debug/context
+curl "http://127.0.0.1:8000/debug/context?stream_id=main-stream&username=alice&text=hello"
 ```
 
-Позволяет:
+Это позволяет:
+- увидеть, что реально уйдёт в модель;
+- проверить лимиты контекста;
+- понять, какие сообщения попали в выборку.
 
-* увидеть, что реально уходит в модель
-* проверить лимиты
-* найти дубли
+### Проверка prompt-файла
+
+```bash
+curl http://127.0.0.1:8000/debug/prompts/chat_system.txt
+```
+
+---
+
+## Тесты
+
+В проекте есть каталог `tests/` с `pytest`-фикстурами и тестами.
+
+Запуск:
+
+```bash
+uv run pytest
+```
+
+Тестовый контур использует:
+- временную SQLite БД;
+- временные prompt-файлы;
+- временные YAML-конфиги профилей и стилей.
 
 ---
 
 ## Расширение проекта
 
-Добавление нового источника:
+### Когда добавлять встроенный route
 
-1. создать reader (например `faq_reader.py`)
-2. добавить prompt:
+Через `FeatureSelector` / `RouterService` имеет смысл добавлять только сценарии, которые:
+- должны определяться автоматически из chat message;
+- естественно живут внутри `/events/chat_reply`.
 
-   * `faq_system.txt`
-   * `faq_user_template.txt`
-3. добавить intent в router
-4. добавить отдельный handler
+### Когда использовать `dynamic_prompt`
+
+Через `/events/dynamic_prompt` лучше добавлять сценарии, которые:
+- вызываются явно внешним оркестратором;
+- требуют кастомного набора входных данных;
+- не должны усложнять встроенный auto-router.
+
+Это текущий основной путь расширения для кастомной бизнес-логики без разрастания встроенных chat-intents.
 
 ---
 
 ## Ограничения текущей реализации
 
-* нет дедупликации сообщений
-* нет сжатия истории
-* нет RAG/векторной базы
-* нет приоритизации ролей
+На текущем этапе стоит считать актуальными следующие ограничения:
+- нет полноценной дедупликации сообщений;
+- нет RAG / векторной базы;
+- нет UI для безопасного редактирования YAML-конфигов;
+- встроенный auto-router intentionally небольшой и не должен разрастаться под все сценарии;
+- observability / trace UI ещё требует отдельного развития.
 
 ---
 
-## Рекомендации
+## Рекомендации по эксплуатации
 
-* не перегружать общий prompt
-* делать отдельные сценарии для разных типов задач
-* минимизировать токены
-* использовать deterministic логику там, где важна точность
+- не перегружать общий chat prompt;
+- для новых внешних сценариев сначала рассматривать `dynamic_prompt`, а не новый встроенный handler;
+- применять миграции до запуска сервиса;
+- держать `llm_profiles.yml` и `llm_styles.yml` под version control;
+- использовать deterministic-логику там, где важна точность выше гибкости модели.
 
 ---
 
 ## Итог
 
-Проект уже реализует:
+Проект уже является рабочей базой для локального LLM-оркестратора стрим-чата:
+- ingest / reply / debug / dynamic prompt API;
+- контекстная память чата;
+- user memory и досье;
+- file-based сценарии;
+- конфигурируемые профили моделей и стили;
+- миграции и тестовый контур.
 
-* оркестрацию LLM
-* разделение сценариев
-* работу с динамическими файлами
-* управляемые промты
-* контекстную память чата
-
-Это хорошая база для дальнейшего развития:
-
-* tool-based routing
-* внешние источники данных
-* персонализация пользователей
-* интеграция со Streamer.bot / OBS
+Следующий естественный уровень развития:
+- UI для безопасного редактирования конфигов;
+- улучшенная observability;
+- аккуратное развитие dynamic prompt-сценариев;
+- дальнейшее усиление memory / routing / validation контуров.
