@@ -187,9 +187,11 @@ class ChatMemoryService:
 
         stmt = (
             update(ChatMessage)
-            .where(ChatMessage.id.in_(message_ids))
+            .where(
+                ChatMessage.id.in_(message_ids),
+                ChatMessage.is_memory_processed.is_(False),
+            )
             .values(
-                is_memory_processed=False,
                 memory_process_attempts=ChatMessage.memory_process_attempts + 1,
                 memory_last_attempt_at=datetime.now(UTC),
                 memory_last_error_code=error_code,
