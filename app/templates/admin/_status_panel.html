@@ -1,0 +1,18 @@
+{% if result.valid %}
+  <div class="card ok">
+    {% if applied %}
+      <strong>Apply success.</strong> New config was validated, saved and activated.
+    {% else %}
+      <strong>Validation success.</strong> Config is valid and can be applied.
+    {% endif %}
+  </div>
+{% else %}
+  <div class="card danger">
+    <strong>{% if applied %}Apply failed{% else %}Validation failed{% endif %}.</strong>
+    <ul>
+      {% for error in result.errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

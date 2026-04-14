@@ -40,4 +40,4 @@ class ProviderStateStore:
             row.current_model_name = model_name
             row.updated_at = datetime.now(UTC)
 
-        db.commit()
+        db.flush()
