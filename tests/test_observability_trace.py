@@ -33,16 +33,16 @@ class _Provider:
         return "ok"
 
 
-def _client_with_db(db_session):
+def _client_with_db(db_session, *, raise_server_exceptions: bool = True):
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
 def test_request_id_header_exists(db_session) -> None:
-    client = _client_with_db(db_session)
+    client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
         json={"stream_id": "obs_1", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
@@ -54,7 +54,7 @@ def test_request_id_header_exists(db_session) -> None:
 
 
 def test_trace_run_success_and_event_order(db_session) -> None:
-    client = _client_with_db(db_session)
+    client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
         json={"stream_id": "obs_2", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
@@ -76,7 +76,7 @@ def test_trace_run_failed_created_on_error(db_session, monkeypatch) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
-    client = _client_with_db(db_session)
+    client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_reply",
         json={"stream_id": "obs_3", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
