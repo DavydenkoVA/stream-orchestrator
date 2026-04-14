@@ -109,6 +109,7 @@ class RouterService:
             reply_to_username=normalized_reply_to_username,
             reply_to_text=reply_to_text,
         )
+        db.commit()
 
     async def handle_chat_reply(
             self,

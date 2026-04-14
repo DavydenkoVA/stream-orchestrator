@@ -31,8 +31,7 @@ class ChatMemoryService:
             reply_to_text=reply_to_text,
         )
         db.add(message)
-        db.commit()
-        db.refresh(message)
+        db.flush()
         return message
 
     def recent_messages(
@@ -170,4 +169,3 @@ class ChatMemoryService:
             .values(is_memory_processed=True)
         )
         db.execute(stmt)
-        db.commit()

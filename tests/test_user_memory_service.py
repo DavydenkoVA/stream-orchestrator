@@ -73,3 +73,87 @@ def test_refresh_user_memory_if_needed_merges_and_marks_messages(db_session) -> 
 
     unprocessed = chat.count_unprocessed_user_messages(db_session, username="alice")
     assert unprocessed == 0
+
+
+def test_refresh_user_memory_if_needed_commits_once(db_session, monkeypatch) -> None:
+    service = _build_service()
+    chat = service.chat_memory
+
+    chat.save_message(
+        db_session,
+        stream_id="s1",
+        username="alice",
+        text="люблю sci-fi",
+        mentions_bot=False,
+    )
+    chat.save_message(
+        db_session,
+        stream_id="s1",
+        username="alice",
+        text="еще люблю sci-fi",
+        mentions_bot=False,
+    )
+    db_session.commit()
+
+    async def fake_generate_text_with_pool(**kwargs):
+        return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
+
+    service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
+
+    commit_calls = 0
+    original_commit = db_session.commit
+
+    def counting_commit():
+        nonlocal commit_calls
+        commit_calls += 1
+        return original_commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+
+    refreshed = asyncio.run(service.refresh_user_memory_if_needed(db_session, "alice"))
+
+    assert refreshed is True
+    assert commit_calls == 1
+
+
+def test_refresh_user_memory_if_needed_rolls_back_on_error_before_mark_processed(db_session) -> None:
+    service = _build_service()
+    chat = service.chat_memory
+
+    chat.save_message(
+        db_session,
+        stream_id="s1",
+        username="alice",
+        text="люблю sci-fi",
+        mentions_bot=False,
+    )
+    chat.save_message(
+        db_session,
+        stream_id="s1",
+        username="alice",
+        text="еще люблю sci-fi",
+        mentions_bot=False,
+    )
+    db_session.commit()
+
+    async def fake_generate_text_with_pool(**kwargs):
+        return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
+
+    service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
+
+    def fail_trim(*args, **kwargs):
+        raise RuntimeError("trim failed")
+
+    service.trim_user_memory = fail_trim  # type: ignore[method-assign]
+
+    try:
+        asyncio.run(service.refresh_user_memory_if_needed(db_session, "alice"))
+        raise AssertionError("Expected RuntimeError")
+    except RuntimeError as exc:
+        assert "trim failed" in str(exc)
+
+    memories = service.get_memory_items(db_session, "alice")
+    assert memories == []
+
+    unprocessed = chat.count_unprocessed_user_messages(db_session, username="alice")
+    assert unprocessed == 2

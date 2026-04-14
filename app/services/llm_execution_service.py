@@ -100,6 +100,7 @@ class LLMExecutionService:
                 )
 
                 self.state_store.set_current_model_name(db, pool.name, endpoint.name)
+                db.commit()
 
                 if endpoint.name != current_model_name:
                     logger.warning(
