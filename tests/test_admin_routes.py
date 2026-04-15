@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.api import admin_routes
-from app.config import settings
 from app.main import app
 
 
@@ -23,50 +21,95 @@ def _minimal_valid_payload() -> dict[str, str]:
     }
 
 
-def test_get_admin_llm_config_page_returns_404_when_disabled(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "enable_admin_ui", False)
+def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
     client = TestClient(app)
 
-    response = client.get("/admin/llm-config")
-
-    assert response.status_code == 404
-    assert response.json()["error_code"] == "not_found"
-    assert response.json()["message"] == "Not found"
-
-
-def test_get_admin_llm_config_page_returns_200_when_enabled(monkeypatch) -> None:
-    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
-    client = TestClient(app)
-
-    response = client.get("/admin/llm-config")
+    response = client.get("/")
 
     assert response.status_code == 200
-    assert "LLM Config Admin" in response.text
+    assert "Operator Console" in response.text
+    assert "LLM Config" in response.text
+    assert "Playground" in response.text
+    assert "Traces" in response.text
 
 
-def test_validate_route_returns_errors_for_invalid_payload(monkeypatch) -> None:
-    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
+def test_get_llm_config_page_returns_200() -> None:
+    client = TestClient(app)
+
+    response = client.get("/llm-config")
+
+    assert response.status_code == 200
+    assert "LLM Config" in response.text
+
+
+def test_get_playground_returns_200() -> None:
+    client = TestClient(app)
+
+    response = client.get("/playground")
+
+    assert response.status_code == 200
+    assert "not implemented yet" in response.text
+
+
+def test_get_traces_returns_200() -> None:
+    client = TestClient(app)
+
+    response = client.get("/traces")
+
+    assert response.status_code == 200
+    assert "not implemented yet" in response.text
+
+
+def test_legacy_get_llm_config_redirects() -> None:
+    client = TestClient(app)
+
+    response = client.get("/admin/llm-config", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/llm-config"
+
+
+def test_validate_route_returns_errors_for_invalid_payload() -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     payload["providers[0][models][0][api_key]"] = ""
 
-    response = client.post("/admin/llm-config/validate", data=payload)
+    response = client.post("/llm-config/validate", data=payload)
 
     assert response.status_code == 200
     assert "Validation failed" in response.text
     assert "api_key is empty" in response.text
 
 
-def test_apply_route_applies_new_config(monkeypatch) -> None:
-    monkeypatch.setattr(admin_routes.settings, "enable_admin_ui", True)
+def test_apply_route_applies_new_config() -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     payload["providers[0][models][0][api_key]"] = "admin-applied-key"
+
+    response = client.post("/llm-config/apply", data=payload)
+
+    assert response.status_code == 200
+    assert "Apply success" in response.text
+
+    page = client.get("/llm-config")
+    assert "admin-applied-key" in page.text
+
+
+def test_legacy_validate_route_still_works() -> None:
+    client = TestClient(app)
+    payload = _minimal_valid_payload()
+
+    response = client.post("/admin/llm-config/validate", data=payload)
+
+    assert response.status_code == 200
+    assert "Validation success" in response.text
+
+
+def test_legacy_apply_route_still_works() -> None:
+    client = TestClient(app)
+    payload = _minimal_valid_payload()
 
     response = client.post("/admin/llm-config/apply", data=payload)
 
     assert response.status_code == 200
     assert "Apply success" in response.text
-
-    page = client.get("/admin/llm-config")
-    assert "admin-applied-key" in page.text
