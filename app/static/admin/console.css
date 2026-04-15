@@ -151,13 +151,12 @@ pre {
 }
 
 .playground-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  display: block;
 }
 
-.playground-column {
+.playground-pane {
   min-width: 0;
+  max-width: 980px;
 }
 
 .form-stack {
@@ -179,6 +178,10 @@ select,
 button {
   width: 100%;
   padding: 6px 8px;
+}
+
+textarea {
+  resize: vertical;
 }
 
 details {
@@ -229,6 +232,45 @@ summary {
 .result-grid {
   display: grid;
   gap: 8px;
+}
+
+.btn-run {
+  background: #bdecb6;
+}
+
+.btn-delete {
+  background: #f8d7da;
+}
+
+.btn-reset {
+  background: #fce5cd;
+}
+
+.actions button {
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.prompt-editor {
+  margin-top: 10px;
+}
+
+.prompt-editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.editor-textarea {
+  min-height: 120px;
+  font-family: monospace;
+}
+
+.trace-link {
+  display: inline-block;
+  margin-top: -6px;
 }
 
 @media (max-width: 1024px) {

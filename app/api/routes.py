@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -13,6 +13,7 @@ from app.observability.trace_helpers import (
     trace_info,
     trace_success,
 )
+from app.observability.trace_context import get_trace_state
 from app.schemas.events import ChatEvent
 from app.schemas.responses import ChatReply, DebugContextResponse, IngestResponse
 from app.services.router import RouterService
@@ -54,6 +55,13 @@ def _error_code_for_exception(exc: Exception) -> str:
     if isinstance(exc, ValueError):
         return "validation_error"
     return "internal_error"
+
+
+def _attach_trace_header(response: Response) -> None:
+    state = get_trace_state()
+    if state is None:
+        return
+    response.headers["X-Trace-Id"] = str(state.trace_run_id)
 
 
 @router.get("/health")
@@ -102,6 +110,7 @@ def ingest_chat_event(
 async def reply_chat_event(
     payload: ChatEvent,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> ChatReply:
     route = str(request.url.path)
@@ -124,6 +133,7 @@ async def reply_chat_event(
             "chat_reply_finish_success",
             lambda: trace_success("request.finish", "chat reply request finished", payload={"route_result": route}),
         )
+        _attach_trace_header(response)
         _run_trace_safely("chat_reply_mark_success", lambda: finish_trace_success(summary=f"chat_reply {route}"))
         return ChatReply(
             reply_text=reply_text,
@@ -202,6 +212,7 @@ def debug_context(
 async def dynamic_prompt_event(
     payload: DynamicPromptRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> DynamicPromptResponse:
     route = str(request.url.path)
@@ -225,6 +236,7 @@ async def dynamic_prompt_event(
             "dynamic_prompt_finish_success",
             lambda: trace_success("request.finish", "dynamic prompt request finished", payload={"result": result}),
         )
+        _attach_trace_header(response)
         _run_trace_safely(
             "dynamic_prompt_mark_success",
             lambda: finish_trace_success(summary=f"dynamic_prompt {result}"),

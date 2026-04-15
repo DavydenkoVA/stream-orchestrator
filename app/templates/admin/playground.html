@@ -3,106 +3,63 @@
 {% block content %}
   <section class="playground-header">
     <h1>Playground</h1>
-    <p class="muted">Manual operator testing for chat reply and dynamic prompt pipelines.</p>
+    <p class="muted">Manual operator testing for chat reply, dynamic prompt, and dossier pipelines.</p>
   </section>
 
   <nav class="playground-tabs" aria-label="Playground modes">
-    <a
-      class="playground-tab {% if mode == 'chat' %}active{% endif %}"
-      href="/playground?mode=chat"
-      data-mode-tab="chat"
-    >
-      Chat Reply
-    </a>
-    <a
-      class="playground-tab {% if mode == 'dynamic' %}active{% endif %}"
-      href="/playground?mode=dynamic"
-      data-mode-tab="dynamic"
-    >
-      Dynamic Prompt
-    </a>
+    <a class="playground-tab {% if mode == 'chat' %}active{% endif %}" href="/playground?mode=chat">Chat Reply</a>
+    <a class="playground-tab {% if mode == 'dynamic' %}active{% endif %}" href="/playground?mode=dynamic">Dynamic Prompt</a>
+    <a class="playground-tab {% if mode == 'dossier' %}active{% endif %}" href="/playground?mode=dossier">Dossier</a>
   </nav>
 
-  <section
-    id="playground-root"
-    class="playground-layout"
-    data-initial-mode="{{ mode }}"
+  <section id="playground-root" class="playground-layout" data-initial-mode="{{ mode }}"
     data-context-endpoint="/debug/context"
     data-chat-endpoint="/events/chat_reply"
     data-chat-reset-stream-endpoint="/playground/api/chat/reset-stream"
     data-dynamic-endpoint="/events/dynamic_prompt"
     data-dynamic-list-endpoint="/playground/api/dynamic-prompts"
     data-dynamic-meta-base="/playground/api/dynamic-prompts"
+    data-dynamic-create-endpoint="/playground/api/dynamic-prompts/create"
+    data-prompt-load-base="/playground/api/prompts"
+    data-prompt-save-endpoint="/playground/api/prompts/save"
+    data-dossier-endpoint="/playground/api/dossier/run"
   >
-    <div class="playground-column" id="chat-pane" {% if mode != 'chat' %}hidden{% endif %}>
+
+    <div id="chat-pane" class="playground-pane" {% if mode != 'chat' %}hidden{% endif %}>
       <div class="card">
         <h2>Chat Reply</h2>
-        <p class="muted">Run a real chat pipeline call via <code>POST /events/chat_reply</code>.</p>
-
         <form id="chat-form" class="form-stack" novalidate>
           <div class="row row-2">
             <label>stream_id<input name="stream_id" required value="test_stream" /></label>
             <label>username<input name="username" required value="operator_user" /></label>
           </div>
           <label>text<textarea name="text" rows="4" required>Привет, бот!</textarea></label>
-          <div class="row row-3">
+          <div class="row row-2">
             <label>mentions_bot
-              <select name="mentions_bot">
-                <option value="false" selected>false</option>
-                <option value="true">true</option>
-              </select>
+              <select name="mentions_bot"><option value="false" selected>false</option><option value="true">true</option></select>
             </label>
             <label>role
-              <select name="role">
-                <option value="viewer" selected>viewer</option>
-                <option value="bot">bot</option>
-                <option value="broadcaster">broadcaster</option>
-                <option value="system">system</option>
-              </select>
+              <select name="role"><option value="viewer" selected>viewer</option><option value="bot">bot</option><option value="broadcaster">broadcaster</option><option value="system">system</option></select>
             </label>
           </div>
-
-          <details>
-            <summary>Advanced</summary>
-            <div class="row row-2">
-              <label>channel<input name="channel" /></label>
-              <label>message_id<input name="message_id" /></label>
-            </div>
-            <div class="row row-2">
-              <label>reply_to_message_id<input name="reply_to_message_id" /></label>
-              <label>reply_to_username<input name="reply_to_username" /></label>
-            </div>
-            <label>reply_to_text<textarea name="reply_to_text" rows="3"></textarea></label>
-            <div class="row row-2">
-              <label>is_mod
-                <select name="is_mod">
-                  <option value="false" selected>false</option>
-                  <option value="true">true</option>
-                </select>
-              </label>
-              <label>is_broadcaster
-                <select name="is_broadcaster">
-                  <option value="false" selected>false</option>
-                  <option value="true">true</option>
-                </select>
-              </label>
-            </div>
-          </details>
-
           <div class="actions">
-            <button type="button" id="chat-preview-btn">Preview context</button>
-            <button type="submit" id="chat-run-btn">Run reply</button>
-            <button type="button" id="chat-delete-test-data-btn">Delete test data</button>
-            <button type="button" id="chat-reset-btn">Reset</button>
+            <button type="button" id="chat-preview-btn" class="btn-reset">Preview context</button>
+            <button type="submit" id="chat-run-btn" class="btn-run">Run reply</button>
+            <button type="button" id="chat-delete-test-data-btn" class="btn-delete">Delete test data</button>
+            <button type="button" id="chat-reset-btn" class="btn-reset">Reset</button>
           </div>
-          <p class="muted">Run reply performs a real pipeline call (not dry-run).</p>
+          <a id="chat-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
           <div id="chat-form-error" class="danger" hidden></div>
           <div id="chat-delete-status" class="muted" hidden></div>
         </form>
       </div>
-    </div>
 
-    <div class="playground-column" id="chat-results-pane" {% if mode != 'chat' %}hidden{% endif %}>
+      <div class="card">
+        <h3>Prompts</h3>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="chat-system-status" class="muted"></span></div><textarea id="chat-system-editor" rows="6" class="editor-textarea"></textarea></div>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="chat-template-status" class="muted"></span></div><textarea id="chat-template-editor" rows="8" class="editor-textarea"></textarea></div>
+      </div>
+
       <div class="card">
         <h3>Context Preview</h3>
         <div id="chat-context-error" class="danger" hidden></div>
@@ -133,22 +90,18 @@
       </div>
     </div>
 
-    <div class="playground-column" id="dynamic-pane" {% if mode != 'dynamic' %}hidden{% endif %}>
+    <div id="dynamic-pane" class="playground-pane" {% if mode != 'dynamic' %}hidden{% endif %}>
       <div class="card">
         <h2>Dynamic Prompt</h2>
-        <p class="muted">Run <code>POST /events/dynamic_prompt</code> with prompt metadata preview.</p>
-
         <form id="dynamic-form" class="form-stack" novalidate>
           <div class="row row-2">
             <label>prompt
-              <select name="prompt" id="dynamic-prompt-select" required>
-                <option value="">-- select prompt --</option>
-              </select>
+              <select name="prompt" id="dynamic-prompt-select" required><option value="">-- select prompt --</option></select>
             </label>
             <label>user<input name="user" required value="operator_user" /></label>
           </div>
-          <label>data (JSON)<textarea id="dynamic-data" name="data" rows="10" required>{}</textarea></label>
-
+          <div class="actions"><button type="button" id="dynamic-new-prompt-btn" class="btn-reset">New prompt</button></div>
+          <label>data (JSON)<textarea id="dynamic-data" name="data" rows="10" required class="editor-textarea">{}</textarea></label>
           <details>
             <summary>LLM override</summary>
             <div class="row row-2">
@@ -176,48 +129,59 @@
               <label>max_output_tokens<input name="max_output_tokens" type="number" step="1" min="1" /></label>
             </div>
           </details>
-
           <div class="actions">
-            <button type="submit" id="dynamic-run-btn">Run prompt</button>
-            <button type="button" id="dynamic-reset-btn">Reset</button>
+            <button type="submit" id="dynamic-run-btn" class="btn-run">Run prompt</button>
+            <button type="button" id="dynamic-reset-btn" class="btn-reset">Reset</button>
           </div>
+          <a id="dynamic-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
           <div id="dynamic-form-error" class="danger" hidden></div>
+          <div id="dynamic-meta-error" class="danger" hidden></div>
         </form>
       </div>
-    </div>
-
-    <div class="playground-column" id="dynamic-results-pane" {% if mode != 'dynamic' %}hidden{% endif %}>
       <div class="card">
         <h3>Prompt Metadata</h3>
-        <div id="dynamic-meta-error" class="danger" hidden></div>
         <div><strong>required_fields:</strong> <span id="dynamic-required-fields">—</span></div>
-        <h4>system_prompt</h4>
-        <pre id="dynamic-system-prompt" class="scroll-box">No prompt selected.</pre>
-        <h4>template_prompt</h4>
-        <pre id="dynamic-template-prompt" class="scroll-box">No prompt selected.</pre>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dynamic-system-status" class="muted"></span></div><textarea id="dynamic-system-editor" rows="6" class="editor-textarea"></textarea></div>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>template_prompt</strong> <span id="dynamic-template-status" class="muted"></span></div><textarea id="dynamic-template-editor" rows="8" class="editor-textarea"></textarea></div>
       </div>
-
       <div class="card">
         <h3>Payload template</h3>
-        <div class="actions">
-          <button type="button" id="dynamic-copy-template-btn">Copy</button>
-          <span id="dynamic-copy-status" class="muted" hidden></span>
-        </div>
+        <div class="actions"><button type="button" id="dynamic-copy-template-btn" class="btn-reset">Copy</button><span id="dynamic-copy-status" class="muted" hidden></span></div>
         <pre id="dynamic-payload-template" class="scroll-box">{}</pre>
       </div>
-
       <div class="card">
         <h3>Run Result</h3>
         <div id="dynamic-result-error" class="danger" hidden></div>
-        <div class="subtabs" id="dynamic-result-tabs">
-          <button type="button" data-result-tab="view" class="active">Operator view</button>
-          <button type="button" data-result-tab="raw">Raw JSON</button>
-        </div>
-        <div id="dynamic-result-view" class="result-grid">
-          <div><strong>result:</strong> <span id="dynamic-result">—</span></div>
-          <div><strong>message:</strong> <span id="dynamic-message">—</span></div>
-        </div>
+        <div class="subtabs" id="dynamic-result-tabs"><button type="button" data-result-tab="view" class="active">Operator view</button><button type="button" data-result-tab="raw">Raw JSON</button></div>
+        <div id="dynamic-result-view" class="result-grid"><div><strong>result:</strong> <span id="dynamic-result">—</span></div><div><strong>message:</strong> <span id="dynamic-message">—</span></div></div>
         <pre id="dynamic-result-raw" class="scroll-box" hidden>No result yet.</pre>
+      </div>
+    </div>
+
+    <div id="dossier-pane" class="playground-pane" {% if mode != 'dossier' %}hidden{% endif %}>
+      <div class="card">
+        <h2>Dossier</h2>
+        <form id="dossier-form" class="form-stack" novalidate>
+          <div class="row row-3">
+            <label>stream_id<input name="stream_id" required value="test_stream" /></label>
+            <label>username<input name="username" required value="operator_user" /></label>
+            <label>dossier_target<input name="dossier_target" required value="target_user" /></label>
+          </div>
+          <div class="actions"><button type="submit" id="dossier-run-btn" class="btn-run">Run dossier</button><button type="button" id="dossier-reset-btn" class="btn-reset">Reset</button></div>
+          <a id="dossier-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
+          <div id="dossier-form-error" class="danger" hidden></div>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Prompts</h3>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dossier-system-status" class="muted"></span></div><textarea id="dossier-system-editor" rows="6" class="editor-textarea"></textarea></div>
+        <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="dossier-template-status" class="muted"></span></div><textarea id="dossier-template-editor" rows="8" class="editor-textarea"></textarea></div>
+      </div>
+      <div class="card">
+        <h3>Result</h3>
+        <div id="dossier-result-error" class="danger" hidden></div>
+        <div class="result-grid"><div><strong>route:</strong> <span id="dossier-route">—</span></div><div><strong>should_reply:</strong> <span id="dossier-should-reply">—</span></div><div><strong>reply_text:</strong> <span id="dossier-reply-text">—</span></div></div>
+        <pre id="dossier-result-raw" class="scroll-box">No result yet.</pre>
       </div>
     </div>
   </section>
@@ -226,11 +190,7 @@
     window.PLAYGROUND_CONFIG = {
       providers: {{ provider_options | tojson }},
       styleOptions: {{ dynamic_style_options | tojson }},
-      temperature: {
-        min: {{ temperature_min | tojson }},
-        max: {{ temperature_max | tojson }},
-        step: {{ temperature_step | tojson }}
-      }
+      temperature: { min: {{ temperature_min | tojson }}, max: {{ temperature_max | tojson }}, step: {{ temperature_step | tojson }} }
     };
   </script>
 {% endblock %}

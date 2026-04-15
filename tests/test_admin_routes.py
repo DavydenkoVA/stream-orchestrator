@@ -135,6 +135,7 @@ def test_get_playground_returns_200() -> None:
     assert response.status_code == 200
     assert "Chat Reply" in response.text
     assert "Dynamic Prompt" in response.text
+    assert "Dossier" in response.text
     assert "Delete test data" in response.text
 
 
@@ -147,6 +148,7 @@ def test_get_playground_with_dynamic_mode_returns_200() -> None:
     assert "data-initial-mode=\"dynamic\"" in response.text
     assert "Payload template" in response.text
     assert "id=\"dynamic-copy-template-btn\"" in response.text
+    assert "id=\"dynamic-new-prompt-btn\"" in response.text
 
 
 
@@ -206,6 +208,102 @@ def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
     assert payload["data_skeleton"] == {"loot": ""}
     assert payload["system_prompt"] == "dynamic system"
     assert payload["template_prompt"] == "hello {user}, loot={loot}"
+
+
+def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
+    client = TestClient(app)
+
+    response = client.post("/playground/api/dynamic-prompts/create", json={"name": "new_prompt"})
+    assert response.status_code == 200
+    assert response.json() == {"name": "new_prompt", "created": True}
+
+    list_response = client.get("/playground/api/dynamic-prompts")
+    names = [item["name"] for item in list_response.json()["items"]]
+    assert "new_prompt" in names
+
+    prompts_payload = client.get("/playground/api/prompts/dynamic", params={"name": "new_prompt"}).json()
+    assert prompts_payload["items"][0]["content"] == ""
+    assert prompts_payload["items"][1]["content"] == ""
+
+
+def test_create_dynamic_prompt_rejects_invalid_or_duplicate_name() -> None:
+    client = TestClient(app)
+
+    invalid = client.post("/playground/api/dynamic-prompts/create", json={"name": "../bad"})
+    assert invalid.status_code == 400
+
+    duplicate = client.post("/playground/api/dynamic-prompts/create", json={"name": "test"})
+    assert duplicate.status_code == 400
+
+
+def test_playground_prompt_save_updates_runtime_read() -> None:
+    client = TestClient(app)
+
+    save_response = client.post(
+        "/playground/api/prompts/save",
+        json={"scope": "chat", "part": "system_prompt", "content": "UPDATED CHAT SYSTEM"},
+    )
+    assert save_response.status_code == 200
+
+    debug_prompt = client.get("/debug/prompts/chat_system.txt")
+    assert debug_prompt.status_code == 200
+    assert debug_prompt.json()["content"] == "UPDATED CHAT SYSTEM"
+
+
+def test_playground_chat_and_dossier_prompt_load_routes() -> None:
+    client = TestClient(app)
+
+    chat = client.get("/playground/api/prompts/chat")
+    assert chat.status_code == 200
+    chat_parts = {item["part"] for item in chat.json()["items"]}
+    assert chat_parts == {"system_prompt", "user_template"}
+
+    dossier = client.get("/playground/api/prompts/dossier")
+    assert dossier.status_code == 200
+    dossier_parts = {item["part"] for item in dossier.json()["items"]}
+    assert dossier_parts == {"system_prompt", "user_template"}
+
+
+def test_playground_dossier_run_uses_real_route_and_trace_header(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    response = client.post(
+        "/playground/api/dossier/run",
+        json={"stream_id": "stream_d", "username": "viewer", "dossier_target": "target_user"},
+    )
+    assert response.status_code == 200
+    assert response.json()["route"] == "dossier"
+    assert response.headers.get("X-Trace-Id")
+    app.dependency_overrides.clear()
+
+
+def test_playground_layout_and_button_classes_present() -> None:
+    client = TestClient(app)
+    response = client.get("/playground")
+    assert response.status_code == 200
+    assert 'class="btn-run"' in response.text
+    assert 'class="btn-delete"' in response.text
+    assert 'class="btn-reset"' in response.text
+    assert 'id="chat-system-editor"' in response.text
+    assert 'id="dossier-system-editor"' in response.text
+
+
+def test_playground_css_uses_vertical_resize() -> None:
+    client = TestClient(app)
+    response = client.get("/static/admin/console.css")
+    assert response.status_code == 200
+    assert "resize: vertical;" in response.text
+
+
+def test_playground_copy_feedback_is_transient() -> None:
+    client = TestClient(app)
+    response = client.get("/static/admin/playground.js")
+    assert response.status_code == 200
+    assert "setTimeout" in response.text
+    assert "dynamicCopyStatus.hidden = true" in response.text
 
 
 def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
