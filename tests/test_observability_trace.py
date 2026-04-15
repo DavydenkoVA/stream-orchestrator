@@ -16,6 +16,7 @@ from app.observability.trace_helpers import (
     trace_failure,
     trace_info,
 )
+from app.observability.trace_status import TRACE_RUN_STATUS_DEGRADED, TRACE_RUN_STATUS_SUCCESS
 from app.services.dynamic_prompt_service import DynamicPromptService
 from app.services.llm_execution_service import LLMExecutionService
 from app.services.llm_registry import LLMRegistry
@@ -148,6 +149,24 @@ def test_llm_execution_service_trace_events(db_session, monkeypatch) -> None:
     assert "llm.generate.start" in steps
     assert "llm.model.failed" in steps
     assert "llm.generate.success" in steps
+    run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
+    assert run is not None
+    assert run.status == TRACE_RUN_STATUS_SUCCESS
+
+
+def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session) -> None:
+    start_trace(route="/events/chat_reply", db=db_session)
+    trace_info("request.start", "start")
+    trace_failure("llm.model.failed", "model A failed", error_code="llm_error")
+    trace_failure("llm.model.failed", "model B failed", error_code="llm_error")
+    trace_failure("llm.generate.failed", "all models failed", error_code="llm_error")
+    trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "llm_failed"})
+    finish_trace_success("fallback response")
+
+    run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
+    assert run is not None
+    assert run.status == TRACE_RUN_STATUS_DEGRADED
+    assert run.status != TRACE_RUN_STATUS_SUCCESS
 
 
 def test_dynamic_prompt_service_traces_fallback(db_session) -> None:

@@ -83,7 +83,7 @@
 
   const limitInput = byId('traces-limit');
   const streamInput = byId('traces-stream-id');
-  const statusInput = byId('traces-status');
+  const statusSelect = byId('traces-status');
 
   let selectedRunId = (root.dataset.selectedRunId || '').trim();
   let selectedEventId = null;
@@ -232,6 +232,9 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'traces-run-item';
+      const tone = String(run.status_tone || 'neutral');
+      button.dataset.statusTone = tone;
+      button.classList.add(`traces-run-item--${tone}`);
       if (run.id === selectedRunId) {
         button.classList.add('selected');
       }
@@ -282,8 +285,8 @@
       params.set('stream_id', stream);
     }
 
-    const status = String(statusInput.value || '').trim();
-    if (status) {
+    const status = String(statusSelect.value || '').trim();
+    if (status && status !== 'all') {
       params.set('status', status);
     }
 

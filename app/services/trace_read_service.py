@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
+from app.observability.trace_status import normalize_status_filter, trace_status_tone
 
 
 class TraceReadService:
@@ -25,8 +26,9 @@ class TraceReadService:
         query: Select[tuple[TraceRun]] = select(TraceRun)
         if stream_id:
             query = query.where(TraceRun.stream_id == stream_id)
-        if status:
-            query = query.where(TraceRun.status == status)
+        normalized_status = normalize_status_filter(status)
+        if normalized_status:
+            query = query.where(TraceRun.status == normalized_status)
 
         query = query.order_by(TraceRun.started_at.desc(), TraceRun.id.desc()).limit(limit)
         runs = list(db.scalars(query).all())
@@ -63,6 +65,7 @@ class TraceReadService:
             "route": run.route,
             "stream_id": run.stream_id,
             "status": run.status,
+            "status_tone": trace_status_tone(run.status),
             "error_code": run.error_code,
             "summary": run.summary,
             "started_at": started_at,

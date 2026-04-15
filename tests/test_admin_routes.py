@@ -10,6 +10,7 @@ from app.main import app
 from app.models.chat import ChatMessage
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
+from app.observability.trace_status import TRACE_RUN_ALLOWED_STATUSES, TRACE_STATUS_FILTER_ALL
 
 
 def _minimal_valid_payload() -> dict[str, str]:
@@ -190,6 +191,11 @@ def test_get_traces_returns_200_with_empty_state() -> None:
 
     assert response.status_code == 200
     assert "Select a trace run to inspect details" in response.text
+    assert 'id="traces-status"' in response.text
+    assert '<input id="traces-status"' not in response.text
+    assert f'<option value="{TRACE_STATUS_FILTER_ALL}">{TRACE_STATUS_FILTER_ALL}</option>' in response.text
+    for status in TRACE_RUN_ALLOWED_STATUSES:
+        assert f'<option value="{status}">{status}</option>' in response.text
 
 
 def test_get_traces_with_run_id_returns_200(db_session) -> None:
@@ -391,6 +397,22 @@ def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
     status_response = client.get("/traces/api/runs", params={"status": "failed"})
     assert status_response.status_code == 200
     assert [item["id"] for item in status_response.json()["items"]] == ["trace-2"]
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.get("/traces/api/runs", params={"status": "unknown_status"})
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
 
     app.dependency_overrides.clear()
 

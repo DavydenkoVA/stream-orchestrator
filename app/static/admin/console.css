@@ -269,15 +269,38 @@ summary {
   cursor: pointer;
 }
 
-.traces-run-item:hover,
 .traces-event-item:hover {
   background: #f2f6ff;
+}
+
+.traces-run-item:hover {
+  filter: brightness(0.97);
 }
 
 .traces-run-item.selected,
 .traces-event-item.selected {
   border-color: #2f4468;
-  background: #eaf0ff;
+  box-shadow: 0 0 0 2px rgba(47, 68, 104, 0.3) inset;
+}
+
+.traces-run-item.traces-run-item--success {
+  background: #bdecb6;
+}
+
+.traces-run-item.traces-run-item--failure {
+  background: #f8d7da;
+}
+
+.traces-run-item.traces-run-item--warning {
+  background: #fce5cd;
+}
+
+.traces-run-item.traces-run-item--info {
+  background: #d9eaf7;
+}
+
+.traces-run-item.traces-run-item--neutral {
+  background: #e9eef3;
 }
 
 .traces-run-top {
