@@ -109,6 +109,29 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     app.dependency_overrides.clear()
 
 
+
+
+def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/events/dynamic_prompt",
+        json={
+            "prompt": "test",
+            "user": "alice",
+            "data": {"loot": "ring"},
+            "llm": {"temperature": 1.2},
+        },
+    )
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
+
 def test_debug_context_endpoint(db_session) -> None:
     def override_get_db():
         yield db_session

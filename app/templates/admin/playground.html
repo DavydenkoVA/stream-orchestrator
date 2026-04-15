@@ -152,11 +152,21 @@
           <details>
             <summary>LLM override</summary>
             <div class="row row-2">
-              <label>provider<input name="provider" /></label>
+              <label>provider
+                <select name="provider" id="dynamic-provider-select">
+                  <option value="">-- no override --</option>
+                  {% for provider_name in provider_options %}
+                    <option value="{{ provider_name }}">{{ provider_name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
               <label>style<input name="style" /></label>
             </div>
             <div class="row row-2">
-              <label>temperature<input name="temperature" type="number" step="0.01" /></label>
+              <label>temperature
+                <input name="temperature" type="range" min="{{ temperature_min }}" max="{{ temperature_max }}" step="{{ temperature_step }}" value="{{ temperature_min }}" />
+                <span id="dynamic-temperature-value">{{ "%.2f"|format(temperature_min) }}</span>
+              </label>
               <label>max_output_tokens<input name="max_output_tokens" type="number" step="1" min="1" /></label>
             </div>
           </details>
@@ -205,6 +215,17 @@
       </div>
     </div>
   </section>
+
+  <script>
+    window.PLAYGROUND_CONFIG = {
+      providers: {{ provider_options | tojson }},
+      temperature: {
+        min: {{ temperature_min | tojson }},
+        max: {{ temperature_max | tojson }},
+        step: {{ temperature_step | tojson }}
+      }
+    };
+  </script>
 {% endblock %}
 
 {% block scripts %}

@@ -21,7 +21,6 @@
 
     <h2 class="section-title">Feature settings</h2>
     <div id="features-container"></div>
-    <button type="button" onclick="addFeature()">+ Add feature</button>
 
     <div class="actions">
       <button
@@ -53,7 +52,11 @@
     <div class="card provider-item" data-provider-index="__P_INDEX__">
       <div class="row">
         <div><label>Provider name<input name="providers[__P_INDEX__][name]" value="__P_NAME__"></label></div>
-        <div><label>Provider type<input name="providers[__P_INDEX__][provider]" value="__P_TYPE__"></label></div>
+        <div>
+          <label>Provider type
+            <select name="providers[__P_INDEX__][provider]" class="provider-type-select">__P_TYPE_OPTIONS__</select>
+          </label>
+        </div>
       </div>
       <div class="models-container"></div>
       <button type="button" class="remove-provider">Remove provider</button>
@@ -75,23 +78,46 @@
 
   <template id="feature-template">
     <div class="card feature-item" data-feature-index="__F_INDEX__">
+      <input type="hidden" name="feature_settings[__F_INDEX__][name]" value="__F_NAME__">
       <div class="row">
-        <div><label>Feature name<input name="feature_settings[__F_INDEX__][name]" value="__F_NAME__"></label></div>
-        <div><label>Provider<input name="feature_settings[__F_INDEX__][provider]" value="__F_PROVIDER__"></label></div>
-        <div><label>Temperature<input name="feature_settings[__F_INDEX__][temperature]" value="__F_TEMP__"></label></div>
-        <div><label>Max output tokens<input name="feature_settings[__F_INDEX__][max_output_tokens]" value="__F_TOKENS__"></label></div>
+        <div><label>Feature name<input value="__F_NAME__" readonly disabled></label></div>
+        <div>
+          <label>Provider
+            <select name="feature_settings[__F_INDEX__][provider]" class="feature-provider-select"></select>
+          </label>
+        </div>
+        <div>
+          <label>Temperature
+            <input
+              name="feature_settings[__F_INDEX__][temperature]"
+              type="range"
+              min="{{ temperature_min }}"
+              max="{{ temperature_max }}"
+              step="{{ temperature_step }}"
+              value="__F_TEMP__"
+              class="temperature-range"
+            >
+            <span class="temperature-value">__F_TEMP__</span>
+          </label>
+        </div>
+        <div><label>Max output tokens<input name="feature_settings[__F_INDEX__][max_output_tokens]" type="number" step="1" min="1" value="__F_TOKENS__"></label></div>
       </div>
       <div class="row">
         <div><label>Style<input name="feature_settings[__F_INDEX__][style]" value="__F_STYLE__"></label></div>
       </div>
-      <button type="button" class="remove-feature">Remove feature</button>
     </div>
   </template>
 
   <script>
     window.LLM_CONFIG_INITIAL = {
       providers: {{ providers | tojson }},
-      features: {{ features | tojson }}
+      features: {{ features | tojson }},
+      providerTypeOptions: {{ provider_type_options | tojson }},
+      temperature: {
+        min: {{ temperature_min | tojson }},
+        max: {{ temperature_max | tojson }},
+        step: {{ temperature_step | tojson }}
+      }
     };
   </script>
 {% endblock %}

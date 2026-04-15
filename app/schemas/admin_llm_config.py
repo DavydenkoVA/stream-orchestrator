@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.services.llm_config_source import (
+    SUPPORTED_FEATURE_NAMES,
+    SUPPORTED_PROVIDER_TYPES,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+)
+
 
 class AdminModelConfig(BaseModel):
     name: str = Field(min_length=1)
@@ -14,6 +21,14 @@ class AdminProviderConfig(BaseModel):
     name: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     models: list[AdminModelConfig] = Field(default_factory=list)
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider_type(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in SUPPORTED_PROVIDER_TYPES:
+            raise ValueError(f"unsupported provider type: {value}")
+        return normalized
 
     @field_validator("models")
     @classmethod
@@ -33,7 +48,7 @@ class AdminFeatureSetting(BaseModel):
     @field_validator("temperature")
     @classmethod
     def validate_temperature(cls, value: float) -> float:
-        if value < 0 or value > 2:
+        if value < TEMPERATURE_MIN or value > TEMPERATURE_MAX:
             raise ValueError("invalid temperature")
         return value
 
@@ -73,6 +88,18 @@ class AdminLLMConfig(BaseModel):
         for feature in self.feature_settings:
             if feature.provider not in known_provider_names:
                 raise ValueError("provider references unknown provider")
+
+        configured_features = [feature.name for feature in self.feature_settings]
+        known_features = set(SUPPORTED_FEATURE_NAMES)
+        if len(configured_features) != len(set(configured_features)):
+            raise ValueError("duplicate feature name")
+        unknown_features = [name for name in configured_features if name not in known_features]
+        if unknown_features:
+            raise ValueError(f"unknown feature name: {unknown_features[0]}")
+
+        missing_features = [name for name in SUPPORTED_FEATURE_NAMES if name not in configured_features]
+        if missing_features:
+            raise ValueError(f"missing required feature setting: {missing_features[0]}")
 
         return self
 

@@ -12,22 +12,27 @@ from app.models.chat import ChatMessage
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
 from app.observability.trace_status import TRACE_RUN_ALLOWED_STATUSES, TRACE_STATUS_FILTER_ALL
+from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 
 
 def _minimal_valid_payload() -> dict[str, str]:
-    return {
+    payload = {
         "providers[0][name]": "primary",
         "providers[0][provider]": "mock",
         "providers[0][models][0][name]": "model_a",
         "providers[0][models][0][api_key]": "admin-key",
         "providers[0][models][0][base_url]": "https://example.invalid",
         "providers[0][models][0][model]": "mock-a",
-        "feature_settings[0][name]": "chat",
-        "feature_settings[0][provider]": "primary",
-        "feature_settings[0][temperature]": "0.7",
-        "feature_settings[0][max_output_tokens]": "200",
-        "feature_settings[0][style]": "default",
     }
+
+    for idx, feature_name in enumerate(SUPPORTED_FEATURE_NAMES):
+        payload[f"feature_settings[{idx}][name]"] = feature_name
+        payload[f"feature_settings[{idx}][provider]"] = "primary"
+        payload[f"feature_settings[{idx}][temperature]"] = "0.7"
+        payload[f"feature_settings[{idx}][max_output_tokens]"] = "200"
+        payload[f"feature_settings[{idx}][style]"] = "default"
+
+    return payload
 
 
 def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
@@ -51,6 +56,22 @@ def test_get_llm_config_page_returns_200() -> None:
     assert "LLM Config" in response.text
 
 
+
+
+def test_llm_config_renders_operator_safe_controls() -> None:
+    client = TestClient(app)
+
+    response = client.get('/llm-config')
+
+    assert response.status_code == 200
+    assert 'Provider type' in response.text
+    assert 'class="provider-type-select"' in response.text
+    assert '+ Add feature' not in response.text
+    assert 'class="remove-feature"' not in response.text
+    assert 'feature-provider-select' in response.text
+    assert 'type="range"' in response.text
+
+
 def test_get_playground_returns_200() -> None:
     client = TestClient(app)
 
@@ -71,6 +92,20 @@ def test_get_playground_with_dynamic_mode_returns_200() -> None:
     assert "data-initial-mode=\"dynamic\"" in response.text
     assert "Payload template" in response.text
     assert "id=\"dynamic-copy-template-btn\"" in response.text
+
+
+
+
+def test_playground_dynamic_override_renders_select_and_slider() -> None:
+    client = TestClient(app)
+
+    response = client.get('/playground', params={'mode': 'dynamic'})
+
+    assert response.status_code == 200
+    assert 'id="dynamic-provider-select"' in response.text
+    assert '<select name="provider" id="dynamic-provider-select">' in response.text
+    assert 'name="temperature" type="range"' in response.text
+    assert 'id="dynamic-temperature-value"' in response.text
 
 
 def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
