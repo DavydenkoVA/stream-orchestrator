@@ -238,3 +238,20 @@ def test_chat_reply_http_exception_is_sanitized(db_session, monkeypatch) -> None
     assert "internal failure details" not in response.text
 
     app.dependency_overrides.clear()
+
+
+def test_debug_prompts_endpoint(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.get('/debug/prompts/chat_system.txt')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['name'] == 'chat_system.txt'
+    assert payload['content']
+
+    app.dependency_overrides.clear()

@@ -124,3 +124,115 @@ pre {
   margin: 0;
   overflow: auto;
 }
+
+.playground-header {
+  margin-bottom: 12px;
+}
+
+.playground-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.playground-tab {
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cfd5e1;
+  background: #fff;
+  color: #28374f;
+}
+
+.playground-tab.active {
+  background: #2f4468;
+  color: #fff;
+  border-color: #2f4468;
+}
+
+.playground-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.playground-column {
+  min-width: 0;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row-2 {
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+}
+
+.row-3 {
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+}
+
+textarea,
+select,
+button {
+  width: 100%;
+  padding: 6px 8px;
+}
+
+details {
+  border: 1px solid #dde1ea;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f8f9fd;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.subtabs button {
+  width: auto;
+  border: 1px solid #ccd2df;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.subtabs button.active {
+  background: #223552;
+  color: #fff;
+  border-color: #223552;
+}
+
+.scroll-box {
+  min-height: 120px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px;
+  background: #0d1320;
+  color: #d8e4ff;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-grid {
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 1024px) {
+  .playground-layout {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from urllib.parse import parse_qsl
 
 import yaml
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -15,6 +16,33 @@ from app.services.llm_config_admin_service import LLMConfigAdminService
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+
+
+
+_DYNAMIC_PROMPT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _list_dynamic_prompt_names() -> list[str]:
+    prompts_root = Path(settings.prompts_dir) / "dynamic"
+    if not prompts_root.exists():
+        return []
+
+    systems: set[str] = set()
+    templates_set: set[str] = set()
+
+    for path in prompts_root.glob("*_system.txt"):
+        systems.add(path.name[: -len("_system.txt")])
+
+    for path in prompts_root.glob("*_template.txt"):
+        templates_set.add(path.name[: -len("_template.txt")])
+
+    return sorted(systems & templates_set)
+
+
+def _validate_dynamic_prompt_name(name: str) -> str:
+    if not _DYNAMIC_PROMPT_NAME_RE.fullmatch(name):
+        raise HTTPException(status_code=400, detail="Invalid dynamic prompt name")
+    return name
 
 
 def _build_view_model() -> dict:
@@ -129,12 +157,49 @@ def get_llm_config(request: Request):
 
 
 @router.get("/playground", response_class=HTMLResponse)
-def get_playground(request: Request):
+def get_playground(request: Request, mode: str = Query(default="chat")):
+    normalized_mode = "dynamic" if mode == "dynamic" else "chat"
     return templates.TemplateResponse(
         request=request,
-        name="admin/playground_placeholder.html",
-        context={"active_page": "playground", "page_title": "Playground"},
+        name="admin/playground.html",
+        context={
+            "active_page": "playground",
+            "page_title": "Playground",
+            "mode": normalized_mode,
+        },
     )
+
+
+@router.get("/playground/api/dynamic-prompts")
+def get_dynamic_prompt_names() -> dict:
+    names = _list_dynamic_prompt_names()
+    return {"items": [{"name": name} for name in names]}
+
+
+@router.get("/playground/api/dynamic-prompts/{name}")
+def get_dynamic_prompt_metadata(name: str) -> dict:
+    validated_name = _validate_dynamic_prompt_name(name)
+    if validated_name not in _list_dynamic_prompt_names():
+        raise HTTPException(status_code=404, detail="Dynamic prompt not found")
+
+    system_name = f"dynamic/{validated_name}_system.txt"
+    template_name = f"dynamic/{validated_name}_template.txt"
+
+    store = api_routes.service.prompts
+
+    try:
+        required_fields = sorted(store.get_required_fields(template_name))
+        system_prompt = store.read(system_name)
+        template_prompt = store.read(template_name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Dynamic prompt not found") from exc
+
+    return {
+        "name": validated_name,
+        "required_fields": required_fields,
+        "system_prompt": system_prompt,
+        "template_prompt": template_prompt,
+    }
 
 
 @router.get("/traces", response_class=HTMLResponse)
