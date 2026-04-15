@@ -1,0 +1,82 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+  <section
+    id="traces-root"
+    class="traces-root"
+    data-runs-endpoint="/traces/api/runs"
+    data-detail-endpoint-base="/traces/api/runs"
+    data-selected-run-id="{{ selected_run_id }}"
+  >
+    <h1>Traces</h1>
+    <div class="traces-layout">
+      <aside class="card traces-list-panel">
+        <h2 class="section-title">Trace runs</h2>
+        <form id="traces-filters" class="form-stack" autocomplete="off">
+          <div class="row row-3">
+            <label>Limit
+              <input id="traces-limit" name="limit" type="number" min="1" max="200" value="50" />
+            </label>
+            <label>Stream ID
+              <input id="traces-stream-id" name="stream_id" type="text" placeholder="Optional" />
+            </label>
+            <label>Status
+              <input id="traces-status" name="status" type="text" placeholder="Optional" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit">Apply filters</button>
+          </div>
+          <p id="traces-list-error" class="danger" hidden></p>
+        </form>
+        <div id="traces-runs-empty" class="muted" hidden>No trace runs found.</div>
+        <div id="traces-runs-list" class="traces-runs-list"></div>
+      </aside>
+
+      <section class="card traces-detail-panel">
+        <h2 class="section-title">Run details</h2>
+        <p id="traces-detail-error" class="danger" hidden></p>
+
+        <div id="traces-detail-empty" class="muted">
+          Select a trace run to inspect details.
+        </div>
+
+        <div id="traces-detail-not-found" class="danger" hidden>
+          Requested trace run was not found.
+        </div>
+
+        <div id="traces-detail-content" hidden>
+          <div class="card traces-block">
+            <h3>Overview</h3>
+            <dl id="traces-overview" class="traces-kv"></dl>
+          </div>
+
+          <div class="card traces-block">
+            <h3>Final outcome</h3>
+            <dl id="traces-final-outcome" class="traces-kv"></dl>
+          </div>
+
+          <div class="card traces-block">
+            <h3>Timeline</h3>
+            <div id="traces-events-empty" class="muted" hidden>No events for this run.</div>
+            <div id="traces-events-list" class="traces-events-list"></div>
+          </div>
+
+          <div class="card traces-block">
+            <h3>Raw JSON: run</h3>
+            <pre id="traces-run-json" class="scroll-box"></pre>
+          </div>
+
+          <div class="card traces-block">
+            <h3>Raw JSON: selected event payload</h3>
+            <pre id="traces-event-json" class="scroll-box">Select an event to inspect payload.</pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ request.url_for('static', path='admin/traces.js') }}"></script>
+{% endblock %}

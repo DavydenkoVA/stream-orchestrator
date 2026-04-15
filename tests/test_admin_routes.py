@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+import json
+
 from fastapi.testclient import TestClient
 
 from app.db import get_db
 from app.main import app
 from app.models.chat import ChatMessage
+from app.models.trace_event import TraceEvent
+from app.models.trace_run import TraceRun
 
 
 def _minimal_valid_payload() -> dict[str, str]:
@@ -178,13 +183,39 @@ def test_get_dynamic_prompt_metadata_missing_prompt_returns_404() -> None:
     assert response.status_code == 404
 
 
-def test_get_traces_returns_200() -> None:
+def test_get_traces_returns_200_with_empty_state() -> None:
     client = TestClient(app)
 
     response = client.get("/traces")
 
     assert response.status_code == 200
-    assert "not implemented yet" in response.text
+    assert "Select a trace run to inspect details" in response.text
+
+
+def test_get_traces_with_run_id_returns_200(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    run = TraceRun(
+        trace_id="trace-page-run",
+        request_id="req-page-run",
+        route="/events/chat_reply",
+        stream_id="stream-page",
+        status="success",
+        started_at=datetime.now(UTC),
+    )
+    db_session.add(run)
+    db_session.commit()
+
+    response = client.get("/traces", params={"run_id": "trace-page-run"})
+
+    assert response.status_code == 200
+    assert 'data-selected-run-id="trace-page-run"' in response.text
+
+    app.dependency_overrides.clear()
 
 
 def test_legacy_get_llm_config_redirects() -> None:
@@ -260,3 +291,158 @@ def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> Non
     response = client.post("/admin/llm-config/apply", data=payload)
 
     assert response.status_code == 403
+
+
+def _seed_trace_runs(db_session) -> None:
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    runs = [
+        TraceRun(
+            trace_id="trace-1",
+            request_id="req-1",
+            route="/events/chat_ingest",
+            stream_id="stream-a",
+            status="success",
+            summary="done",
+            started_at=base,
+            finished_at=base + timedelta(seconds=2),
+        ),
+        TraceRun(
+            trace_id="trace-2",
+            request_id="req-2",
+            route="/events/chat_reply",
+            stream_id="stream-b",
+            status="failed",
+            error_code="internal_error",
+            summary="failed",
+            started_at=base + timedelta(minutes=1),
+            finished_at=base + timedelta(minutes=1, seconds=1),
+        ),
+        TraceRun(
+            trace_id="trace-3",
+            request_id="req-3",
+            route="/events/dynamic_prompt",
+            stream_id="stream-a",
+            status="running",
+            started_at=base + timedelta(minutes=2),
+            finished_at=None,
+        ),
+    ]
+    db_session.add_all(runs)
+    db_session.commit()
+
+    run2 = db_session.query(TraceRun).filter(TraceRun.trace_id == "trace-2").one()
+    db_session.add_all(
+        [
+            TraceEvent(
+                trace_run_id=run2.id,
+                seq_no=2,
+                timestamp=base + timedelta(minutes=1, seconds=2),
+                step="request.finish",
+                status="failed",
+                level="ERROR",
+                message="finish",
+                payload_json=json.dumps({"error": "[redacted_prompt length=5]"}),
+            ),
+            TraceEvent(
+                trace_run_id=run2.id,
+                seq_no=1,
+                timestamp=base + timedelta(minutes=1, seconds=1),
+                step="request.start",
+                status="info",
+                level="INFO",
+                message="start",
+                payload_json=json.dumps({"route": "/events/chat_reply"}),
+            ),
+        ]
+    )
+    db_session.commit()
+
+
+def test_traces_api_runs_returns_newest_first_and_limit(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    _seed_trace_runs(db_session)
+    client = TestClient(app)
+
+    response = client.get("/traces/api/runs", params={"limit": 2})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["id"] for item in payload["items"]] == ["trace-3", "trace-2"]
+    assert len(payload["items"]) == 2
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    _seed_trace_runs(db_session)
+    client = TestClient(app)
+
+    stream_response = client.get("/traces/api/runs", params={"stream_id": "stream-a"})
+    assert stream_response.status_code == 200
+    assert [item["id"] for item in stream_response.json()["items"]] == ["trace-3", "trace-1"]
+
+    status_response = client.get("/traces/api/runs", params={"status": "failed"})
+    assert status_response.status_code == 200
+    assert [item["id"] for item in status_response.json()["items"]] == ["trace-2"]
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    _seed_trace_runs(db_session)
+    client = TestClient(app)
+
+    response = client.get("/traces/api/runs/trace-2")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["id"] == "trace-2"
+    assert [event["seq_no"] for event in payload["events"]] == [1, 2]
+    assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_run_detail_not_found_returns_404(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.get("/traces/api/runs/unknown-run")
+
+    assert response.status_code == 404
+
+    app.dependency_overrides.clear()
+
+
+def test_non_regression_core_routes_still_work(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    assert client.get("/playground").status_code == 200
+    assert client.get("/").status_code == 200
+    assert client.get("/debug/context", params={"stream_id": "s", "username": "u", "text": "t"}).status_code == 200
+
+    event_response = client.post(
+        "/events/chat_ingest",
+        json={"stream_id": "nr", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
+    )
+    assert event_response.status_code == 200
+
+    app.dependency_overrides.clear()
