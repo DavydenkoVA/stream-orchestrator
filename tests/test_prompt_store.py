@@ -59,3 +59,11 @@ def test_prompt_store_raises_for_missing_file(temp_prompts_dir: Path) -> None:
 
     with pytest.raises(FileNotFoundError):
         store.read("missing.txt")
+
+
+def test_prompt_store_write_and_read_raw(temp_prompts_dir: Path) -> None:
+    store = PromptStore(base_dir=str(temp_prompts_dir))
+    store.write("dynamic/new_template.txt", "  hello {user}\n")
+
+    assert store.read_raw("dynamic/new_template.txt") == "  hello {user}\n"
+    assert store.read("dynamic/new_template.txt") == "hello {user}"

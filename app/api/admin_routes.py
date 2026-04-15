@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 from urllib.parse import parse_qsl
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -31,6 +31,14 @@ from app.services.llm_config_source import (
     TEMPERATURE_MIN,
     TEMPERATURE_STEP,
 )
+from app.observability.trace_context import get_trace_state
+from app.observability.trace_helpers import (
+    finish_trace_failure,
+    finish_trace_success,
+    start_trace,
+    trace_failure,
+    trace_success,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -46,6 +54,35 @@ _trace_read_service = TraceReadService()
 
 class ResetStreamRequest(BaseModel):
     stream_id: str = Field(..., min_length=1, max_length=128)
+
+
+class PromptSaveRequest(BaseModel):
+    scope: str = Field(..., min_length=1, max_length=32)
+    part: str = Field(..., min_length=1, max_length=64)
+    content: str
+    name: str | None = None
+
+
+class DynamicPromptCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+
+
+class DossierRunRequest(BaseModel):
+    stream_id: str = Field(..., min_length=1, max_length=128)
+    username: str = Field(..., min_length=1, max_length=128)
+    dossier_target: str = Field(..., min_length=1, max_length=128)
+
+
+PROMPT_PARTS: dict[str, dict[str, str]] = {
+    "chat": {
+        "system_prompt": "chat_system.txt",
+        "user_template": "chat_user_template.txt",
+    },
+    "dossier": {
+        "system_prompt": "dossier_system.txt",
+        "user_template": "dossier_user_template.txt",
+    },
+}
 
 
 def _list_dynamic_prompt_names() -> list[str]:
@@ -66,9 +103,36 @@ def _list_dynamic_prompt_names() -> list[str]:
 
 
 def _validate_dynamic_prompt_name(name: str) -> str:
+    if name != name.strip():
+        raise HTTPException(status_code=400, detail="Invalid dynamic prompt name")
     if not _DYNAMIC_PROMPT_NAME_RE.fullmatch(name):
         raise HTTPException(status_code=400, detail="Invalid dynamic prompt name")
     return name
+
+
+def _prompt_file_for(scope: str, part: str, *, name: str | None = None) -> str:
+    if scope == "dynamic":
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required for dynamic prompts")
+        validated_name = _validate_dynamic_prompt_name(name)
+        if part == "system_prompt":
+            return f"dynamic/{validated_name}_system.txt"
+        if part == "template_prompt":
+            return f"dynamic/{validated_name}_template.txt"
+        raise HTTPException(status_code=400, detail="Invalid dynamic prompt part")
+    if scope not in PROMPT_PARTS:
+        raise HTTPException(status_code=400, detail="Invalid prompt scope")
+    file_name = PROMPT_PARTS[scope].get(part)
+    if not file_name:
+        raise HTTPException(status_code=400, detail="Invalid prompt part")
+    return file_name
+
+
+def _get_trace_run_id() -> str | None:
+    state = get_trace_state()
+    if state is None:
+        return None
+    return state.trace_id
 
 
 def _build_view_model() -> dict:
@@ -246,7 +310,7 @@ def get_llm_config(request: Request):
 
 @router.get("/playground", response_class=HTMLResponse)
 def get_playground(request: Request, mode: str = Query(default="chat")):
-    normalized_mode = "dynamic" if mode == "dynamic" else "chat"
+    normalized_mode = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
     style_registry = api_routes.service.style_registry
     raw_config = _read_admin_raw_config(style_registry)
     return templates.TemplateResponse(
@@ -325,8 +389,8 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
         required_fields = sorted(store.get_required_fields(template_name))
         required_data_fields = [field for field in required_fields if field != "user"]
         data_skeleton = {field: "" for field in required_data_fields}
-        system_prompt = store.read(system_name)
-        template_prompt = store.read(template_name)
+        system_prompt = store.read_raw(system_name)
+        template_prompt = store.read_raw(template_name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Dynamic prompt not found") from exc
 
@@ -338,6 +402,90 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
         "system_prompt": system_prompt,
         "template_prompt": template_prompt,
     }
+
+
+@router.post("/playground/api/dynamic-prompts/create")
+def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict:
+    validated_name = _validate_dynamic_prompt_name(payload.name)
+    existing = set(_list_dynamic_prompt_names())
+    if validated_name in existing:
+        raise HTTPException(status_code=400, detail="Dynamic prompt already exists")
+
+    dynamic_root = Path(settings.prompts_dir) / "dynamic"
+    dynamic_root.mkdir(parents=True, exist_ok=True)
+    system_path = dynamic_root / f"{validated_name}_system.txt"
+    template_path = dynamic_root / f"{validated_name}_template.txt"
+    system_path.write_text("", encoding="utf-8")
+    template_path.write_text("", encoding="utf-8")
+    return {"name": validated_name, "created": True}
+
+
+@router.get("/playground/api/prompts/{scope}")
+def get_prompt_sources(scope: str, name: str | None = Query(default=None)) -> dict:
+    store = api_routes.service.prompts
+    if scope == "dynamic":
+        validated_name = _validate_dynamic_prompt_name(name or "")
+        return {
+            "scope": scope,
+            "name": validated_name,
+            "items": [
+                {
+                    "part": "system_prompt",
+                    "file": f"dynamic/{validated_name}_system.txt",
+                    "content": store.read_raw(f"dynamic/{validated_name}_system.txt"),
+                },
+                {
+                    "part": "template_prompt",
+                    "file": f"dynamic/{validated_name}_template.txt",
+                    "content": store.read_raw(f"dynamic/{validated_name}_template.txt"),
+                },
+            ],
+        }
+    part_map = PROMPT_PARTS.get(scope)
+    if not part_map:
+        raise HTTPException(status_code=400, detail="Invalid prompt scope")
+    items = []
+    for part, file_name in part_map.items():
+        items.append({"part": part, "file": file_name, "content": store.read_raw(file_name)})
+    return {"scope": scope, "items": items}
+
+
+@router.post("/playground/api/prompts/save")
+def save_prompt_source(payload: PromptSaveRequest) -> dict:
+    file_name = _prompt_file_for(payload.scope, payload.part, name=payload.name)
+    store = api_routes.service.prompts
+    store.write(file_name, payload.content)
+    return {"saved": True, "scope": payload.scope, "part": payload.part, "name": payload.name}
+
+
+@router.post("/playground/api/dossier/run")
+async def run_dossier_from_playground(
+    payload: DossierRunRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> dict:
+    start_trace(route=str(request.url.path), stream_id=payload.stream_id, db=db)
+    try:
+        reply_text, route = await api_routes.service.run_dossier(
+            db,
+            stream_id=payload.stream_id,
+            username=payload.username,
+            target_username=payload.dossier_target,
+        )
+        trace_success("request.finish", "dossier playground request finished", payload={"route_result": route})
+        trace_id = _get_trace_run_id()
+        if trace_id:
+            response.headers["X-Trace-Id"] = trace_id
+        finish_trace_success(summary=f"dossier {route}")
+        return {"reply_text": reply_text, "route": route, "should_reply": bool(reply_text)}
+    except Exception as exc:
+        error_code = "internal_error"
+        if isinstance(exc, HTTPException) and exc.status_code in {400, 422}:
+            error_code = "bad_request"
+        trace_failure("request.finish", "dossier playground request failed", error_code=error_code)
+        finish_trace_failure(error_code=error_code, summary="dossier playground failed")
+        raise
 
 
 @router.post("/playground/api/chat/reset-stream")
