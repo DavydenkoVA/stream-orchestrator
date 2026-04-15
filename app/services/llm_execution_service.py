@@ -72,8 +72,16 @@ class LLMExecutionService:
         feature_settings: FeatureLLMSettings,
         system_prompt: str,
         user_prompt: str,
+        style_resolution: dict[str, str | None] | None = None,
     ) -> str:
         current_model_name = self.state_store.get_current_model_name(db, pool.name)
+        style_payload = {
+            "requested_style": (style_resolution or {}).get("requested_style") or feature_settings.style,
+            "applied_style": (style_resolution or {}).get("applied_style") or feature_settings.style,
+            "style_resolution_status": (style_resolution or {}).get("style_resolution_status") or "success",
+            "style_resolution_reason": (style_resolution or {}).get("style_resolution_reason") or "requested_applied",
+        }
+        style_payload["style"] = style_payload["applied_style"]
         trace_info(
             "llm.generate.start",
             "starting llm generation",
@@ -81,7 +89,7 @@ class LLMExecutionService:
                 "provider": pool.provider,
                 "pool": pool.name,
                 "feature": feature_settings.feature_name,
-                "style": feature_settings.style,
+                **style_payload,
                 "model": current_model_name,
             },
         )
@@ -138,7 +146,7 @@ class LLMExecutionService:
                     payload={
                         "provider": pool.provider,
                         "model": endpoint.name,
-                        "style": feature_settings.style,
+                        **style_payload,
                         "reply_length": len(reply or ""),
                     },
                 )
@@ -152,7 +160,7 @@ class LLMExecutionService:
                     payload={
                         "provider": pool.provider,
                         "model": endpoint.name,
-                        "style": feature_settings.style,
+                        **style_payload,
                     },
                     error_code="llm_error",
                 )
@@ -180,7 +188,7 @@ class LLMExecutionService:
             payload={
                 "provider": pool.provider,
                 "attempted_models": attempted_names,
-                "style": feature_settings.style,
+                **style_payload,
             },
             error_code="llm_error",
         )

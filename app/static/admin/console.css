@@ -349,19 +349,41 @@ summary {
   overflow-wrap: anywhere;
 }
 
-.traces-event-style {
-  display: inline-block;
+.traces-style-resolution {
+  display: block;
   margin-top: 4px;
-  padding: 1px 6px;
-  border-radius: 999px;
+  padding: 6px 8px;
+  border-radius: 8px;
   border: 1px solid rgba(56, 68, 92, 0.25);
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.6);
   color: #233044;
   font-size: 11px;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.traces-style-resolution-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.traces-style-resolution-grid {
+  display: grid;
+  gap: 2px;
+}
+
+.traces-style-resolution--success {
+  background: #bdecb6;
+}
+
+.traces-style-resolution--warning {
+  background: #fce5cd;
+}
+
+.traces-style-resolution--failure {
+  background: #f8d7da;
+}
+
+.traces-style-resolution--neutral {
+  background: #e9eef3;
 }
 
 .traces-event-title {

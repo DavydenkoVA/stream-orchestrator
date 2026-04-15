@@ -46,10 +46,9 @@ class TraceReadService:
         )
         events = list(db.scalars(events_query).all())
         serialized_events = [self._serialize_event(event) for event in events]
-        applied_style = self._derive_applied_style(serialized_events)
+        style_resolution = self._derive_style_resolution(serialized_events)
         run_payload = self._serialize_run(run)
-        if applied_style is not None:
-            run_payload["applied_style"] = applied_style
+        run_payload.update(style_resolution)
 
         return {
             "run": run_payload,
@@ -99,26 +98,60 @@ class TraceReadService:
         }
 
     @staticmethod
-    def _derive_applied_style(events: list[dict[str, Any]]) -> str | None:
-        styles: list[str] = []
+    def _derive_style_resolution(events: list[dict[str, Any]]) -> dict[str, str]:
+        requested_values: set[str] = set()
+        applied_values: set[str] = set()
+        status_values: set[str] = set()
+        reason_values: set[str] = set()
+
         for event in events:
             payload = event.get("payload")
             if not isinstance(payload, dict):
                 continue
-            style = payload.get("style")
-            if not isinstance(style, str):
-                continue
-            normalized = style.strip()
-            if not normalized:
-                continue
-            styles.append(normalized)
 
-        unique_styles = sorted(set(styles))
-        if not unique_styles:
-            return None
-        if len(unique_styles) == 1:
-            return unique_styles[0]
-        return "multiple"
+            requested_style = payload.get("requested_style")
+            if isinstance(requested_style, str) and requested_style.strip():
+                requested_values.add(requested_style.strip())
+
+            applied_style = payload.get("applied_style")
+            if isinstance(applied_style, str) and applied_style.strip():
+                applied_values.add(applied_style.strip())
+
+            legacy_style = payload.get("style")
+            if isinstance(legacy_style, str) and legacy_style.strip():
+                applied_values.add(legacy_style.strip())
+
+            resolution_status = payload.get("style_resolution_status")
+            if isinstance(resolution_status, str) and resolution_status.strip():
+                status_values.add(resolution_status.strip())
+
+            resolution_reason = payload.get("style_resolution_reason")
+            if isinstance(resolution_reason, str) and resolution_reason.strip():
+                reason_values.add(resolution_reason.strip())
+
+        def _single_or_multiple(values: set[str]) -> str | None:
+            if not values:
+                return None
+            if len(values) == 1:
+                return next(iter(values))
+            return "multiple"
+
+        derived: dict[str, str] = {}
+        requested = _single_or_multiple(requested_values)
+        applied = _single_or_multiple(applied_values)
+        resolution_status = _single_or_multiple(status_values)
+        resolution_reason = _single_or_multiple(reason_values)
+
+        if requested is not None:
+            derived["requested_style"] = requested
+        if applied is not None:
+            derived["applied_style"] = applied
+        if resolution_status is not None:
+            derived["style_resolution_status"] = resolution_status
+        if resolution_reason is not None:
+            derived["style_resolution_reason"] = resolution_reason
+
+        return derived
 
     @staticmethod
     def _iso(value: datetime | None) -> str | None:

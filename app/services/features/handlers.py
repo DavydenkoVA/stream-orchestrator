@@ -64,7 +64,7 @@ class DossierFeatureHandler(FeatureHandler):
 
         pool, feature_cfg = context.llm_registry.get_for_feature("dossier")
         base_system_prompt = context.prompts.read("dossier_system.txt")
-        system_prompt = context.style_prompt.apply_style(
+        style_result = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
@@ -74,13 +74,19 @@ class DossierFeatureHandler(FeatureHandler):
                 db=context.db,
                 pool=pool,
                 feature_settings=feature_cfg,
-                system_prompt=system_prompt,
+                system_prompt=style_result.system_prompt,
                 user_prompt=context.prompts.render(
                     "dossier_user_template.txt",
                     username=dossier_target,
                     recent_block=recent_block,
                     memory_block=memory_block,
                 ),
+                style_resolution={
+                    "requested_style": style_result.requested_style,
+                    "applied_style": style_result.applied_style,
+                    "style_resolution_status": style_result.style_resolution_status,
+                    "style_resolution_reason": style_result.style_resolution_reason,
+                },
             )
         except Exception:
             logger.exception("Dossier generation failed")
@@ -126,7 +132,7 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
 
         pool, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
         base_system_prompt = context.prompts.read("weekly_movies_system.txt")
-        system_prompt = context.style_prompt.apply_style(
+        style_result = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
@@ -136,12 +142,18 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
                 db=context.db,
                 pool=pool,
                 feature_settings=feature_cfg,
-                system_prompt=system_prompt,
+                system_prompt=style_result.system_prompt,
                 user_prompt=context.prompts.render(
                     "weekly_movies_user_template.txt",
                     user_text=request.text.strip(),
                     file_content=file_content,
                 ),
+                style_resolution={
+                    "requested_style": style_result.requested_style,
+                    "applied_style": style_result.applied_style,
+                    "style_resolution_status": style_result.style_resolution_status,
+                    "style_resolution_reason": style_result.style_resolution_reason,
+                },
             )
         except Exception:
             logger.exception("Weekly movies reply failed")
@@ -200,7 +212,7 @@ class MentionChatFeatureHandler(FeatureHandler):
 
         base_system_prompt = context.prompts.read("chat_system.txt")
         pool, feature_cfg = context.llm_registry.get_for_feature("chat")
-        system_prompt = context.style_prompt.apply_style(
+        style_result = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
@@ -220,8 +232,14 @@ class MentionChatFeatureHandler(FeatureHandler):
                 db=context.db,
                 pool=pool,
                 feature_settings=feature_cfg,
-                system_prompt=system_prompt,
+                system_prompt=style_result.system_prompt,
                 user_prompt=user_prompt,
+                style_resolution={
+                    "requested_style": style_result.requested_style,
+                    "applied_style": style_result.applied_style,
+                    "style_resolution_status": style_result.style_resolution_status,
+                    "style_resolution_reason": style_result.style_resolution_reason,
+                },
             )
         except Exception:
             logger.exception("Chat reply generation failed")

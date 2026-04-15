@@ -154,8 +154,13 @@ def test_llm_execution_service_trace_events(db_session, monkeypatch) -> None:
     success_event = next(event for event in events if event.step == "llm.generate.success")
     start_payload = json.loads(start_event.payload_json or "{}")
     success_payload = json.loads(success_event.payload_json or "{}")
+    assert start_payload["requested_style"] == feature.style
+    assert start_payload["applied_style"] == feature.style
+    assert start_payload["style_resolution_status"] == "success"
+    assert start_payload["style_resolution_reason"] == "requested_applied"
     assert start_payload["style"] == feature.style
-    assert success_payload["style"] == feature.style
+    assert success_payload["requested_style"] == feature.style
+    assert success_payload["applied_style"] == feature.style
     assert "system_prompt" not in start_payload
     assert "user_prompt" not in start_payload
     run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
@@ -176,6 +181,72 @@ def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session) 
     assert run is not None
     assert run.status == TRACE_RUN_STATUS_DEGRADED
     assert run.status != TRACE_RUN_STATUS_SUCCESS
+
+
+def test_llm_trace_payload_captures_style_resolution_fields(db_session, monkeypatch) -> None:
+    registry = LLMRegistry()
+    executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
+    pool, feature = registry.get_for_feature("chat")
+    monkeypatch.setattr(
+        registry,
+        "get_provider_instance",
+        lambda provider_kind, endpoint: _Provider(fail=False),
+    )
+
+    start_trace(route="/llm", db=db_session)
+    asyncio.run(
+        executor.generate_text_with_pool(
+            db=db_session,
+            pool=pool,
+            feature_settings=feature,
+            system_prompt="sys",
+            user_prompt="user",
+            style_resolution={
+                "requested_style": "random",
+                "applied_style": "dark",
+                "style_resolution_status": "success",
+                "style_resolution_reason": "random_resolved",
+            },
+        )
+    )
+    finish_trace_success("ok")
+
+    start_event = db_session.scalar(
+        select(TraceEvent).where(TraceEvent.step == "llm.generate.start").order_by(TraceEvent.id.desc())
+    )
+    assert start_event is not None
+    payload = json.loads(start_event.payload_json or "{}")
+    assert payload["requested_style"] == "random"
+    assert payload["applied_style"] == "dark"
+    assert payload["style_resolution_status"] == "success"
+    assert payload["style_resolution_reason"] == "random_resolved"
+
+    start_trace(route="/llm", db=db_session)
+    asyncio.run(
+        executor.generate_text_with_pool(
+            db=db_session,
+            pool=pool,
+            feature_settings=feature,
+            system_prompt="sys",
+            user_prompt="user",
+            style_resolution={
+                "requested_style": "daark",
+                "applied_style": "default",
+                "style_resolution_status": "fallback",
+                "style_resolution_reason": "style_not_found",
+            },
+        )
+    )
+    finish_trace_success("ok")
+    fallback_start_event = db_session.scalar(
+        select(TraceEvent).where(TraceEvent.step == "llm.generate.start").order_by(TraceEvent.id.desc())
+    )
+    assert fallback_start_event is not None
+    fallback_payload = json.loads(fallback_start_event.payload_json or "{}")
+    assert fallback_payload["requested_style"] == "daark"
+    assert fallback_payload["applied_style"] == "default"
+    assert fallback_payload["style_resolution_status"] == "fallback"
+    assert fallback_payload["style_resolution_reason"] == "style_not_found"
 
 
 def test_dynamic_prompt_service_traces_fallback(db_session) -> None:

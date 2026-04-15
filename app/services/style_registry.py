@@ -16,6 +16,15 @@ class StyleDefinition:
     instruction: str
 
 
+@dataclass(slots=True)
+class StyleResolution:
+    requested_style: str | None
+    applied_style: str
+    status: str
+    reason: str
+    style: StyleDefinition
+
+
 class StyleRegistry:
     def __init__(self, config_path: str | None = None) -> None:
         self.config_path = Path(config_path or settings.llm_styles_config_path)
@@ -55,15 +64,32 @@ class StyleRegistry:
         return styles
 
     def resolve(self, style_name: str | None) -> StyleDefinition:
+        return self.resolve_with_metadata(style_name).style
+
+    def resolve_with_metadata(self, style_name: str | None) -> StyleResolution:
         styles = self._load()
 
         if not style_name or not style_name.strip():
-            return styles["default"]
+            style = styles["default"]
+            return StyleResolution(
+                requested_style=None,
+                applied_style=style.key,
+                status="success",
+                reason="missing_style_defaulted",
+                style=style,
+            )
 
         normalized = style_name.strip().lower()
 
         if normalized == "default":
-            return styles["default"]
+            style = styles["default"]
+            return StyleResolution(
+                requested_style=normalized,
+                applied_style=style.key,
+                status="success",
+                reason="default_used",
+                style=style,
+            )
 
         if normalized == "random":
             candidates = [
@@ -72,7 +98,38 @@ class StyleRegistry:
                 if key not in {"default", "random"}
             ]
             if not candidates:
-                return styles["default"]
-            return random.choice(candidates)
+                style = styles["default"]
+                return StyleResolution(
+                    requested_style=normalized,
+                    applied_style=style.key,
+                    status="fallback",
+                    reason="random_no_candidates_defaulted",
+                    style=style,
+                )
+            style = random.choice(candidates)
+            return StyleResolution(
+                requested_style=normalized,
+                applied_style=style.key,
+                status="success",
+                reason="random_resolved",
+                style=style,
+            )
 
-        return styles.get(normalized, styles["default"])
+        if normalized in styles:
+            style = styles[normalized]
+            return StyleResolution(
+                requested_style=normalized,
+                applied_style=style.key,
+                status="success",
+                reason="requested_applied",
+                style=style,
+            )
+
+        fallback_style = styles["default"]
+        return StyleResolution(
+            requested_style=normalized,
+            applied_style=fallback_style.key,
+            status="fallback",
+            reason="style_not_found",
+            style=fallback_style,
+        )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -431,6 +432,8 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     payload = response.json()
     assert payload["run"]["id"] == "trace-2"
     assert "applied_style" not in payload["run"]
+    assert "requested_style" not in payload["run"]
+    assert "style_resolution_status" not in payload["run"]
     assert [event["seq_no"] for event in payload["events"]] == [1, 2]
     assert payload["events"][0]["tone"] == "info"
     assert payload["events"][1]["tone"] == "failure"
@@ -469,7 +472,16 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
             status="info",
             level="INFO",
             message="start",
-            payload_json=json.dumps({"provider": "mock", "style": "absurd"}),
+            payload_json=json.dumps(
+                {
+                    "provider": "mock",
+                    "requested_style": "random",
+                    "applied_style": "absurd",
+                    "style_resolution_status": "success",
+                    "style_resolution_reason": "random_resolved",
+                    "style": "absurd",
+                }
+            ),
         )
     )
     db_session.commit()
@@ -478,7 +490,11 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["run"]["requested_style"] == "random"
     assert payload["run"]["applied_style"] == "absurd"
+    assert payload["run"]["style_resolution_status"] == "success"
+    assert payload["run"]["style_resolution_reason"] == "random_resolved"
+    assert payload["events"][0]["payload"]["requested_style"] == "random"
     assert payload["events"][0]["payload"]["style"] == "absurd"
 
     app.dependency_overrides.clear()
@@ -516,3 +532,20 @@ def test_non_regression_core_routes_still_work(db_session) -> None:
     assert event_response.status_code == 200
 
     app.dependency_overrides.clear()
+
+
+def test_traces_js_contains_style_resolution_block_rendering() -> None:
+    script = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
+    assert "Style resolution" in script
+    assert "requested:" in script
+    assert "applied:" in script
+    assert "style_resolution_status" in script
+    assert "normalized === 'fallback'" in script
+
+
+def test_console_css_contains_style_resolution_tones() -> None:
+    css = Path("app/static/admin/console.css").read_text(encoding="utf-8")
+    assert ".traces-style-resolution--success" in css
+    assert ".traces-style-resolution--warning" in css
+    assert ".traces-style-resolution--failure" in css
+    assert ".traces-style-resolution--neutral" in css
