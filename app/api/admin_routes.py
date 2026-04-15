@@ -1,8 +1,7 @@
 from __future__ import annotations
-
+import re
 from dataclasses import asdict
 from pathlib import Path
-import re
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -14,23 +13,6 @@ from sqlalchemy.orm import Session
 from app.api import routes as api_routes
 from app.config import settings
 from app.db import get_db
-from app.observability.trace_status import (
-    TRACE_RUN_ALLOWED_STATUSES,
-    TRACE_STATUS_FILTER_ALL,
-    TraceStatusValidationError,
-    normalize_status_filter,
-)
-from app.services.llm_config_admin_service import LLMConfigAdminService
-from app.services.styles_admin_service import StylesAdminService
-from app.services.style_registry import StyleRegistry
-from app.services.trace_read_service import TraceReadService
-from app.services.llm_config_source import (
-    SUPPORTED_FEATURE_NAMES,
-    SUPPORTED_PROVIDER_TYPES,
-    TEMPERATURE_MAX,
-    TEMPERATURE_MIN,
-    TEMPERATURE_STEP,
-)
 from app.observability.trace_context import get_trace_state
 from app.observability.trace_helpers import (
     finish_trace_failure,
@@ -39,11 +21,27 @@ from app.observability.trace_helpers import (
     trace_failure,
     trace_success,
 )
+from app.observability.trace_status import (
+    TRACE_RUN_ALLOWED_STATUSES,
+    TRACE_STATUS_FILTER_ALL,
+    TraceStatusValidationError,
+    normalize_status_filter,
+)
+from app.services.llm_config_admin_service import LLMConfigAdminService
+from app.services.llm_config_source import (
+    SUPPORTED_FEATURE_NAMES,
+    SUPPORTED_PROVIDER_TYPES,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+    TEMPERATURE_STEP,
+)
+from app.services.style_registry import StyleRegistry
+from app.services.styles_admin_service import StylesAdminService
+from app.services.trace_read_service import TraceReadService
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-
-
 
 
 _DYNAMIC_PROMPT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -174,9 +172,7 @@ def _build_view_model() -> dict:
                 "name": feature_name,
                 "provider": feature_cfg.get("provider", ""),
                 "temperature": feature_cfg.get("temperature", settings.llm_temperature),
-                "max_output_tokens": feature_cfg.get(
-                    "max_output_tokens", settings.llm_max_output_tokens
-                ),
+                "max_output_tokens": feature_cfg.get("max_output_tokens", settings.llm_max_output_tokens),
                 "style": style_value,
                 "style_options": _resolve_selector_options_with_legacy(
                     style_registry,
@@ -216,7 +212,7 @@ def _extract_top_level_provider_names(raw_config: dict) -> list[str]:
         return []
 
     names: list[str] = []
-    for provider_name in providers.keys():
+    for provider_name in providers:
         normalized = str(provider_name).strip()
         if normalized and normalized not in names:
             names.append(normalized)
@@ -241,8 +237,6 @@ def _resolve_selector_options_with_legacy(
     return options
 
 
-
-
 def _enforce_config_mutation_access() -> None:
     """Restrict config mutation routes to non-production-style environments."""
     allowed_envs = {"local", "dev", "test"}
@@ -250,15 +244,13 @@ def _enforce_config_mutation_access() -> None:
     if current_env not in allowed_envs:
         raise HTTPException(
             status_code=403,
-            detail=(
-                "LLM config mutation routes are disabled outside local/dev/test "
-                "environments."
-            ),
+            detail=("LLM config mutation routes are disabled outside local/dev/test environments."),
         )
+
 
 async def _read_form_data(request: Request) -> dict[str, str]:
     body = (await request.body()).decode("utf-8")
-    return {k: v for k, v in parse_qsl(body, keep_blank_values=True)}
+    return dict(parse_qsl(body, keep_blank_values=True))
 
 
 async def _validate_llm_config_impl(request: Request) -> HTMLResponse:
@@ -388,7 +380,7 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
     try:
         required_fields = sorted(store.get_required_fields(template_name))
         required_data_fields = [field for field in required_fields if field != "user"]
-        data_skeleton = {field: "" for field in required_data_fields}
+        data_skeleton = dict.fromkeys(required_data_fields, "")
         system_prompt = store.read_raw(system_name)
         template_prompt = store.read_raw(template_name)
     except FileNotFoundError as exc:

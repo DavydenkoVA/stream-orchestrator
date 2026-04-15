@@ -1,8 +1,16 @@
 import asyncio
 from types import SimpleNamespace
+from typing import Any, cast
 
 from app.config import settings
-from app.services.features import ChatRequest, DossierFeatureHandler, FeatureSelector, WeeklyMoviesFeatureHandler
+from app.services.features import (
+    ChatRequest,
+    DossierFeatureHandler,
+    FeatureContext,
+    FeatureSelector,
+    WeeklyMoviesFeatureHandler,
+)
+from app.services.features.base import FeatureHandler
 from app.services.router import RouterService
 
 
@@ -28,7 +36,12 @@ class _SecondTrueHandler:
 
 
 def test_feature_selector_returns_first_matching_handler() -> None:
-    selector = FeatureSelector([_AlwaysFalseHandler(), _AlwaysTrueHandler(), _SecondTrueHandler()])
+    selector = FeatureSelector(
+        cast(
+            list[FeatureHandler],
+            [_AlwaysFalseHandler(), _AlwaysTrueHandler(), _SecondTrueHandler()],
+        )
+    )
     request = ChatRequest(
         stream_id="stream-1",
         username="viewer",
@@ -65,7 +78,7 @@ def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
         text=f"досье на @{settings.bot_username}",
         mentions_bot=False,
     )
-    context = SimpleNamespace()
+    context = cast(FeatureContext, SimpleNamespace())
 
     response = asyncio.run(handler.handle(context, request))
 
@@ -104,7 +117,7 @@ def test_router_handle_chat_reply_ignores_bot_role() -> None:
 
     reply, route = asyncio.run(
         router.handle_chat_reply(
-            db=None,
+            db=cast(Any, None),
             stream_id="stream-1",
             username="stream_bot",
             text="service message",

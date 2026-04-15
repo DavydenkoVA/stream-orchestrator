@@ -1,6 +1,6 @@
 from __future__ import annotations
-
 from collections.abc import Iterable
+
 
 TRACE_RUN_STATUS_RUNNING = "running"
 TRACE_RUN_STATUS_SUCCESS = "success"
@@ -27,9 +27,7 @@ _TRACE_STATUS_TONE_BY_STATUS: dict[str, str] = {
 class TraceStatusValidationError(ValueError):
     def __init__(self, status: str, allowed: Iterable[str]) -> None:
         allowed_values = tuple(allowed)
-        super().__init__(
-            f"Unknown status '{status}'. Allowed values: {', '.join(allowed_values)}"
-        )
+        super().__init__(f"Unknown status '{status}'. Allowed values: {', '.join(allowed_values)}")
         self.status = status
         self.allowed_values = allowed_values
 
@@ -121,9 +119,10 @@ def style_resolution_tone(
     if normalized_reason in _STYLE_RESOLUTION_FAILURE_REASONS:
         return "failure"
 
-    if normalized_status == "success":
-        if normalized_reason in _STYLE_RESOLUTION_SUCCESS_REASONS or normalized_reason == "":
-            return "success"
+    if normalized_status == "success" and (
+        normalized_reason in _STYLE_RESOLUTION_SUCCESS_REASONS or normalized_reason == ""
+    ):
+        return "success"
     if normalized_reason in _STYLE_RESOLUTION_SUCCESS_REASONS:
         return "success"
 

@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     llm_timeout_seconds: int = 30
+    llm_provider: str = "mock"
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    llm_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.7
     llm_max_output_tokens: int = 400
 
@@ -51,5 +55,6 @@ class Settings(BaseSettings):
     obs_ws_password: str = ""
 
     weekly_movies_file: str = ""
+
 
 settings = Settings()

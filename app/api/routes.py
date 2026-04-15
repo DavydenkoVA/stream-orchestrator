@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.observability.trace_context import get_trace_state
 from app.observability.trace_helpers import (
     finish_trace_failure,
     finish_trace_success,
@@ -13,12 +14,11 @@ from app.observability.trace_helpers import (
     trace_info,
     trace_success,
 )
-from app.observability.trace_context import get_trace_state
+from app.schemas.dynamic_prompt import DynamicPromptRequest, DynamicPromptResponse
 from app.schemas.events import ChatEvent
 from app.schemas.responses import ChatReply, DebugContextResponse, IngestResponse
-from app.services.router import RouterService
-from app.schemas.dynamic_prompt import DynamicPromptRequest, DynamicPromptResponse
 from app.services.dynamic_prompt_service import DynamicPromptService
+from app.services.router import RouterService
 
 
 router = APIRouter()
@@ -45,6 +45,7 @@ def _start_request_trace(*, route: str, stream_id: str | None, db: Session) -> N
         trace_info("request.start", "request started", payload={"route": route})
 
     _run_trace_safely("start_request_trace", _operation)
+
 
 def _error_code_for_exception(exc: Exception) -> str:
     if isinstance(exc, HTTPException):
@@ -90,7 +91,9 @@ def ingest_chat_event(
             reply_to_username=payload.reply_to_username,
             reply_to_text=payload.reply_to_text,
         )
-        _run_trace_safely("chat_ingest_finish_success", lambda: trace_success("request.finish", "chat ingest request finished"))
+        _run_trace_safely(
+            "chat_ingest_finish_success", lambda: trace_success("request.finish", "chat ingest request finished")
+        )
         _run_trace_safely("chat_ingest_mark_success", lambda: finish_trace_success(summary="chat_ingest success"))
         return IngestResponse()
     except Exception as exc:
@@ -156,6 +159,7 @@ async def reply_chat_event(
 @router.get("/debug/prompts/{name}")
 def get_prompt(name: str) -> dict:
     from app.prompt_store import PromptStore
+
     store = PromptStore()
     return {"name": name, "content": store.read(name)}
 
@@ -207,6 +211,7 @@ def debug_context(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
     )
+
 
 @router.post("/events/dynamic_prompt", response_model=DynamicPromptResponse)
 async def dynamic_prompt_event(

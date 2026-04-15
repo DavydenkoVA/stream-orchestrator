@@ -1,9 +1,8 @@
 from __future__ import annotations
-
-from datetime import UTC, datetime, timedelta
 import json
-from pathlib import Path
 import re
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -58,21 +57,19 @@ def test_get_llm_config_page_returns_200() -> None:
     assert "LLM Config" in response.text
 
 
-
-
 def test_llm_config_renders_operator_safe_controls() -> None:
     client = TestClient(app)
 
-    response = client.get('/llm-config')
+    response = client.get("/llm-config")
 
     assert response.status_code == 200
-    assert 'Provider type' in response.text
+    assert "Provider type" in response.text
     assert 'class="provider-type-select"' in response.text
-    assert '+ Add feature' not in response.text
+    assert "+ Add feature" not in response.text
     assert 'class="remove-feature"' not in response.text
-    assert 'feature-provider-select' in response.text
-    assert 'feature-style-select' in response.text
-    assert 'Styles config (read-only preview)' not in response.text
+    assert "feature-provider-select" in response.text
+    assert "feature-style-select" in response.text
+    assert "Styles config (read-only preview)" not in response.text
     assert 'type="range"' in response.text
 
 
@@ -146,18 +143,16 @@ def test_get_playground_with_dynamic_mode_returns_200() -> None:
     response = client.get("/playground", params={"mode": "dynamic"})
 
     assert response.status_code == 200
-    assert "data-initial-mode=\"dynamic\"" in response.text
+    assert 'data-initial-mode="dynamic"' in response.text
     assert "Payload template" in response.text
-    assert "id=\"dynamic-copy-template-btn\"" in response.text
-    assert "id=\"dynamic-new-prompt-btn\"" in response.text
-
-
+    assert 'id="dynamic-copy-template-btn"' in response.text
+    assert 'id="dynamic-new-prompt-btn"' in response.text
 
 
 def test_playground_dynamic_override_renders_select_and_slider() -> None:
     client = TestClient(app)
 
-    response = client.get('/playground', params={'mode': 'dynamic'})
+    response = client.get("/playground", params={"mode": "dynamic"})
 
     assert response.status_code == 200
     assert 'id="dynamic-provider-select"' in response.text
@@ -171,7 +166,7 @@ def test_playground_dynamic_override_renders_select_and_slider() -> None:
 def test_playground_dynamic_provider_options_exclude_model_names() -> None:
     client = TestClient(app)
 
-    response = client.get('/playground', params={'mode': 'dynamic'})
+    response = client.get("/playground", params={"mode": "dynamic"})
 
     assert response.status_code == 200
     assert '<option value="primary">primary</option>' in response.text

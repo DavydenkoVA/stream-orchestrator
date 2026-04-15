@@ -1,11 +1,11 @@
 from __future__ import annotations
-
 import logging
 import re
 
 from app.config import settings
 from app.services.features.base import ChatRequest, FeatureContext, FeatureHandler, FeatureResponse
 from app.text_utils import prepare_chat_text
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class DossierFeatureHandler(FeatureHandler):
         if dossier_target is None:
             return FeatureResponse(reply_text="", route=self.route_name)
 
-        target = request.username if not dossier_target else dossier_target
+        target = dossier_target if dossier_target else request.username
         normalized_target = target.strip().lstrip("@").lower()
 
         if normalized_target == settings.bot_username.strip().lstrip("@").lower():
@@ -54,12 +54,12 @@ class DossierFeatureHandler(FeatureHandler):
 
         recent_block = "\n".join(f"- {msg}" for msg in recent_messages[:15]) or "- Нет данных"
         memory_block = (
-                "\n".join(
-                    f"- type: {item['kind']}; fact: {item['text']}; "
-                    f"confidence: {item['confidence']}; evidence: {item['evidence_count']}"
-                    for item in memory_items[:10]
-                )
-                or "- Нет данных"
+            "\n".join(
+                f"- type: {item['kind']}; fact: {item['text']}; "
+                f"confidence: {item['confidence']}; evidence: {item['evidence_count']}"
+                for item in memory_items[:10]
+            )
+            or "- Нет данных"
         )
 
         pool, feature_cfg = context.llm_registry.get_for_feature("dossier")
@@ -126,9 +126,7 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
         if weekly_movies_data["found"] and weekly_movies_data["content"]:
             file_content = weekly_movies_data["content"]
         else:
-            file_content = (
-                weekly_movies_data["message"] or "Список фильмов на эту неделю пока пуст."
-            )
+            file_content = weekly_movies_data["message"] or "Список фильмов на эту неделю пока пуст."
 
         pool, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
         base_system_prompt = context.prompts.read("weekly_movies_system.txt")
@@ -192,17 +190,11 @@ class MentionChatFeatureHandler(FeatureHandler):
             limit=settings.chat_dialog_context_limit,
         )
 
-        global_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in global_recent
-        ) or "Нет данных."
+        global_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in global_recent) or "Нет данных."
 
-        user_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in user_recent
-        ) or "Нет данных."
+        user_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in user_recent) or "Нет данных."
 
-        dialog_recent_block = "\n".join(
-            f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent
-        ) or "Нет данных."
+        dialog_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent) or "Нет данных."
 
         reply_context_block = "Нет"
 

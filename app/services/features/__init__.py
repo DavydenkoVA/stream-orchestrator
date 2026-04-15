@@ -7,6 +7,7 @@ from app.services.features.handlers import (
 )
 from app.services.features.selector import FeatureSelector
 
+
 __all__ = [
     "ChatRequest",
     "FeatureContext",
