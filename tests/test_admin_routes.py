@@ -75,6 +75,27 @@ def test_llm_config_renders_operator_safe_controls() -> None:
     assert 'type="range"' in response.text
 
 
+def test_llm_config_provider_options_use_top_level_provider_names_only() -> None:
+    client = TestClient(app)
+
+    response = client.get("/llm-config")
+
+    assert response.status_code == 200
+    assert 'providerOptions: ["primary"]' in response.text
+    assert 'providerOptions: ["primary", "model_a"]' not in response.text
+    assert 'providerOptions: ["primary", "model_b"]' not in response.text
+
+
+def test_llm_config_js_collects_only_top_level_provider_name_inputs() -> None:
+    client = TestClient(app)
+
+    response = client.get("/static/admin/llm_config.js")
+
+    assert response.status_code == 200
+    assert "document.querySelectorAll('.provider-item .provider-name-input')" in response.text
+    assert "document.querySelectorAll('.provider-item input[name$=\"[name]\"]')" not in response.text
+
+
 def test_get_styles_page_returns_200_and_shows_default() -> None:
     client = TestClient(app)
     response = client.get("/styles")
@@ -142,6 +163,17 @@ def test_playground_dynamic_override_renders_select_and_slider() -> None:
     assert '<option value="random">random</option>' in response.text
     assert 'name="temperature" type="range"' in response.text
     assert 'id="dynamic-temperature-value"' in response.text
+
+
+def test_playground_dynamic_provider_options_exclude_model_names() -> None:
+    client = TestClient(app)
+
+    response = client.get('/playground', params={'mode': 'dynamic'})
+
+    assert response.status_code == 200
+    assert '<option value="primary">primary</option>' in response.text
+    assert '<option value="model_a">model_a</option>' not in response.text
+    assert '<option value="model_b">model_b</option>' not in response.text
 
 
 def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(

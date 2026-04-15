@@ -46,7 +46,7 @@
   <template id="provider-template">
     <div class="card provider-item" data-provider-index="__P_INDEX__">
       <div class="row">
-        <div><label>Provider name<input name="providers[__P_INDEX__][name]" value="__P_NAME__"></label></div>
+        <div><label>Provider name<input name="providers[__P_INDEX__][name]" value="__P_NAME__" class="provider-name-input"></label></div>
         <div>
           <label>Provider type
             <select name="providers[__P_INDEX__][provider]" class="provider-type-select">__P_TYPE_OPTIONS__</select>
@@ -78,7 +78,7 @@
         <div><label>Feature name<input value="__F_NAME__" readonly disabled></label></div>
         <div>
           <label>Provider
-            <select name="feature_settings[__F_INDEX__][provider]" class="feature-provider-select"></select>
+            <select name="feature_settings[__F_INDEX__][provider]" class="feature-provider-select">__F_PROVIDER_OPTIONS__</select>
           </label>
         </div>
         <div>
@@ -110,6 +110,7 @@
   <script>
     window.LLM_CONFIG_INITIAL = {
       providers: {{ providers | tojson }},
+      providerOptions: {{ provider_options | tojson }},
       features: {{ features | tojson }},
       providerTypeOptions: {{ provider_type_options | tojson }},
       styleOptions: {{ style_options | tojson }},
