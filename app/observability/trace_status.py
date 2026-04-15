@@ -55,3 +55,38 @@ def normalize_status_filter(status: str | None) -> str | None:
 def trace_status_tone(status: str | None) -> str:
     normalized = (status or "").strip().lower()
     return _TRACE_STATUS_TONE_BY_STATUS.get(normalized, "neutral")
+
+
+def trace_event_tone(
+    *,
+    status: str | None,
+    level: str | None,
+    step: str | None = None,
+) -> str:
+    normalized_status = (status or "").strip().lower()
+    normalized_level = (level or "").strip().upper()
+    normalized_step = (step or "").strip().lower()
+
+    if normalized_status in {"success"}:
+        return "success"
+    if normalized_status in {"failed", "failure", "error"}:
+        return "failure"
+    if normalized_status in {"degraded", "warning", "warn", "partial"}:
+        return "warning"
+    if normalized_status in {"running", "in_progress", "started"}:
+        return "info"
+
+    if normalized_level == "ERROR":
+        return "failure"
+    if normalized_level == "WARNING":
+        return "warning"
+    if normalized_level == "INFO" and (
+        normalized_status == "info"
+        or normalized_step.endswith(".start")
+        or normalized_step.endswith(".running")
+        or "start" in normalized_step
+        or "running" in normalized_step
+    ):
+        return "info"
+
+    return "neutral"

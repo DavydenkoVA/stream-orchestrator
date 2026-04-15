@@ -270,7 +270,7 @@ summary {
 }
 
 .traces-event-item:hover {
-  background: #f2f6ff;
+  filter: brightness(0.97);
 }
 
 .traces-run-item:hover {
@@ -300,6 +300,26 @@ summary {
 }
 
 .traces-run-item.traces-run-item--neutral {
+  background: #e9eef3;
+}
+
+.traces-event-item.traces-event-item--success {
+  background: #bdecb6;
+}
+
+.traces-event-item.traces-event-item--failure {
+  background: #f8d7da;
+}
+
+.traces-event-item.traces-event-item--warning {
+  background: #fce5cd;
+}
+
+.traces-event-item.traces-event-item--info {
+  background: #d9eaf7;
+}
+
+.traces-event-item.traces-event-item--neutral {
   background: #e9eef3;
 }
 

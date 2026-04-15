@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
-from app.observability.trace_status import normalize_status_filter, trace_status_tone
+from app.observability.trace_status import normalize_status_filter, trace_event_tone, trace_status_tone
 
 
 class TraceReadService:
@@ -88,6 +88,7 @@ class TraceReadService:
             "kind": event.step,
             "status": event.status,
             "level": event.level,
+            "tone": trace_event_tone(status=event.status, level=event.level, step=event.step),
             "message": event.message,
             "payload": payload,
         }

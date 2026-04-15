@@ -134,6 +134,9 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'traces-event-item';
+      const tone = String(event.tone || 'neutral');
+      button.dataset.tone = tone;
+      button.classList.add(`traces-event-item--${tone}`);
       if (event.id === selectedEventId) {
         button.classList.add('selected');
       }

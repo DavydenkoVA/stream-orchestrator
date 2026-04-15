@@ -431,6 +431,8 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     payload = response.json()
     assert payload["run"]["id"] == "trace-2"
     assert [event["seq_no"] for event in payload["events"]] == [1, 2]
+    assert payload["events"][0]["tone"] == "info"
+    assert payload["events"][1]["tone"] == "failure"
     assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
 
     app.dependency_overrides.clear()
