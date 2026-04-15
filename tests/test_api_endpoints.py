@@ -1,3 +1,5 @@
+import re
+
 from fastapi import HTTPException
 
 from fastapi.testclient import TestClient
@@ -37,6 +39,9 @@ def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session) -> None:
     assert bot_response.status_code == 200
     assert bot_response.json()["route"] == "ignored"
     assert bot_response.json()["should_reply"] is False
+    trace_id = bot_response.headers.get("X-Trace-Id")
+    assert trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
 
     app.dependency_overrides.clear()
 
@@ -94,6 +99,9 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     )
     assert success_response.status_code == 200
     assert success_response.json()["result"] == "success"
+    success_trace_id = success_response.headers.get("X-Trace-Id")
+    assert success_trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", success_trace_id)
 
     fallback_response = client.post(
         "/events/dynamic_prompt",
@@ -105,9 +113,35 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     )
     assert fallback_response.status_code == 200
     assert fallback_response.json()["result"] == "fallback"
+    fallback_trace_id = fallback_response.headers.get("X-Trace-Id")
+    assert fallback_trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", fallback_trace_id)
 
     app.dependency_overrides.clear()
 
+
+
+
+def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/events/dynamic_prompt",
+        json={
+            "prompt": "test",
+            "user": "alice",
+            "data": {"loot": "ring"},
+            "llm": {"temperature": 1.2},
+        },
+    )
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
 
 def test_debug_context_endpoint(db_session) -> None:
     def override_get_db():
@@ -236,5 +270,22 @@ def test_chat_reply_http_exception_is_sanitized(db_session, monkeypatch) -> None
     assert payload["message"] == "Bad request"
     assert payload["request_id"]
     assert "internal failure details" not in response.text
+
+    app.dependency_overrides.clear()
+
+
+def test_debug_prompts_endpoint(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.get('/debug/prompts/chat_system.txt')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['name'] == 'chat_system.txt'
+    assert payload['content']
 
     app.dependency_overrides.clear()

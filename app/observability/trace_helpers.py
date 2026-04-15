@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.observability.request_context import get_current_request_id
 from app.observability.trace_context import TraceState, clear_trace_state, get_trace_state, set_trace_state
 from app.observability.trace_recorder import TraceRecorder
+from app.observability.trace_status import TRACE_RUN_STATUS_FAILED
 
 
 def start_trace(*, route: str, stream_id: str | None = None, db: Session | None = None) -> str:
@@ -57,7 +58,7 @@ def finish_trace_success(summary: str | None = None) -> None:
     state = get_trace_state()
     if state is None:
         return
-    state.recorder.finish_run(trace_run_id=state.trace_run_id, status="success", summary=summary)
+    state.recorder.finish_run_success(trace_run_id=state.trace_run_id, summary=summary)
     clear_trace_state()
 
 
@@ -67,7 +68,7 @@ def finish_trace_failure(error_code: str, summary: str | None = None) -> None:
         return
     state.recorder.finish_run(
         trace_run_id=state.trace_run_id,
-        status="failed",
+        status=TRACE_RUN_STATUS_FAILED,
         error_code=error_code,
         summary=summary,
     )

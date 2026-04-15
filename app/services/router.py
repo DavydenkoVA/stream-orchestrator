@@ -120,6 +120,36 @@ class RouterService:
         except Exception:
             logger.warning("trace operation failed: chat_message.save.success", exc_info=True)
 
+
+    async def run_dossier(
+            self,
+            db: Session,
+            *,
+            stream_id: str,
+            username: str,
+            target_username: str,
+    ) -> tuple[str, str]:
+        request = ChatRequest(
+            stream_id=stream_id,
+            username=username,
+            text=f"досье на @{target_username}",
+            mentions_bot=False,
+            role="viewer",
+        )
+        context = FeatureContext(
+            db=db,
+            llm_registry=self.llm_registry,
+            llm_executor=self.llm_executor,
+            prompts=self.prompts,
+            chat_memory=self.chat_memory,
+            dossier=self.dossier,
+            weekly_movies=self.weekly_movies,
+            user_memory=self.user_memory,
+            style_prompt=self.style_prompt,
+        )
+        handler = DossierFeatureHandler()
+        response = await handler.handle(context, request)
+        return response.reply_text, response.route
     async def handle_chat_reply(
             self,
             db: Session,

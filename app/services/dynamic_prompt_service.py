@@ -129,10 +129,11 @@ class DynamicPromptService:
 
         try:
             base_system_prompt = self.prompts.read(system_name)
-            system_prompt = self.style_prompt.apply_style(
+            style_result = self.style_prompt.apply_style_with_resolution(
                 base_system_prompt,
                 feature_cfg.style,
             )
+            system_prompt = style_result.system_prompt
             user_prompt = self.prompts.render(
                 template_name,
                 user=user,
@@ -161,6 +162,12 @@ class DynamicPromptService:
                 feature_settings=feature_cfg,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                style_resolution={
+                    "requested_style": style_result.requested_style,
+                    "applied_style": style_result.applied_style,
+                    "style_resolution_status": style_result.style_resolution_status,
+                    "style_resolution_reason": style_result.style_resolution_reason,
+                },
             )
         except Exception:
             logger.exception("Dynamic prompt LLM call failed: prompt=%s", prompt_name)

@@ -9,6 +9,7 @@ import yaml
 from app.config import settings
 from app.integrations.llm.base import LLMProvider
 from app.integrations.llm.factory import build_llm_provider_from_config
+from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 
 
 @dataclass(slots=True)
@@ -159,8 +160,70 @@ class LLMRegistry:
             example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
             if example_path.exists():
                 return yaml.safe_load(example_path.read_text(encoding="utf-8")) or {}
-            raise FileNotFoundError(f"LLM profiles config not found: {self.config_path}")
+
+            return self._bootstrap_raw_config()
+
         return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
+
+    def _bootstrap_raw_config(self) -> dict:
+        provider_name = "bootstrap"
+        return {
+            "providers": {
+                provider_name: {
+                    "provider": "mock",
+                    "models": [
+                        {
+                            "name": "bootstrap",
+                            "api_key": "bootstrap",
+                            "base_url": "",
+                            "model": "bootstrap",
+                        }
+                    ],
+                }
+            },
+            "feature_settings": {
+                feature_name: {
+                    "provider": provider_name,
+                    "temperature": settings.llm_temperature,
+                    "max_output_tokens": settings.llm_max_output_tokens,
+                    "style": "default",
+                }
+                for feature_name in SUPPORTED_FEATURE_NAMES
+            },
+        }
+
+
+    def export_raw_config(self) -> dict:
+        snapshot = self._require_snapshot()
+        return {
+            "providers": {
+                provider_name: {
+                    "provider": provider_cfg.provider,
+                    "models": [
+                        {
+                            "name": model.name,
+                            "api_key": model.api_key,
+                            "base_url": model.base_url,
+                            "model": model.model,
+                        }
+                        for model in provider_cfg.models
+                    ],
+                }
+                for provider_name, provider_cfg in snapshot.providers.items()
+            },
+            "feature_settings": {
+                feature_name: {
+                    "provider": feature_cfg.provider_name,
+                    "temperature": feature_cfg.temperature,
+                    "max_output_tokens": feature_cfg.max_output_tokens,
+                    "style": feature_cfg.style,
+                }
+                for feature_name, feature_cfg in snapshot.feature_settings.items()
+            },
+        }
+
+    def list_provider_names(self) -> list[str]:
+        return list(self._require_snapshot().providers.keys())
 
     def _provider_cache_key(self, provider_kind: str, endpoint: ModelEndpointConfig) -> str:
         return f"{provider_kind}|{endpoint.base_url}|{endpoint.api_key}|{endpoint.model}"

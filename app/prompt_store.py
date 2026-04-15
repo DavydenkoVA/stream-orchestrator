@@ -12,11 +12,26 @@ class PromptStore:
     def __init__(self, base_dir: str | None = None) -> None:
         self.base_dir = Path(base_dir or settings.prompts_dir)
 
-    def read(self, name: str) -> str:
-        path = self.base_dir / name
+    def _resolve_path(self, name: str) -> Path:
+        candidate = (self.base_dir / name).resolve()
+        base = self.base_dir.resolve()
+        if candidate != base and base not in candidate.parents:
+            raise ValueError("Prompt path is outside prompt storage")
+        return candidate
+
+    def read_raw(self, name: str) -> str:
+        path = self._resolve_path(name)
         if not path.exists():
             raise FileNotFoundError(f"Prompt file not found: {path}")
-        return path.read_text(encoding="utf-8").strip()
+        return path.read_text(encoding="utf-8")
+
+    def read(self, name: str) -> str:
+        return self.read_raw(name).strip()
+
+    def write(self, name: str, content: str) -> None:
+        path = self._resolve_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def _extract_required_fields(self, template: str, *, template_name: str) -> set[str]:
         fields: set[str] = set()

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.schemas.admin_llm_config import AdminLLMConfig
 from app.services.llm_registry import LLMRegistry
+from app.services.style_registry import StyleRegistry
 
 
 @dataclass(slots=True)
@@ -30,8 +31,9 @@ class LLMConfigAdminService:
         r"^feature_settings\[(\d+)\]\[(name|provider|temperature|max_output_tokens|style)\]$"
     )
 
-    def __init__(self, registry: LLMRegistry) -> None:
+    def __init__(self, registry: LLMRegistry, style_registry: StyleRegistry | None = None) -> None:
         self.registry = registry
+        self.style_registry = style_registry or StyleRegistry()
 
     def read_raw_config(self) -> dict:
         config_path = Path(self.registry.config_path)
@@ -99,6 +101,9 @@ class LLMConfigAdminService:
             config = AdminLLMConfig.model_validate(raw)
             normalized_raw = config.to_raw_dict()
             self.registry.validate_raw(normalized_raw)
+            style_errors = self._validate_style_references(normalized_raw)
+            if style_errors:
+                return AdminValidationResult(valid=False, errors=style_errors)
             return AdminValidationResult(valid=True, errors=[], config=config, raw=normalized_raw)
         except ValidationError as exc:
             errors = [self._humanize_error(error) for error in exc.errors()]
@@ -141,6 +146,19 @@ class LLMConfigAdminService:
         self.registry.apply_snapshot(snapshot)
         return validation
 
+
+    def _validate_style_references(self, raw: dict) -> list[str]:
+        errors: list[str] = []
+        features = raw.get("feature_settings", {})
+        for feature_name, feature_cfg in features.items():
+            style_value = feature_cfg.get("style")
+            style_error = self.style_registry.validate_style_reference(
+                style_value if isinstance(style_value, str) else None
+            )
+            if style_error is not None:
+                errors.append(f"feature '{feature_name}': {style_error}")
+        return errors
+
     @staticmethod
     def _humanize_error(error: dict) -> str:
         loc = error.get("loc", ())
@@ -157,6 +175,14 @@ class LLMConfigAdminService:
             return message
         if "provider references unknown provider" in lowered:
             return "provider references unknown provider"
+        if "unsupported provider type" in lowered:
+            return message
+        if "unknown feature name" in lowered:
+            return message
+        if "missing required feature setting" in lowered:
+            return message
+        if "duplicate feature name" in lowered:
+            return "duplicate feature name"
         if "invalid temperature" in lowered:
             return "invalid temperature"
         if "invalid max_output_tokens" in lowered:
