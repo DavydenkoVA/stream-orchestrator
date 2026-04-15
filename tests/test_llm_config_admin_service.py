@@ -125,3 +125,15 @@ def test_validate_rejects_out_of_range_temperature() -> None:
 
     assert result.valid is False
     assert 'invalid temperature' in result.errors
+
+
+def test_validate_rejects_unknown_style_reference() -> None:
+    registry = LLMRegistry()
+    admin_service = LLMConfigAdminService(registry)
+    form_data = _valid_form_data()
+    form_data['feature_settings[0][style]'] = 'missing_style'
+
+    result = admin_service.validate_form_data(form_data)
+
+    assert result.valid is False
+    assert "feature 'chat': unknown style reference: missing_style" in result.errors

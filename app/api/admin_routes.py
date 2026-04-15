@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 import re
 from urllib.parse import parse_qsl
 
-import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -21,6 +21,8 @@ from app.observability.trace_status import (
     normalize_status_filter,
 )
 from app.services.llm_config_admin_service import LLMConfigAdminService
+from app.services.styles_admin_service import StylesAdminService
+from app.services.style_registry import StyleRegistry
 from app.services.trace_read_service import TraceReadService
 from app.services.llm_config_source import (
     SUPPORTED_FEATURE_NAMES,
@@ -70,12 +72,16 @@ def _validate_dynamic_prompt_name(name: str) -> str:
 
 
 def _build_view_model() -> dict:
-    admin_service = LLMConfigAdminService(api_routes.service.llm_registry)
+    style_registry = api_routes.service.style_registry
+    admin_service = LLMConfigAdminService(
+        api_routes.service.llm_registry,
+        style_registry=style_registry,
+    )
     raw_config = admin_service.read_raw_config()
     if not raw_config:
         raw_config = api_routes.service.llm_registry.export_raw_config()
 
-    styles_raw = admin_service.read_styles_raw(settings.llm_styles_config_path)
+    selector_options = [asdict(option) for option in style_registry.selector_options()]
     snapshot_meta = api_routes.service.llm_registry.get_snapshot_metadata()
 
     providers = raw_config.get("providers", {})
@@ -96,7 +102,7 @@ def _build_view_model() -> dict:
             "provider": "",
             "temperature": settings.llm_temperature,
             "max_output_tokens": settings.llm_max_output_tokens,
-            "style": "default",
+            "style": "",
         }
         for feature_name in SUPPORTED_FEATURE_NAMES
     }
@@ -104,6 +110,7 @@ def _build_view_model() -> dict:
     features_list = []
     for feature_name in SUPPORTED_FEATURE_NAMES:
         feature_cfg = {**feature_defaults[feature_name], **(features.get(feature_name) or {})}
+        style_value = str(feature_cfg.get("style", "") or "").strip()
         features_list.append(
             {
                 "name": feature_name,
@@ -112,11 +119,13 @@ def _build_view_model() -> dict:
                 "max_output_tokens": feature_cfg.get(
                     "max_output_tokens", settings.llm_max_output_tokens
                 ),
-                "style": feature_cfg.get("style", "default"),
+                "style": style_value,
+                "style_options": _resolve_selector_options_with_legacy(
+                    style_registry,
+                    style_value,
+                ),
             }
         )
-
-    styles_preview = yaml.safe_dump(styles_raw, sort_keys=False, allow_unicode=True)
 
     return {
         "providers": providers_list,
@@ -125,10 +134,28 @@ def _build_view_model() -> dict:
         "temperature_min": TEMPERATURE_MIN,
         "temperature_max": TEMPERATURE_MAX,
         "temperature_step": TEMPERATURE_STEP,
-        "styles_preview": styles_preview,
+        "style_options": selector_options,
         "metadata": snapshot_meta,
         "active_config_path": str(Path(settings.llm_profiles_config_path)),
     }
+
+
+def _resolve_selector_options_with_legacy(
+    style_registry: StyleRegistry,
+    current_value: str | None,
+) -> list[dict[str, str]]:
+    options = [asdict(option) for option in style_registry.selector_options()]
+    normalized_current = (current_value or "").strip().lower()
+    known_values = {item["value"] for item in options}
+    if normalized_current and normalized_current not in known_values:
+        options.append(
+            {
+                "value": normalized_current,
+                "label": f"[missing: {normalized_current}]",
+                "kind": "missing",
+            }
+        )
+    return options
 
 
 
@@ -201,6 +228,7 @@ def get_llm_config(request: Request):
 @router.get("/playground", response_class=HTMLResponse)
 def get_playground(request: Request, mode: str = Query(default="chat")):
     normalized_mode = "dynamic" if mode == "dynamic" else "chat"
+    style_registry = api_routes.service.style_registry
     return templates.TemplateResponse(
         request=request,
         name="admin/playground.html",
@@ -209,10 +237,50 @@ def get_playground(request: Request, mode: str = Query(default="chat")):
             "page_title": "Playground",
             "mode": normalized_mode,
             "provider_options": api_routes.service.llm_registry.list_provider_names(),
+            "dynamic_style_options": [asdict(option) for option in style_registry.selector_options()],
             "temperature_min": TEMPERATURE_MIN,
             "temperature_max": TEMPERATURE_MAX,
             "temperature_step": TEMPERATURE_STEP,
         },
+    )
+
+
+@router.get("/styles", response_class=HTMLResponse)
+def get_styles(request: Request):
+    style_registry = api_routes.service.style_registry
+    styles_service = StylesAdminService(style_registry)
+    styles = styles_service.initial_styles()
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/styles.html",
+        context={
+            "active_page": "styles",
+            "page_title": "Styles",
+            "styles": [asdict(style) for style in styles],
+        },
+    )
+
+
+async def _validate_styles_impl(request: Request) -> HTMLResponse:
+    form_data = await _read_form_data(request)
+    styles_service = StylesAdminService(api_routes.service.style_registry)
+    result = styles_service.validate_form_data(form_data)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/_status_panel.html",
+        context={"result": result, "applied": False},
+    )
+
+
+async def _apply_styles_impl(request: Request) -> HTMLResponse:
+    _enforce_config_mutation_access()
+    form_data = await _read_form_data(request)
+    styles_service = StylesAdminService(api_routes.service.style_registry)
+    result = styles_service.apply_form_data(form_data)
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/_status_panel.html",
+        context={"result": result, "applied": True},
     )
 
 
@@ -334,6 +402,16 @@ async def validate_llm_config(request: Request):
 @router.post("/llm-config/apply", response_class=HTMLResponse)
 async def apply_llm_config(request: Request):
     return await _apply_llm_config_impl(request)
+
+
+@router.post("/styles/validate", response_class=HTMLResponse)
+async def validate_styles(request: Request):
+    return await _validate_styles_impl(request)
+
+
+@router.post("/styles/apply", response_class=HTMLResponse)
+async def apply_styles(request: Request):
+    return await _apply_styles_impl(request)
 
 
 @router.post("/admin/llm-config/validate", response_class=HTMLResponse)

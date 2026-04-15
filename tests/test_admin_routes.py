@@ -43,6 +43,7 @@ def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
     assert response.status_code == 200
     assert "Operator Console" in response.text
     assert "LLM Config" in response.text
+    assert "Styles" in response.text
     assert "Playground" in response.text
     assert "Traces" in response.text
 
@@ -69,7 +70,40 @@ def test_llm_config_renders_operator_safe_controls() -> None:
     assert '+ Add feature' not in response.text
     assert 'class="remove-feature"' not in response.text
     assert 'feature-provider-select' in response.text
+    assert 'feature-style-select' in response.text
+    assert 'Styles config (read-only preview)' not in response.text
     assert 'type="range"' in response.text
+
+
+def test_get_styles_page_returns_200_and_shows_default() -> None:
+    client = TestClient(app)
+    response = client.get("/styles")
+
+    assert response.status_code == 200
+    assert "Manage configured styles" in response.text
+    assert 'id="add-style-btn"' in response.text
+    assert '<input value="default" disabled>' in response.text
+    assert 'name="styles[0][name]" value="default"' in response.text
+    assert 'name="styles[0][system]" value="default"' in response.text
+
+
+def test_get_styles_page_keeps_non_default_name_editable() -> None:
+    client = TestClient(app)
+    response = client.get("/styles")
+
+    assert response.status_code == 200
+    assert 'name="styles[1][name]" value="fun"' in response.text
+    assert 'name="styles[1][name]" value="fun" disabled' not in response.text
+
+
+def test_styles_js_does_not_reinitialize_default_name_field() -> None:
+    client = TestClient(app)
+    response = client.get("/static/admin/styles.js")
+
+    assert response.status_code == 200
+    assert "querySelectorAll('.style-item').forEach(bindRemoveButton);" in response.text
+    assert "readonly" not in response.text
+    assert "removeAttribute" not in response.text
 
 
 def test_get_playground_returns_200() -> None:
@@ -104,6 +138,8 @@ def test_playground_dynamic_override_renders_select_and_slider() -> None:
     assert response.status_code == 200
     assert 'id="dynamic-provider-select"' in response.text
     assert '<select name="provider" id="dynamic-provider-select">' in response.text
+    assert 'id="dynamic-style-select"' in response.text
+    assert '<option value="random">random</option>' in response.text
     assert 'name="temperature" type="range"' in response.text
     assert 'id="dynamic-temperature-value"' in response.text
 
@@ -293,6 +329,66 @@ def test_apply_route_applies_new_config() -> None:
 
     page = client.get("/llm-config")
     assert "admin-applied-key" in page.text
+
+
+def test_styles_validate_and_apply_routes_work() -> None:
+    client = TestClient(app)
+    payload = {
+        "styles[0][name]": "default",
+        "styles[0][system]": "default",
+        "styles[0][title]": "Default title updated",
+        "styles[0][instruction]": "Default instruction updated",
+        "styles[1][name]": "cinematic",
+        "styles[1][title]": "Cinematic",
+        "styles[1][instruction]": "Use cinematic language.",
+    }
+
+    validate_response = client.post("/styles/validate", data=payload)
+    assert validate_response.status_code == 200
+    assert "Validation success" in validate_response.text
+
+    apply_response = client.post("/styles/apply", data=payload)
+    assert apply_response.status_code == 200
+    assert "Apply success" in apply_response.text
+
+    page = client.get("/styles")
+    assert "cinematic" in page.text
+    assert "Default title updated" in page.text
+    assert "Default instruction updated" in page.text
+
+
+def test_styles_validate_rejects_missing_default() -> None:
+    client = TestClient(app)
+    payload = {
+        "styles[0][name]": "fun",
+        "styles[0][system]": "default",
+        "styles[0][title]": "Fun",
+        "styles[0][instruction]": "Add jokes.",
+    }
+    response = client.post("/styles/validate", data=payload)
+
+    assert response.status_code == 200
+    assert "Validation failed" in response.text
+    assert "default style is required" in response.text
+
+
+def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
+    client = TestClient(app)
+    payload = {
+        "styles[0][name]": "renamed",
+        "styles[0][system]": "default",
+        "styles[0][title]": "Default",
+        "styles[0][instruction]": "",
+        "styles[1][name]": "fun",
+        "styles[1][title]": "Fun",
+        "styles[1][instruction]": "Add jokes.",
+    }
+
+    response = client.post("/styles/validate", data=payload)
+
+    assert response.status_code == 200
+    assert "Validation failed" in response.text
+    assert "default style name cannot be changed" in response.text
 
 
 def test_legacy_validate_route_still_works() -> None:

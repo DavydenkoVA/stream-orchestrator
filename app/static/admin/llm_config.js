@@ -2,6 +2,7 @@ let providerIndex = 0;
 let featureIndex = 0;
 
 const providerTypeOptions = window.LLM_CONFIG_INITIAL?.providerTypeOptions ?? [];
+const globalStyleOptions = window.LLM_CONFIG_INITIAL?.styleOptions ?? [];
 
 function htmlFromTemplate(templateId, replacements) {
   let html = document.getElementById(templateId).innerHTML;
@@ -153,6 +154,19 @@ function addFeature(
   const node = wrapper.firstElementChild;
   const providerSelect = node.querySelector('.feature-provider-select');
   providerSelect.dataset.currentValue = feature.provider ?? '';
+  const styleSelect = node.querySelector('.feature-style-select');
+  const styleOptions = Array.isArray(feature.style_options) && feature.style_options.length
+    ? feature.style_options
+    : globalStyleOptions;
+  styleSelect.innerHTML = styleOptions
+    .map((item) => {
+      const value = String(item.value ?? '');
+      const label = String(item.label ?? value);
+      const selected = value === String(feature.style ?? '') ? ' selected' : '';
+      const cssClass = item.kind === 'missing' ? ' class="style-option-missing"' : '';
+      return `<option value="${escapeHtml(value)}"${selected}${cssClass}>${escapeHtml(label)}</option>`;
+    })
+    .join('');
 
   bindTemperaturePreview(node);
   container.appendChild(node);

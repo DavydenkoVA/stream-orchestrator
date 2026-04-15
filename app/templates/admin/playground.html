@@ -160,7 +160,13 @@
                   {% endfor %}
                 </select>
               </label>
-              <label>style<input name="style" /></label>
+              <label>style
+                <select name="style" id="dynamic-style-select">
+                  {% for option in dynamic_style_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
             </div>
             <div class="row row-2">
               <label>temperature
@@ -219,6 +225,7 @@
   <script>
     window.PLAYGROUND_CONFIG = {
       providers: {{ provider_options | tojson }},
+      styleOptions: {{ dynamic_style_options | tojson }},
       temperature: {
         min: {{ temperature_min | tojson }},
         max: {{ temperature_max | tojson }},

@@ -43,11 +43,6 @@
 
   <div id="status-panel"></div>
 
-  <div class="card">
-    <h3>Styles config (read-only preview)</h3>
-    <pre>{{ styles_preview }}</pre>
-  </div>
-
   <template id="provider-template">
     <div class="card provider-item" data-provider-index="__P_INDEX__">
       <div class="row">
@@ -103,7 +98,11 @@
         <div><label>Max output tokens<input name="feature_settings[__F_INDEX__][max_output_tokens]" type="number" step="1" min="1" value="__F_TOKENS__"></label></div>
       </div>
       <div class="row">
-        <div><label>Style<input name="feature_settings[__F_INDEX__][style]" value="__F_STYLE__"></label></div>
+        <div>
+          <label>Style
+            <select name="feature_settings[__F_INDEX__][style]" class="feature-style-select"></select>
+          </label>
+        </div>
       </div>
     </div>
   </template>
@@ -113,6 +112,7 @@
       providers: {{ providers | tojson }},
       features: {{ features | tojson }},
       providerTypeOptions: {{ provider_type_options | tojson }},
+      styleOptions: {{ style_options | tojson }},
       temperature: {
         min: {{ temperature_min | tojson }},
         max: {{ temperature_max | tojson }},
