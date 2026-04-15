@@ -83,7 +83,7 @@
 
   const limitInput = byId('traces-limit');
   const streamInput = byId('traces-stream-id');
-  const statusInput = byId('traces-status');
+  const statusSelect = byId('traces-status');
 
   let selectedRunId = (root.dataset.selectedRunId || '').trim();
   let selectedEventId = null;
@@ -114,6 +114,35 @@
     return '—';
   }
 
+  function eventStyleResolution(event) {
+    const resolution = event && event.style_resolution && typeof event.style_resolution === 'object'
+      ? event.style_resolution
+      : null;
+    if (!resolution) return null;
+    const kind = String(event.kind || '');
+    const isLlmEvent = kind.startsWith('llm.') || kind.startsWith('dynamic_prompt.llm.');
+    if (!isLlmEvent) return null;
+    return resolution;
+  }
+
+  function eventStyleResolutionBlock(event) {
+    const resolution = eventStyleResolution(event);
+    if (!resolution) return '';
+
+    const tone = String(resolution.tone || 'neutral');
+    return `
+      <div class="traces-style-resolution traces-style-resolution--${tone}">
+        <div class="traces-style-resolution-title">Style resolution</div>
+        <div class="traces-style-resolution-grid">
+          <div>requested: ${trimText(resolution.requested || 'unknown', 48)}</div>
+          <div>applied: ${trimText(resolution.applied || 'unknown', 48)}</div>
+          <div>result: ${trimText(resolution.result || 'unknown', 24)}</div>
+          ${resolution.reason ? `<div>reason: ${trimText(resolution.reason, 48)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
   function renderEvents() {
     const events = currentDetail ? currentDetail.events || [] : [];
     eventsList.innerHTML = '';
@@ -134,12 +163,16 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'traces-event-item';
+      const tone = String(event.tone || 'neutral');
+      button.dataset.tone = tone;
+      button.classList.add(`traces-event-item--${tone}`);
       if (event.id === selectedEventId) {
         button.classList.add('selected');
       }
       button.innerHTML = `
         <div class="traces-event-title">${fmtDate(event.timestamp)} · ${event.kind || 'unknown'}</div>
         <div class="traces-event-meta">status=${event.status || '—'} level=${event.level || '—'} seq=${event.seq_no || '—'}</div>
+        ${eventStyleResolutionBlock(event)}
         <div class="traces-event-summary">${eventSummary(event)}</div>
       `;
       button.addEventListener('click', function () {
@@ -174,6 +207,10 @@
       { label: 'finished_at', value: fmtDate(run.finished_at) },
       { label: 'duration_ms', value: run.duration_ms },
       { label: 'status', value: run.status },
+      { label: 'requested_style', value: run.requested_style },
+      { label: 'style', value: run.applied_style },
+      { label: 'style_resolution_status', value: run.style_resolution_status },
+      { label: 'style_resolution_reason', value: run.style_resolution_reason },
       { label: 'route', value: run.route },
       { label: 'stream_id', value: run.stream_id },
     ]);
@@ -232,6 +269,9 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'traces-run-item';
+      const tone = String(run.status_tone || 'neutral');
+      button.dataset.statusTone = tone;
+      button.classList.add(`traces-run-item--${tone}`);
       if (run.id === selectedRunId) {
         button.classList.add('selected');
       }
@@ -282,8 +322,8 @@
       params.set('stream_id', stream);
     }
 
-    const status = String(statusInput.value || '').trim();
-    if (status) {
+    const status = String(statusSelect.value || '').trim();
+    if (status && status !== 'all') {
       params.set('status', status);
     }
 

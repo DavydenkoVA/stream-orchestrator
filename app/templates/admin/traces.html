@@ -21,7 +21,12 @@
               <input id="traces-stream-id" name="stream_id" type="text" placeholder="Optional" />
             </label>
             <label>Status
-              <input id="traces-status" name="status" type="text" placeholder="Optional" />
+              <select id="traces-status" name="status">
+                <option value="{{ trace_status_filter_all }}">{{ trace_status_filter_all }}</option>
+                {% for status in trace_status_options %}
+                  <option value="{{ status }}">{{ status }}</option>
+                {% endfor %}
+              </select>
             </label>
           </div>
           <div class="actions">

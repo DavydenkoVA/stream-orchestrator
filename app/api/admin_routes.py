@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 from app.api import routes as api_routes
 from app.config import settings
 from app.db import get_db
+from app.observability.trace_status import (
+    TRACE_RUN_ALLOWED_STATUSES,
+    TRACE_STATUS_FILTER_ALL,
+    TraceStatusValidationError,
+    normalize_status_filter,
+)
 from app.services.llm_config_admin_service import LLMConfigAdminService
 from app.services.trace_read_service import TraceReadService
 
@@ -245,6 +251,8 @@ def get_traces(request: Request, run_id: str | None = Query(default=None)):
             "active_page": "traces",
             "page_title": "Traces",
             "selected_run_id": run_id or "",
+            "trace_status_filter_all": TRACE_STATUS_FILTER_ALL,
+            "trace_status_options": TRACE_RUN_ALLOWED_STATUSES,
         },
     )
 
@@ -256,11 +264,22 @@ def get_trace_runs(
     status: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict:
+    try:
+        normalized_status = normalize_status_filter(status)
+    except TraceStatusValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "allowed_statuses": list(TRACE_RUN_ALLOWED_STATUSES),
+            },
+        ) from exc
+
     items = _trace_read_service.list_runs(
         db,
         limit=limit,
         stream_id=stream_id,
-        status=status,
+        status=normalized_status,
     )
     return {"items": items}
 

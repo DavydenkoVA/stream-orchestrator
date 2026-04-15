@@ -72,12 +72,26 @@ class LLMExecutionService:
         feature_settings: FeatureLLMSettings,
         system_prompt: str,
         user_prompt: str,
+        style_resolution: dict[str, str | None] | None = None,
     ) -> str:
         current_model_name = self.state_store.get_current_model_name(db, pool.name)
+        style_payload = {
+            "requested_style": (style_resolution or {}).get("requested_style") or feature_settings.style,
+            "applied_style": (style_resolution or {}).get("applied_style") or feature_settings.style,
+            "style_resolution_status": (style_resolution or {}).get("style_resolution_status") or "success",
+            "style_resolution_reason": (style_resolution or {}).get("style_resolution_reason") or "requested_applied",
+        }
+        style_payload["style"] = style_payload["applied_style"]
         trace_info(
             "llm.generate.start",
             "starting llm generation",
-            payload={"provider": pool.provider, "pool": pool.name, "feature": feature_settings.feature_name},
+            payload={
+                "provider": pool.provider,
+                "pool": pool.name,
+                "feature": feature_settings.feature_name,
+                **style_payload,
+                "model": current_model_name,
+            },
         )
         ordered_models = self._build_attempt_order(
             pool=pool,
@@ -129,7 +143,12 @@ class LLMExecutionService:
                 trace_success(
                     "llm.generate.success",
                     "llm generation succeeded",
-                    payload={"provider": pool.provider, "model": endpoint.name, "reply_length": len(reply or "")},
+                    payload={
+                        "provider": pool.provider,
+                        "model": endpoint.name,
+                        **style_payload,
+                        "reply_length": len(reply or ""),
+                    },
                 )
                 return reply
 
@@ -138,7 +157,11 @@ class LLMExecutionService:
                 trace_failure(
                     "llm.model.failed",
                     "llm model failed",
-                    payload={"provider": pool.provider, "model": endpoint.name},
+                    payload={
+                        "provider": pool.provider,
+                        "model": endpoint.name,
+                        **style_payload,
+                    },
                     error_code="llm_error",
                 )
                 logger.warning(
@@ -162,7 +185,11 @@ class LLMExecutionService:
         trace_failure(
             "llm.generate.failed",
             "llm provider pool exhausted",
-            payload={"provider": pool.provider, "attempted_models": attempted_names},
+            payload={
+                "provider": pool.provider,
+                "attempted_models": attempted_names,
+                **style_payload,
+            },
             error_code="llm_error",
         )
 

@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db import SessionLocal
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
+from app.observability.trace_status import (
+    TRACE_RUN_STATUS_DEGRADED,
+    TRACE_RUN_STATUS_RUNNING,
+    TRACE_RUN_STATUS_SUCCESS,
+)
 
 SENSITIVE_MARKERS = {
     "api_key",
@@ -48,7 +53,7 @@ class TraceRecorder:
                 request_id=request_id,
                 route=route,
                 stream_id=stream_id,
-                status="running",
+                status=TRACE_RUN_STATUS_RUNNING,
             )
             session.add(run)
             session.commit()
@@ -98,6 +103,53 @@ class TraceRecorder:
             run.summary = summary
             run.finished_at = datetime.now(UTC)
             session.commit()
+
+    def finish_run_success(
+        self,
+        *,
+        trace_run_id: int,
+        summary: str | None = None,
+    ) -> None:
+        with self._session_factory() as session:
+            run = session.get(TraceRun, trace_run_id)
+            if run is None:
+                return
+
+            events = list(
+                session.query(TraceEvent)
+                .filter(TraceEvent.trace_run_id == trace_run_id)
+                .order_by(TraceEvent.seq_no.asc(), TraceEvent.id.asc())
+                .all()
+            )
+            derived_status = self._derive_success_status(run=run, events=events)
+
+            run.status = derived_status
+            if derived_status == TRACE_RUN_STATUS_DEGRADED and not run.error_code:
+                run.error_code = "llm_error"
+            run.summary = summary
+            run.finished_at = datetime.now(UTC)
+            session.commit()
+
+    @staticmethod
+    def _derive_success_status(*, run: TraceRun, events: list[TraceEvent]) -> str:
+        llm_dependent_route = run.route in {"/events/chat_reply", "/events/dynamic_prompt"}
+
+        llm_success = any(
+            event.step in {"llm.generate.success", "dynamic_prompt.llm.success"}
+            for event in events
+        )
+        llm_failure = any(
+            event.step in {"llm.model.failed", "llm.generate.failed", "dynamic_prompt.llm.failed"}
+            for event in events
+        )
+        llm_was_involved = any(
+            event.step.startswith("llm.") or event.step.startswith("dynamic_prompt.llm.")
+            for event in events
+        )
+
+        if (llm_dependent_route or llm_was_involved) and llm_failure and not llm_success:
+            return TRACE_RUN_STATUS_DEGRADED
+        return TRACE_RUN_STATUS_SUCCESS
 
 
 def sanitize_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:

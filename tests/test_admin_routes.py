@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -10,6 +11,7 @@ from app.main import app
 from app.models.chat import ChatMessage
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
+from app.observability.trace_status import TRACE_RUN_ALLOWED_STATUSES, TRACE_STATUS_FILTER_ALL
 
 
 def _minimal_valid_payload() -> dict[str, str]:
@@ -190,6 +192,11 @@ def test_get_traces_returns_200_with_empty_state() -> None:
 
     assert response.status_code == 200
     assert "Select a trace run to inspect details" in response.text
+    assert 'id="traces-status"' in response.text
+    assert '<input id="traces-status"' not in response.text
+    assert f'<option value="{TRACE_STATUS_FILTER_ALL}">{TRACE_STATUS_FILTER_ALL}</option>' in response.text
+    for status in TRACE_RUN_ALLOWED_STATUSES:
+        assert f'<option value="{status}">{status}</option>' in response.text
 
 
 def test_get_traces_with_run_id_returns_200(db_session) -> None:
@@ -395,6 +402,22 @@ def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
     app.dependency_overrides.clear()
 
 
+def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.get("/traces/api/runs", params={"status": "unknown_status"})
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
+
+    app.dependency_overrides.clear()
+
+
 def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> None:
     def override_get_db():
         yield db_session
@@ -408,8 +431,76 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     assert response.status_code == 200
     payload = response.json()
     assert payload["run"]["id"] == "trace-2"
+    assert "applied_style" not in payload["run"]
+    assert "requested_style" not in payload["run"]
+    assert "style_resolution_status" not in payload["run"]
     assert [event["seq_no"] for event in payload["events"]] == [1, 2]
+    assert payload["events"][0]["tone"] == "info"
+    assert payload["events"][0]["style_resolution"] is None
+    assert payload["events"][1]["tone"] == "failure"
     assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    run = TraceRun(
+        trace_id="trace-style-1",
+        request_id="req-style-1",
+        route="/events/chat_reply",
+        stream_id="stream-style",
+        status="success",
+        summary="ok",
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+    )
+    db_session.add(run)
+    db_session.commit()
+    db_session.refresh(run)
+
+    db_session.add(
+        TraceEvent(
+            trace_run_id=run.id,
+            seq_no=1,
+            timestamp=datetime.now(UTC),
+            step="llm.generate.start",
+            status="info",
+            level="INFO",
+            message="start",
+            payload_json=json.dumps(
+                {
+                    "provider": "mock",
+                    "requested_style": "random",
+                    "applied_style": "absurd",
+                    "style_resolution_status": "success",
+                    "style_resolution_reason": "random_resolved",
+                    "style": "absurd",
+                }
+            ),
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/traces/api/runs/trace-style-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["requested_style"] == "random"
+    assert payload["run"]["applied_style"] == "absurd"
+    assert payload["run"]["style_resolution_status"] == "success"
+    assert payload["run"]["style_resolution_reason"] == "random_resolved"
+    assert payload["events"][0]["payload"]["requested_style"] == "random"
+    assert payload["events"][0]["payload"]["style"] == "absurd"
+    assert payload["events"][0]["style_resolution"]["requested"] == "random"
+    assert payload["events"][0]["style_resolution"]["applied"] == "absurd"
+    assert payload["events"][0]["style_resolution"]["result"] == "resolved"
+    assert payload["events"][0]["style_resolution"]["tone"] == "success"
 
     app.dependency_overrides.clear()
 
@@ -446,3 +537,19 @@ def test_non_regression_core_routes_still_work(db_session) -> None:
     assert event_response.status_code == 200
 
     app.dependency_overrides.clear()
+
+
+def test_traces_js_contains_style_resolution_block_rendering() -> None:
+    script = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
+    assert "Style resolution" in script
+    assert "requested:" in script
+    assert "applied:" in script
+    assert "result:" in script
+    assert "event.style_resolution" in script
+
+
+def test_console_css_contains_style_resolution_tones() -> None:
+    css = Path("app/static/admin/console.css").read_text(encoding="utf-8")
+    assert ".traces-style-resolution--success" in css
+    assert ".traces-style-resolution--failure" in css
+    assert ".traces-style-resolution--neutral" in css

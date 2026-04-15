@@ -18,12 +18,21 @@ _ERROR_MESSAGES_BY_STATUS = {
 }
 
 
-def _error_payload(error_code: str, message: str, request_id: str) -> dict[str, str]:
-    return ErrorResponse(
+def _error_payload(
+    error_code: str,
+    message: str,
+    request_id: str,
+    *,
+    details: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = ErrorResponse(
         error_code=error_code,
         message=message,
         request_id=request_id,
     ).model_dump()
+    if details:
+        payload["details"] = details
+    return payload
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -68,6 +77,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             error_code=error_code,
             message=message,
             request_id=request_id,
+            details=exc.detail if isinstance(exc.detail, dict) else None,
         ),
     )
 
