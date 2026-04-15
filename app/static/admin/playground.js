@@ -232,6 +232,10 @@
     dynamicTemplate.textContent = dynamicPromptMeta.template_prompt || '(empty)';
   }
 
+  function isDynamicDataFieldRequired(fieldName) {
+    return fieldName !== 'user';
+  }
+
   function renderDynamicResult() {
     if (!dynamicRunPayload) {
       dynamicResult.textContent = '—';
@@ -287,6 +291,9 @@
     if (rawData === '{}' || rawData === '') {
       const skeleton = {};
       (dynamicPromptMeta.required_fields || []).forEach((field) => {
+        if (!isDynamicDataFieldRequired(field)) {
+          return;
+        }
         skeleton[field] = '';
       });
       dynamicData.value = formatPayload(skeleton);
@@ -304,7 +311,9 @@
     const data = currentDataObject();
 
     if (dynamicPromptMeta && Array.isArray(dynamicPromptMeta.required_fields)) {
-      const missing = dynamicPromptMeta.required_fields.filter((key) => !(key in data));
+      const missing = dynamicPromptMeta.required_fields.filter(
+        (key) => isDynamicDataFieldRequired(key) && !(key in data)
+      );
       if (missing.length) {
         throw new Error(`Missing required fields in data: ${missing.join(', ')}`);
       }
