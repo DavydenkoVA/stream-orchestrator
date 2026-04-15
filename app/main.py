@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy import inspect
 
@@ -33,6 +34,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Stream Orchestrator", lifespan=lifespan)
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.middleware("http")
