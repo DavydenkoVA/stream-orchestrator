@@ -41,6 +41,9 @@ members = [
 
 [dependency-groups]
 dev = [
+    "auto-typing-final>=1.0.3",
+    "community-of-python-flake8-plugin>=0.4.1",
+    "flake8-pyproject>=1.2.4",
     "mypy>=1.20.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.2.0",
