@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.db import get_db
 from app.main import app
+from app.models.chat import ChatMessage
 
 
 def _minimal_valid_payload() -> dict[str, str]:
@@ -50,6 +52,7 @@ def test_get_playground_returns_200() -> None:
     assert response.status_code == 200
     assert "Chat Reply" in response.text
     assert "Dynamic Prompt" in response.text
+    assert "Delete test data" in response.text
 
 
 def test_get_playground_with_dynamic_mode_returns_200() -> None:
@@ -59,6 +62,8 @@ def test_get_playground_with_dynamic_mode_returns_200() -> None:
 
     assert response.status_code == 200
     assert "data-initial-mode=\"dynamic\"" in response.text
+    assert "Payload template" in response.text
+    assert "id=\"dynamic-copy-template-btn\"" in response.text
 
 
 def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
@@ -87,8 +92,74 @@ def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
     payload = response.json()
     assert payload["name"] == "test"
     assert payload["required_fields"] == ["loot", "user"]
+    assert payload["required_data_fields"] == ["loot"]
+    assert payload["data_skeleton"] == {"loot": ""}
     assert payload["system_prompt"] == "dynamic system"
     assert payload["template_prompt"] == "hello {user}, loot={loot}"
+
+
+def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    db_session.add_all(
+        [
+            ChatMessage(stream_id="stream_a", username="u1", role="viewer", text="hello", mentions_bot=False),
+            ChatMessage(stream_id="stream_a", username="u1", role="bot", text="reply", mentions_bot=False),
+            ChatMessage(stream_id="stream_b", username="u2", role="viewer", text="other", mentions_bot=False),
+        ]
+    )
+    db_session.commit()
+
+    context_before = client.get(
+        "/debug/context",
+        params={"stream_id": "stream_a", "username": "u1", "text": "ping"},
+    )
+    assert context_before.status_code == 200
+    assert len(context_before.json()["global_recent"]) == 2
+
+    first = client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert first.status_code == 200
+    assert first.json()["deleted"] is True
+    assert first.json()["deleted_count"] == 2
+
+    context_after = client.get(
+        "/debug/context",
+        params={"stream_id": "stream_a", "username": "u1", "text": "ping"},
+    )
+    assert context_after.status_code == 200
+    assert context_after.json()["global_recent"] == []
+
+    second = client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert second.status_code == 200
+    assert second.json()["deleted"] is True
+    assert second.json()["deleted_count"] == 0
+
+    untouched_context = client.get(
+        "/debug/context",
+        params={"stream_id": "stream_b", "username": "u2", "text": "ping"},
+    )
+    assert untouched_context.status_code == 200
+    assert len(untouched_context.json()["global_recent"]) == 1
+
+    app.dependency_overrides.clear()
+
+
+def test_reset_stream_rejects_empty_stream_id(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    response = client.post("/playground/api/chat/reset-stream", json={"stream_id": ""})
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
 
 
 def test_get_dynamic_prompt_metadata_invalid_name_returns_400() -> None:

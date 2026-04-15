@@ -5,12 +5,15 @@ import re
 from urllib.parse import parse_qsl
 
 import yaml
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.api import routes as api_routes
 from app.config import settings
+from app.db import get_db
 from app.services.llm_config_admin_service import LLMConfigAdminService
 
 router = APIRouter()
@@ -20,6 +23,10 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 _DYNAMIC_PROMPT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+class ResetStreamRequest(BaseModel):
+    stream_id: str = Field(..., min_length=1, max_length=128)
 
 
 def _list_dynamic_prompt_names() -> list[str]:
@@ -189,6 +196,8 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
 
     try:
         required_fields = sorted(store.get_required_fields(template_name))
+        required_data_fields = [field for field in required_fields if field != "user"]
+        data_skeleton = {field: "" for field in required_data_fields}
         system_prompt = store.read(system_name)
         template_prompt = store.read(template_name)
     except FileNotFoundError as exc:
@@ -197,8 +206,29 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
     return {
         "name": validated_name,
         "required_fields": required_fields,
+        "required_data_fields": required_data_fields,
+        "data_skeleton": data_skeleton,
         "system_prompt": system_prompt,
         "template_prompt": template_prompt,
+    }
+
+
+@router.post("/playground/api/chat/reset-stream")
+def reset_chat_stream(payload: ResetStreamRequest, db: Session = Depends(get_db)) -> dict:
+    stream_id = payload.stream_id.strip()
+    if not stream_id:
+        raise HTTPException(status_code=422, detail="stream_id must not be empty")
+
+    deleted_count = api_routes.service.chat_memory.delete_stream_messages(
+        db,
+        stream_id=stream_id,
+    )
+    db.commit()
+
+    return {
+        "stream_id": stream_id,
+        "deleted": True,
+        "deleted_count": deleted_count,
     }
 
 
