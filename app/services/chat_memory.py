@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
@@ -198,3 +198,13 @@ class ChatMemoryService:
             )
         )
         db.execute(stmt)
+
+    def delete_stream_messages(
+        self,
+        db: Session,
+        *,
+        stream_id: str,
+    ) -> int:
+        stmt = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
+        result = db.execute(stmt)
+        return int(result.rowcount or 0)

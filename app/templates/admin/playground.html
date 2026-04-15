@@ -29,6 +29,7 @@
     data-initial-mode="{{ mode }}"
     data-context-endpoint="/debug/context"
     data-chat-endpoint="/events/chat_reply"
+    data-chat-reset-stream-endpoint="/playground/api/chat/reset-stream"
     data-dynamic-endpoint="/events/dynamic_prompt"
     data-dynamic-list-endpoint="/playground/api/dynamic-prompts"
     data-dynamic-meta-base="/playground/api/dynamic-prompts"
@@ -91,10 +92,12 @@
           <div class="actions">
             <button type="button" id="chat-preview-btn">Preview context</button>
             <button type="submit" id="chat-run-btn">Run reply</button>
+            <button type="button" id="chat-delete-test-data-btn">Delete test data</button>
             <button type="button" id="chat-reset-btn">Reset</button>
           </div>
           <p class="muted">Run reply performs a real pipeline call (not dry-run).</p>
           <div id="chat-form-error" class="danger" hidden></div>
+          <div id="chat-delete-status" class="muted" hidden></div>
         </form>
       </div>
     </div>
@@ -176,6 +179,15 @@
         <pre id="dynamic-system-prompt" class="scroll-box">No prompt selected.</pre>
         <h4>template_prompt</h4>
         <pre id="dynamic-template-prompt" class="scroll-box">No prompt selected.</pre>
+      </div>
+
+      <div class="card">
+        <h3>Payload template</h3>
+        <div class="actions">
+          <button type="button" id="dynamic-copy-template-btn">Copy</button>
+          <span id="dynamic-copy-status" class="muted" hidden></span>
+        </div>
+        <pre id="dynamic-payload-template" class="scroll-box">{}</pre>
       </div>
 
       <div class="card">

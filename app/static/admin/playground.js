@@ -71,9 +71,11 @@
   const chatForm = byId('chat-form');
   const chatPreviewBtn = byId('chat-preview-btn');
   const chatResetBtn = byId('chat-reset-btn');
+  const chatDeleteTestDataBtn = byId('chat-delete-test-data-btn');
   const chatFormError = byId('chat-form-error');
   const chatContextError = byId('chat-context-error');
   const chatResultError = byId('chat-result-error');
+  const chatDeleteStatus = byId('chat-delete-status');
 
   const chatContextOutput = byId('chat-context-output');
   const chatRoute = byId('chat-route');
@@ -84,6 +86,14 @@
 
   let chatContext = null;
   let chatResult = null;
+  let isDeletingChatTestData = false;
+
+  function clearChatOutputs() {
+    chatContext = null;
+    chatResult = null;
+    renderChatContext('global_recent');
+    renderChatResult();
+  }
 
   function getChatPayload() {
     const form = new FormData(chatForm);
@@ -139,6 +149,12 @@
   }
 
   if (chatForm && chatPreviewBtn) {
+    function updateDeleteTestDataButtonState() {
+      const streamField = chatForm.elements.namedItem('stream_id');
+      const streamId = String(streamField?.value || '').trim();
+      chatDeleteTestDataBtn.disabled = !streamId || isDeletingChatTestData;
+    }
+
     chatPreviewBtn.addEventListener('click', async function () {
       setError(chatFormError, '');
       setError(chatContextError, '');
@@ -175,13 +191,51 @@
 
     chatResetBtn.addEventListener('click', function () {
       chatForm.reset();
-      chatContext = null;
-      chatResult = null;
-      renderChatContext('global_recent');
-      renderChatResult();
+      clearChatOutputs();
       setError(chatFormError, '');
       setError(chatContextError, '');
       setError(chatResultError, '');
+      setError(chatDeleteStatus, '');
+      updateDeleteTestDataButtonState();
+    });
+
+    chatForm.elements.namedItem('stream_id').addEventListener('input', function () {
+      updateDeleteTestDataButtonState();
+    });
+
+    chatDeleteTestDataBtn.addEventListener('click', async function () {
+      setError(chatDeleteStatus, '');
+      setError(chatFormError, '');
+      const streamId = String(chatForm.elements.namedItem('stream_id')?.value || '').trim();
+      if (!streamId) {
+        return;
+      }
+
+      const confirmed = window.confirm(`Delete all Playground test data for stream_id "${streamId}"?`);
+      if (!confirmed) {
+        return;
+      }
+
+      isDeletingChatTestData = true;
+      updateDeleteTestDataButtonState();
+      try {
+        const payload = await requestJson(root.dataset.chatResetStreamEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stream_id: streamId }),
+        });
+        clearChatOutputs();
+        const deletedCount = payload.deleted_count;
+        setError(
+          chatDeleteStatus,
+          `Deleted Playground test data for "${streamId}"${typeof deletedCount === 'number' ? ` (deleted_count: ${deletedCount})` : ''}.`
+        );
+      } catch (error) {
+        setError(chatFormError, error.message || 'Failed to delete test data.');
+      } finally {
+        isDeletingChatTestData = false;
+        updateDeleteTestDataButtonState();
+      }
     });
 
     setSubtab('chat-context-tabs', 'button[data-context-tab]', function (button) {
@@ -193,6 +247,8 @@
       chatResultView.hidden = showRaw;
       chatResultRaw.hidden = !showRaw;
     });
+
+    updateDeleteTestDataButtonState();
   }
 
   // Dynamic mode
@@ -200,6 +256,9 @@
   const dynamicPromptSelect = byId('dynamic-prompt-select');
   const dynamicData = byId('dynamic-data');
   const dynamicResetBtn = byId('dynamic-reset-btn');
+  const dynamicPayloadTemplate = byId('dynamic-payload-template');
+  const dynamicCopyTemplateBtn = byId('dynamic-copy-template-btn');
+  const dynamicCopyStatus = byId('dynamic-copy-status');
 
   const dynamicFormError = byId('dynamic-form-error');
   const dynamicMetaError = byId('dynamic-meta-error');
@@ -216,6 +275,17 @@
 
   let dynamicPromptMeta = null;
   let dynamicRunPayload = null;
+  let dynamicDataSkeleton = {};
+
+  function getRequiredDataFields() {
+    if (!dynamicPromptMeta) {
+      return [];
+    }
+    if (Array.isArray(dynamicPromptMeta.required_data_fields)) {
+      return dynamicPromptMeta.required_data_fields;
+    }
+    return (dynamicPromptMeta.required_fields || []).filter((field) => field !== 'user');
+  }
 
   function renderDynamicMeta() {
     if (!dynamicPromptMeta) {
@@ -225,8 +295,8 @@
       return;
     }
 
-    dynamicRequired.textContent = dynamicPromptMeta.required_fields.length
-      ? dynamicPromptMeta.required_fields.join(', ')
+    dynamicRequired.textContent = getRequiredDataFields().length
+      ? getRequiredDataFields().join(', ')
       : '(none)';
     dynamicSystem.textContent = dynamicPromptMeta.system_prompt || '(empty)';
     dynamicTemplate.textContent = dynamicPromptMeta.template_prompt || '(empty)';
@@ -265,6 +335,53 @@
     }
   }
 
+  function optionalNumber(value) {
+    const cleaned = cleanOptional(value);
+    if (cleaned === null) {
+      return null;
+    }
+    return Number(cleaned);
+  }
+
+  function buildDataSkeleton() {
+    const skeleton = {};
+    getRequiredDataFields().forEach((field) => {
+      skeleton[field] = '';
+    });
+    return skeleton;
+  }
+
+  function buildDynamicPayloadTemplate() {
+    const form = new FormData(dynamicForm);
+    const prompt = String(form.get('prompt') || '').trim();
+    const payload = {
+      prompt,
+      user: '',
+      data: dynamicDataSkeleton,
+    };
+
+    const llm = {};
+    const provider = cleanOptional(String(form.get('provider') || ''));
+    const style = cleanOptional(String(form.get('style') || ''));
+    const temperature = optionalNumber(String(form.get('temperature') || ''));
+    const maxOutputTokens = optionalNumber(String(form.get('max_output_tokens') || ''));
+
+    if (provider) llm.provider = provider;
+    if (style) llm.style = style;
+    if (temperature !== null) llm.temperature = temperature;
+    if (maxOutputTokens !== null) llm.max_output_tokens = maxOutputTokens;
+
+    if (Object.keys(llm).length > 0) {
+      payload.llm = llm;
+    }
+
+    return payload;
+  }
+
+  function renderDynamicPayloadTemplate() {
+    dynamicPayloadTemplate.textContent = formatPayload(buildDynamicPayloadTemplate());
+  }
+
   async function loadDynamicPromptNames() {
     const response = await requestJson(root.dataset.dynamicListEndpoint);
     const items = Array.isArray(response.items) ? response.items : [];
@@ -279,25 +396,23 @@
   async function loadDynamicPromptMeta(name) {
     if (!name) {
       dynamicPromptMeta = null;
+      dynamicDataSkeleton = {};
       renderDynamicMeta();
+      renderDynamicPayloadTemplate();
       return;
     }
 
     const endpoint = `${root.dataset.dynamicMetaBase}/${encodeURIComponent(name)}`;
     dynamicPromptMeta = await requestJson(endpoint);
+    dynamicDataSkeleton = buildDataSkeleton();
     renderDynamicMeta();
 
     const rawData = dynamicData.value.trim();
     if (rawData === '{}' || rawData === '') {
-      const skeleton = {};
-      (dynamicPromptMeta.required_fields || []).forEach((field) => {
-        if (!isDynamicDataFieldRequired(field)) {
-          return;
-        }
-        skeleton[field] = '';
-      });
-      dynamicData.value = formatPayload(skeleton);
+      dynamicData.value = formatPayload(dynamicDataSkeleton);
     }
+
+    renderDynamicPayloadTemplate();
   }
 
   function buildDynamicPayload() {
@@ -309,6 +424,9 @@
     }
 
     const data = currentDataObject();
+    if ('user' in data) {
+      throw new Error('data must not contain "user". Use the top-level user field.');
+    }
 
     if (dynamicPromptMeta && Array.isArray(dynamicPromptMeta.required_fields)) {
       const missing = dynamicPromptMeta.required_fields.filter(
@@ -338,6 +456,8 @@
   }
 
   if (dynamicForm) {
+    renderDynamicPayloadTemplate();
+
     loadDynamicPromptNames().catch((error) => {
       setError(dynamicMetaError, error.message || 'Failed to load dynamic prompt names.');
     });
@@ -347,6 +467,12 @@
       loadDynamicPromptMeta(dynamicPromptSelect.value).catch((error) => {
         setError(dynamicMetaError, error.message || 'Failed to load prompt metadata.');
       });
+    });
+
+    ['prompt', 'provider', 'style', 'temperature', 'max_output_tokens'].forEach((name) => {
+      const field = dynamicForm.elements.namedItem(name);
+      field.addEventListener('input', renderDynamicPayloadTemplate);
+      field.addEventListener('change', renderDynamicPayloadTemplate);
     });
 
     dynamicForm.addEventListener('submit', async function (event) {
@@ -370,12 +496,25 @@
       dynamicForm.reset();
       dynamicPromptMeta = null;
       dynamicRunPayload = null;
+      dynamicDataSkeleton = {};
       dynamicData.value = '{}';
       renderDynamicMeta();
       renderDynamicResult();
+      renderDynamicPayloadTemplate();
       setError(dynamicFormError, '');
       setError(dynamicMetaError, '');
       setError(dynamicResultError, '');
+      setError(dynamicCopyStatus, '');
+    });
+
+    dynamicCopyTemplateBtn.addEventListener('click', async function () {
+      setError(dynamicCopyStatus, '');
+      try {
+        await navigator.clipboard.writeText(dynamicPayloadTemplate.textContent);
+        setError(dynamicCopyStatus, 'Copied.');
+      } catch (_) {
+        setError(dynamicCopyStatus, 'Copy failed.');
+      }
     });
 
     setSubtab('dynamic-result-tabs', 'button[data-result-tab]', function (button) {
