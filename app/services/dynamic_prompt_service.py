@@ -1,18 +1,18 @@
 from __future__ import annotations
-
 import logging
 import re
 from pathlib import Path
 from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.prompt_store import PromptStore
-from app.services.llm_registry import LLMRegistry
-from app.text_utils import prepare_chat_text
-from app.services.style_prompt import StylePromptService
-from app.services.llm_execution_service import LLMExecutionService
 from app.observability.trace_helpers import trace_failure, trace_info, trace_success
+from app.prompt_store import PromptStore
+from app.services.llm_execution_service import LLMExecutionService
+from app.services.llm_registry import LLMRegistry
+from app.services.style_prompt import StylePromptService
+from app.text_utils import prepare_chat_text
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ class DynamicPromptService:
     def _validate_prompt_name(self, prompt_name: str) -> str:
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", prompt_name):
             raise ValueError("Invalid prompt name")
-        trace_success("dynamic_prompt.validate.success", "dynamic prompt name validated", payload={"prompt_name": prompt_name})
+        trace_success(
+            "dynamic_prompt.validate.success", "dynamic prompt name validated", payload={"prompt_name": prompt_name}
+        )
         return prompt_name
 
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
@@ -64,7 +66,9 @@ class DynamicPromptService:
             system_name, template_name = self._resolve_prompt_names(prompt_name)
         except Exception:
             logger.warning("Dynamic prompt name validation failed: %s", prompt_name)
-            trace_failure("dynamic_prompt.validate.failed", "dynamic prompt validation failed", error_code="validation_error")
+            trace_failure(
+                "dynamic_prompt.validate.failed", "dynamic prompt validation failed", error_code="validation_error"
+            )
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_prompt_name"})
             return "fallback", ""
 
@@ -75,7 +79,11 @@ class DynamicPromptService:
                 system_name,
                 template_name,
             )
-            trace_info("dynamic_prompt.template.missing", "dynamic prompt files not found", payload={"prompt_name": prompt_name})
+            trace_info(
+                "dynamic_prompt.template.missing",
+                "dynamic prompt files not found",
+                payload={"prompt_name": prompt_name},
+            )
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "template_missing"})
             return "fallback", ""
 
@@ -116,7 +124,9 @@ class DynamicPromptService:
                 payload={"missing_fields": missing_fields},
                 error_code="prompt_render_preflight_error",
             )
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "preflight_missing_field"})
+            trace_info(
+                "dynamic_prompt.fallback", "fallback path selected", payload={"reason": "preflight_missing_field"}
+            )
             return "fallback", ""
 
         pool, feature_cfg = self.llm_registry.get_for_feature_with_override(
@@ -141,17 +151,27 @@ class DynamicPromptService:
             )
         except KeyError as e:
             logger.warning(
-                "Dynamic prompt render failed due to missing field after preflight: prompt=%s missing=%s available_keys=%s",
+                (
+                    "Dynamic prompt render failed due to missing field after preflight: "
+                    "prompt=%s missing=%s available_keys=%s"
+                ),
                 prompt_name,
                 str(e),
                 sorted(available_fields),
             )
-            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render missing fields", payload={"missing": str(e)}, error_code="prompt_render_error")
+            trace_failure(
+                "dynamic_prompt.render.failed",
+                "dynamic prompt render missing fields",
+                payload={"missing": str(e)},
+                error_code="prompt_render_error",
+            )
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_missing_field"})
             return "fallback", ""
         except Exception:
             logger.exception("Dynamic prompt render failed: prompt=%s template=%s", prompt_name, template_name)
-            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error")
+            trace_failure(
+                "dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error"
+            )
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_failed"})
             return "fallback", ""
 
@@ -187,5 +207,9 @@ class DynamicPromptService:
             trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "empty_after_trim"})
             return "fallback", ""
 
-        trace_success("dynamic_prompt.llm.success", "dynamic prompt llm call succeeded", payload={"prompt_name": prompt_name, "reply_length": len(reply)})
+        trace_success(
+            "dynamic_prompt.llm.success",
+            "dynamic prompt llm call succeeded",
+            payload={"prompt_name": prompt_name, "reply_length": len(reply)},
+        )
         return "success", reply

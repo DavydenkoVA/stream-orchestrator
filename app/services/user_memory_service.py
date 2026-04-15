@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import json
 import logging
 from dataclasses import dataclass
@@ -12,11 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.user_memory import UserMemoryItem
+from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
-from app.services.llm_registry import LLMRegistry
 from app.services.llm_execution_service import LLMExecutionService
-from app.observability.trace_helpers import trace_failure, trace_info, trace_success
+from app.services.llm_registry import LLMRegistry
+
 
 logger = logging.getLogger(__name__)
 
@@ -203,10 +203,7 @@ class UserMemoryService:
             return
 
         existing_items = self.get_memory_items(db, username)
-        existing_map = {
-            (item.kind.strip().lower(), item.text.strip().lower()): item
-            for item in existing_items
-        }
+        existing_map = {(item.kind.strip().lower(), item.text.strip().lower()): item for item in existing_items}
 
         now = datetime.now(UTC)
 
@@ -259,7 +256,11 @@ class UserMemoryService:
 
         messages = self.get_messages_for_refresh(db, username, mode)
         if not messages:
-            trace_info("user_memory.refresh.skipped", "user memory refresh skipped: no messages", payload={"username": username})
+            trace_info(
+                "user_memory.refresh.skipped",
+                "user memory refresh skipped: no messages",
+                payload={"username": username},
+            )
             return False
 
         message_ids = [m.id for m in messages]
@@ -305,9 +306,15 @@ class UserMemoryService:
             self.trim_user_memory(db, username)
             trace_success("user_memory.trim.success", "memory trim completed")
             self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
-            trace_success("user_memory.mark_processed.success", "marked messages as processed", payload={"messages_count": len(message_ids)})
+            trace_success(
+                "user_memory.mark_processed.success",
+                "marked messages as processed",
+                payload={"messages_count": len(message_ids)},
+            )
             db.commit()
-            trace_success("user_memory.refresh.success", "user memory refresh committed", payload={"username": username})
+            trace_success(
+                "user_memory.refresh.success", "user memory refresh committed", payload={"username": username}
+            )
         except Exception:
             db.rollback()
             trace_failure("user_memory.refresh.failed", "user memory refresh failed", error_code="internal_error")

@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import os
 import random
 import re
@@ -10,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from app.config import settings
+
 
 DEFAULT_STYLE_KEY = "default"
 RANDOM_STYLE_KEY = "random"
@@ -84,9 +84,7 @@ class StyleRegistry:
 
     def list_configured_styles(self) -> list[StyleDefinition]:
         styles = self._load()
-        keys = [DEFAULT_STYLE_KEY] + sorted(
-            [key for key in styles.keys() if key != DEFAULT_STYLE_KEY]
-        )
+        keys = [DEFAULT_STYLE_KEY] + sorted([key for key in styles if key != DEFAULT_STYLE_KEY])
         return [styles[key] for key in keys]
 
     def selector_options(self) -> list[StyleSelectorOption]:
@@ -213,11 +211,7 @@ class StyleRegistry:
             )
 
         if normalized == RANDOM_STYLE_KEY:
-            candidates = [
-                style
-                for key, style in styles.items()
-                if key not in {DEFAULT_STYLE_KEY, RANDOM_STYLE_KEY}
-            ]
+            candidates = [style for key, style in styles.items() if key not in {DEFAULT_STYLE_KEY, RANDOM_STYLE_KEY}]
             if not candidates:
                 style = styles[DEFAULT_STYLE_KEY]
                 return StyleResolution(

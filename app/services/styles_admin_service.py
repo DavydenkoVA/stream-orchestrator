@@ -1,7 +1,6 @@
 from __future__ import annotations
-
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from app.services.style_registry import DEFAULT_STYLE_KEY, StyleDefinition, StyleRegistry
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.config import settings
 
+
 SUPPORTED_PROVIDER_TYPES: tuple[str, ...] = (
     "openai",
     "mock",

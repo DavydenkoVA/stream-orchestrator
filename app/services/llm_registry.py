@@ -1,7 +1,6 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -70,18 +69,14 @@ class LLMRegistry:
         for provider_name, cfg in providers_raw.items():
             model_items = cfg.get("models", []) or []
             if not model_items:
-                raise ValueError(
-                    f"llm_profiles.yml: provider '{provider_name}' has empty models list"
-                )
+                raise ValueError(f"llm_profiles.yml: provider '{provider_name}' has empty models list")
 
             models: list[ModelEndpointConfig] = []
             seen_model_names: set[str] = set()
             for item in model_items:
                 model_name = str(item.get("name", "")).strip()
                 if not model_name:
-                    raise ValueError(
-                        f"llm_profiles.yml: provider '{provider_name}' has model with empty name"
-                    )
+                    raise ValueError(f"llm_profiles.yml: provider '{provider_name}' has model with empty name")
                 if model_name in seen_model_names:
                     raise ValueError(
                         f"llm_profiles.yml: provider '{provider_name}' has duplicate model name '{model_name}'"
@@ -90,15 +85,11 @@ class LLMRegistry:
 
                 api_key = str(item.get("api_key", "")).strip()
                 if not api_key:
-                    raise ValueError(
-                        f"llm_profiles.yml: provider '{provider_name}' has model with empty api_key"
-                    )
+                    raise ValueError(f"llm_profiles.yml: provider '{provider_name}' has model with empty api_key")
 
                 model_id = str(item.get("model", "")).strip()
                 if not model_id:
-                    raise ValueError(
-                        f"llm_profiles.yml: provider '{provider_name}' has model with empty model"
-                    )
+                    raise ValueError(f"llm_profiles.yml: provider '{provider_name}' has model with empty model")
 
                 models.append(
                     ModelEndpointConfig(
@@ -111,9 +102,7 @@ class LLMRegistry:
 
             provider_kind = str(cfg.get("provider", "")).strip()
             if not provider_kind:
-                raise ValueError(
-                    f"llm_profiles.yml: provider '{provider_name}' has empty provider type"
-                )
+                raise ValueError(f"llm_profiles.yml: provider '{provider_name}' has empty provider type")
 
             providers[provider_name] = ProviderPoolConfig(
                 name=provider_name,
@@ -133,9 +122,7 @@ class LLMRegistry:
                 feature_name=feature_name,
                 provider_name=provider_name,
                 temperature=float(cfg.get("temperature", settings.llm_temperature)),
-                max_output_tokens=int(
-                    cfg.get("max_output_tokens", settings.llm_max_output_tokens)
-                ),
+                max_output_tokens=int(cfg.get("max_output_tokens", settings.llm_max_output_tokens)),
                 style=str(cfg.get("style", "default")).strip() or "default",
             )
 
@@ -152,7 +139,7 @@ class LLMRegistry:
         return LLMSnapshot(
             providers=providers,
             feature_settings=feature_settings,
-            loaded_at=loaded_at or datetime.now(timezone.utc),
+            loaded_at=loaded_at or datetime.now(UTC),
         )
 
     def _read_raw_from_disk(self) -> dict:
@@ -191,7 +178,6 @@ class LLMRegistry:
                 for feature_name in SUPPORTED_FEATURE_NAMES
             },
         }
-
 
     def export_raw_config(self) -> dict:
         snapshot = self._require_snapshot()
@@ -319,11 +305,7 @@ class LLMRegistry:
         effective_settings = FeatureLLMSettings(
             feature_name=feature_name,
             provider_name=provider_name,
-            temperature=(
-                temperature_override
-                if temperature_override is not None
-                else base_settings.temperature
-            ),
+            temperature=(temperature_override if temperature_override is not None else base_settings.temperature),
             max_output_tokens=(
                 max_output_tokens_override
                 if max_output_tokens_override is not None

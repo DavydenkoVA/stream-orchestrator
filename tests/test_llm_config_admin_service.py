@@ -1,10 +1,9 @@
 from __future__ import annotations
-
 from pathlib import Path
 
 from app.services.llm_config_admin_service import LLMConfigAdminService
-from app.services.llm_registry import LLMRegistry
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
+from app.services.llm_registry import LLMRegistry
 
 
 def _valid_form_data() -> dict[str, str]:
@@ -83,7 +82,7 @@ def test_reload_does_not_break_active_snapshot_on_invalid_candidate() -> None:
 
 
 def test_missing_config_file_read_and_apply_creates_path(tmp_path: Path) -> None:
-    config_path = tmp_path / 'nested' / 'llm_profiles.yml'
+    config_path = tmp_path / "nested" / "llm_profiles.yml"
     registry = LLMRegistry(config_path=str(config_path))
     admin_service = LLMConfigAdminService(registry)
 
@@ -94,44 +93,44 @@ def test_missing_config_file_read_and_apply_creates_path(tmp_path: Path) -> None
 
     assert result.valid is True
     assert config_path.exists()
-    payload = config_path.read_text(encoding='utf-8')
-    assert 'providers:' in payload
-    assert 'feature_settings:' in payload
+    payload = config_path.read_text(encoding="utf-8")
+    assert "providers:" in payload
+    assert "feature_settings:" in payload
 
     reread = admin_service.read_raw_config()
-    assert reread['providers']['primary']['provider'] == 'mock'
-    assert set(reread['feature_settings'].keys()) == set(SUPPORTED_FEATURE_NAMES)
+    assert reread["providers"]["primary"]["provider"] == "mock"
+    assert set(reread["feature_settings"].keys()) == set(SUPPORTED_FEATURE_NAMES)
 
 
 def test_validate_rejects_unknown_provider_type() -> None:
     registry = LLMRegistry()
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
-    form_data['providers[0][provider]'] = 'unknown'
+    form_data["providers[0][provider]"] = "unknown"
 
     result = admin_service.validate_form_data(form_data)
 
     assert result.valid is False
-    assert any('unsupported provider type' in error for error in result.errors)
+    assert any("unsupported provider type" in error for error in result.errors)
 
 
 def test_validate_rejects_out_of_range_temperature() -> None:
     registry = LLMRegistry()
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
-    form_data['feature_settings[0][temperature]'] = '1.5'
+    form_data["feature_settings[0][temperature]"] = "1.5"
 
     result = admin_service.validate_form_data(form_data)
 
     assert result.valid is False
-    assert 'invalid temperature' in result.errors
+    assert "invalid temperature" in result.errors
 
 
 def test_validate_rejects_unknown_style_reference() -> None:
     registry = LLMRegistry()
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
-    form_data['feature_settings[0][style]'] = 'missing_style'
+    form_data["feature_settings[0][style]"] = "missing_style"
 
     result = admin_service.validate_form_data(form_data)
 

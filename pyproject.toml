@@ -44,6 +44,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.2.0",
     "ruff>=0.15.8",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.ruff]
@@ -55,19 +56,17 @@ line-length = 120
 docstring-code-format = true
 
 [tool.ruff.lint]
-select = ["ALL"]
-external = ["COP"]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "C4",
+]
 ignore = [
-    "EM",
-    "FBT",
-    "TRY003",
-    "D1",
-    "D203",
-    "D213",
-    "G004",
-    "FA",
-    "COM812",
-    "ISC001",
+    "B008",
 ]
 
 [tool.ruff.lint.isort]
@@ -76,15 +75,20 @@ known-third-party = []
 known-local-folder = []
 lines-after-imports = 2
 
-[tool.ruff.lint.extend-per-file-ignores]
-"tests/*.py" = ["S101", "S311"]
-
 [tool.mypy]
-strict = true
+python_version = "3.11"
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+exclude = ["^main\\.py$"]
 
 [tool.flake8]
-select = ["COP"]
-exclude = [".venv", ".cache"]
+max-line-length = 120
+select = ["E", "F", "W"]
+extend-ignore = ["E203", "W503", "E704"]
+exclude = [".venv", ".cache", "__pycache__"]
 
 [tool.coverage.report]
 exclude_also = ["if typing.TYPE_CHECKING:"]

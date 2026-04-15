@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import logging
 
 from fastapi import HTTPException, Request
@@ -8,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.request_id import get_request_id
 from app.schemas.errors import ErrorResponse
+
 
 logger = logging.getLogger(__name__)
 

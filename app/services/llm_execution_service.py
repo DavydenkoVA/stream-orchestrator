@@ -1,13 +1,13 @@
 from __future__ import annotations
-
 import logging
 
 from sqlalchemy.orm import Session
 
 from app.integrations.llm.base import LLMProvider
+from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 from app.services.llm_registry import FeatureLLMSettings, LLMRegistry, ModelEndpointConfig, ProviderPoolConfig
 from app.services.provider_state_store import ProviderStateStore
-from app.observability.trace_helpers import trace_failure, trace_info, trace_success
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +59,7 @@ class LLMExecutionService:
         if any(marker in name for marker in retryable_markers):
             return True
 
-        if any(marker in text for marker in retryable_markers):
-            return True
-
-        return False
+        return bool(any(marker in text for marker in retryable_markers))
 
     async def generate_text_with_pool(
         self,

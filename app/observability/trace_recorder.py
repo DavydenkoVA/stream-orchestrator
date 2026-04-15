@@ -1,8 +1,7 @@
 from __future__ import annotations
-
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -14,6 +13,7 @@ from app.observability.trace_status import (
     TRACE_RUN_STATUS_RUNNING,
     TRACE_RUN_STATUS_SUCCESS,
 )
+
 
 SENSITIVE_MARKERS = {
     "api_key",
@@ -34,7 +34,7 @@ class TraceRecorder:
         self._session_factory = session_factory or SessionLocal
 
     @classmethod
-    def from_db_session(cls, db: Session) -> "TraceRecorder":
+    def from_db_session(cls, db: Session) -> TraceRecorder:
         bind = db.get_bind()
         session_factory = sessionmaker(bind=bind, autoflush=False, autocommit=False, future=True)
         return cls(session_factory=session_factory)
@@ -134,17 +134,12 @@ class TraceRecorder:
     def _derive_success_status(*, run: TraceRun, events: list[TraceEvent]) -> str:
         llm_dependent_route = run.route in {"/events/chat_reply", "/events/dynamic_prompt"}
 
-        llm_success = any(
-            event.step in {"llm.generate.success", "dynamic_prompt.llm.success"}
-            for event in events
-        )
+        llm_success = any(event.step in {"llm.generate.success", "dynamic_prompt.llm.success"} for event in events)
         llm_failure = any(
-            event.step in {"llm.model.failed", "llm.generate.failed", "dynamic_prompt.llm.failed"}
-            for event in events
+            event.step in {"llm.model.failed", "llm.generate.failed", "dynamic_prompt.llm.failed"} for event in events
         )
         llm_was_involved = any(
-            event.step.startswith("llm.") or event.step.startswith("dynamic_prompt.llm.")
-            for event in events
+            event.step.startswith("llm.") or event.step.startswith("dynamic_prompt.llm.") for event in events
         )
 
         if (llm_dependent_route or llm_was_involved) and llm_failure and not llm_success:
@@ -171,4 +166,4 @@ def sanitize_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
             return f"[redacted_prompt length={len(value)}]"
         return value
 
-    return _clean(payload)
+    return cast(dict[str, Any] | None, _clean(payload))

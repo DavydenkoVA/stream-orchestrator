@@ -4,6 +4,7 @@ import json
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.api import routes as api_routes
 from app.db import get_db
 from app.main import app
 from app.models.chat import ChatMessage
@@ -21,7 +22,6 @@ from app.services.dynamic_prompt_service import DynamicPromptService
 from app.services.llm_execution_service import LLMExecutionService
 from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
-from app.api import routes as api_routes
 
 
 class _Provider:
@@ -66,7 +66,11 @@ def test_trace_run_success_and_event_order(db_session) -> None:
     assert run is not None
     assert run.status == "success"
 
-    events = list(db_session.scalars(select(TraceEvent).where(TraceEvent.trace_run_id == run.id).order_by(TraceEvent.seq_no.asc())))
+    events = list(
+        db_session.scalars(
+            select(TraceEvent).where(TraceEvent.trace_run_id == run.id).order_by(TraceEvent.seq_no.asc())
+        )
+    )
     assert events
     assert [e.seq_no for e in events] == sorted(e.seq_no for e in events)
     app.dependency_overrides.clear()
@@ -109,7 +113,9 @@ def test_failed_trace_survives_business_rollback(db_session) -> None:
 
 def test_trace_payload_filters_secrets(db_session) -> None:
     start_trace(route="/test", stream_id="obs_5", db=db_session)
-    trace_info("safe.payload", "payload", payload={"provider": "mock", "api_key": "secret", "nested": {"token": "x", "ok": 1}})
+    trace_info(
+        "safe.payload", "payload", payload={"provider": "mock", "api_key": "secret", "nested": {"token": "x", "ok": 1}}
+    )
     finish_trace_success("ok")
 
     event = db_session.scalar(select(TraceEvent).order_by(TraceEvent.id.desc()))
@@ -259,7 +265,9 @@ def test_dynamic_prompt_service_traces_fallback(db_session) -> None:
     )
 
     start_trace(route="/events/dynamic_prompt", db=db_session)
-    result, message = asyncio.run(dynamic_service.generate(db=db_session, prompt_name="missing", user="u", data={"x": 1}))
+    result, message = asyncio.run(
+        dynamic_service.generate(db=db_session, prompt_name="missing", user="u", data={"x": 1})
+    )
     finish_trace_success("fallback")
 
     assert result == "fallback"
@@ -281,7 +289,13 @@ def test_chat_ingest_succeeds_when_trace_start_fails(db_session, monkeypatch) ->
     client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
-        json={"stream_id": "obs_trace_start_fail", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
+        json={
+            "stream_id": "obs_trace_start_fail",
+            "username": "u",
+            "text": "hello",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
     )
     assert response.status_code == 200
 
@@ -305,7 +319,13 @@ def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(db_session, mon
     client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
-        json={"stream_id": "obs_trace_post_commit_fail", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
+        json={
+            "stream_id": "obs_trace_post_commit_fail",
+            "username": "u",
+            "text": "hello",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
     )
     assert response.status_code == 200
 
