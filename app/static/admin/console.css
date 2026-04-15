@@ -349,6 +349,21 @@ summary {
   overflow-wrap: anywhere;
 }
 
+.traces-event-style {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 68, 92, 0.25);
+  background: rgba(255, 255, 255, 0.55);
+  color: #233044;
+  font-size: 11px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .traces-event-title {
   font-size: 12px;
   font-weight: 700;

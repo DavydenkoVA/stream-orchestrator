@@ -430,10 +430,56 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     assert response.status_code == 200
     payload = response.json()
     assert payload["run"]["id"] == "trace-2"
+    assert "applied_style" not in payload["run"]
     assert [event["seq_no"] for event in payload["events"]] == [1, 2]
     assert payload["events"][0]["tone"] == "info"
     assert payload["events"][1]["tone"] == "failure"
     assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
+
+    app.dependency_overrides.clear()
+
+
+def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session) -> None:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    run = TraceRun(
+        trace_id="trace-style-1",
+        request_id="req-style-1",
+        route="/events/chat_reply",
+        stream_id="stream-style",
+        status="success",
+        summary="ok",
+        started_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+    )
+    db_session.add(run)
+    db_session.commit()
+    db_session.refresh(run)
+
+    db_session.add(
+        TraceEvent(
+            trace_run_id=run.id,
+            seq_no=1,
+            timestamp=datetime.now(UTC),
+            step="llm.generate.start",
+            status="info",
+            level="INFO",
+            message="start",
+            payload_json=json.dumps({"provider": "mock", "style": "absurd"}),
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/traces/api/runs/trace-style-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["applied_style"] == "absurd"
+    assert payload["events"][0]["payload"]["style"] == "absurd"
 
     app.dependency_overrides.clear()
 

@@ -77,7 +77,13 @@ class LLMExecutionService:
         trace_info(
             "llm.generate.start",
             "starting llm generation",
-            payload={"provider": pool.provider, "pool": pool.name, "feature": feature_settings.feature_name},
+            payload={
+                "provider": pool.provider,
+                "pool": pool.name,
+                "feature": feature_settings.feature_name,
+                "style": feature_settings.style,
+                "model": current_model_name,
+            },
         )
         ordered_models = self._build_attempt_order(
             pool=pool,
@@ -129,7 +135,12 @@ class LLMExecutionService:
                 trace_success(
                     "llm.generate.success",
                     "llm generation succeeded",
-                    payload={"provider": pool.provider, "model": endpoint.name, "reply_length": len(reply or "")},
+                    payload={
+                        "provider": pool.provider,
+                        "model": endpoint.name,
+                        "style": feature_settings.style,
+                        "reply_length": len(reply or ""),
+                    },
                 )
                 return reply
 
@@ -138,7 +149,11 @@ class LLMExecutionService:
                 trace_failure(
                     "llm.model.failed",
                     "llm model failed",
-                    payload={"provider": pool.provider, "model": endpoint.name},
+                    payload={
+                        "provider": pool.provider,
+                        "model": endpoint.name,
+                        "style": feature_settings.style,
+                    },
                     error_code="llm_error",
                 )
                 logger.warning(
@@ -162,7 +177,11 @@ class LLMExecutionService:
         trace_failure(
             "llm.generate.failed",
             "llm provider pool exhausted",
-            payload={"provider": pool.provider, "attempted_models": attempted_names},
+            payload={
+                "provider": pool.provider,
+                "attempted_models": attempted_names,
+                "style": feature_settings.style,
+            },
             error_code="llm_error",
         )
 

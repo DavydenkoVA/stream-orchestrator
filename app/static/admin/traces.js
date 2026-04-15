@@ -114,6 +114,22 @@
     return '—';
   }
 
+  function eventStyleBadge(event) {
+    const style = event && event.payload && typeof event.payload === 'object'
+      ? String(event.payload.style || '').trim()
+      : '';
+    if (!style) {
+      return '';
+    }
+    const kind = String(event.kind || '');
+    const isLlmEvent = kind.startsWith('llm.') || kind.startsWith('dynamic_prompt.llm.');
+    if (!isLlmEvent) {
+      return '';
+    }
+    const safeStyle = trimText(style, 40);
+    return `<div class="traces-event-style" title="${safeStyle}">style=${safeStyle}</div>`;
+  }
+
   function renderEvents() {
     const events = currentDetail ? currentDetail.events || [] : [];
     eventsList.innerHTML = '';
@@ -143,6 +159,7 @@
       button.innerHTML = `
         <div class="traces-event-title">${fmtDate(event.timestamp)} · ${event.kind || 'unknown'}</div>
         <div class="traces-event-meta">status=${event.status || '—'} level=${event.level || '—'} seq=${event.seq_no || '—'}</div>
+        ${eventStyleBadge(event)}
         <div class="traces-event-summary">${eventSummary(event)}</div>
       `;
       button.addEventListener('click', function () {
@@ -177,6 +194,7 @@
       { label: 'finished_at', value: fmtDate(run.finished_at) },
       { label: 'duration_ms', value: run.duration_ms },
       { label: 'status', value: run.status },
+      { label: 'style', value: run.applied_style },
       { label: 'route', value: run.route },
       { label: 'stream_id', value: run.stream_id },
     ]);

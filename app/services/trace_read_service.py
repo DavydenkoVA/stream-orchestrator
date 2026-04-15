@@ -45,10 +45,15 @@ class TraceReadService:
             .order_by(TraceEvent.seq_no.asc(), TraceEvent.id.asc())
         )
         events = list(db.scalars(events_query).all())
+        serialized_events = [self._serialize_event(event) for event in events]
+        applied_style = self._derive_applied_style(serialized_events)
+        run_payload = self._serialize_run(run)
+        if applied_style is not None:
+            run_payload["applied_style"] = applied_style
 
         return {
-            "run": self._serialize_run(run),
-            "events": [self._serialize_event(event) for event in events],
+            "run": run_payload,
+            "events": serialized_events,
         }
 
     def _serialize_run(self, run: TraceRun) -> dict[str, Any]:
@@ -92,6 +97,28 @@ class TraceReadService:
             "message": event.message,
             "payload": payload,
         }
+
+    @staticmethod
+    def _derive_applied_style(events: list[dict[str, Any]]) -> str | None:
+        styles: list[str] = []
+        for event in events:
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            style = payload.get("style")
+            if not isinstance(style, str):
+                continue
+            normalized = style.strip()
+            if not normalized:
+                continue
+            styles.append(normalized)
+
+        unique_styles = sorted(set(styles))
+        if not unique_styles:
+            return None
+        if len(unique_styles) == 1:
+            return unique_styles[0]
+        return "multiple"
 
     @staticmethod
     def _iso(value: datetime | None) -> str | None:

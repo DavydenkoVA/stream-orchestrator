@@ -149,6 +149,15 @@ def test_llm_execution_service_trace_events(db_session, monkeypatch) -> None:
     assert "llm.generate.start" in steps
     assert "llm.model.failed" in steps
     assert "llm.generate.success" in steps
+    events = list(db_session.scalars(select(TraceEvent).order_by(TraceEvent.id.asc())).all())
+    start_event = next(event for event in events if event.step == "llm.generate.start")
+    success_event = next(event for event in events if event.step == "llm.generate.success")
+    start_payload = json.loads(start_event.payload_json or "{}")
+    success_payload = json.loads(success_event.payload_json or "{}")
+    assert start_payload["style"] == feature.style
+    assert success_payload["style"] == feature.style
+    assert "system_prompt" not in start_payload
+    assert "user_prompt" not in start_payload
     run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
     assert run is not None
     assert run.status == TRACE_RUN_STATUS_SUCCESS
