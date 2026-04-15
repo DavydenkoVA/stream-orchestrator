@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl
 
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -61,6 +61,21 @@ def _build_view_model() -> dict:
     }
 
 
+
+
+def _enforce_config_mutation_access() -> None:
+    """Restrict config mutation routes to non-production-style environments."""
+    allowed_envs = {"local", "dev", "test"}
+    current_env = settings.app_env.lower().strip()
+    if current_env not in allowed_envs:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "LLM config mutation routes are disabled outside local/dev/test "
+                "environments."
+            ),
+        )
+
 async def _read_form_data(request: Request) -> dict[str, str]:
     body = (await request.body()).decode("utf-8")
     return {k: v for k, v in parse_qsl(body, keep_blank_values=True)}
@@ -80,6 +95,7 @@ async def _validate_llm_config_impl(request: Request) -> HTMLResponse:
 
 
 async def _apply_llm_config_impl(request: Request) -> HTMLResponse:
+    _enforce_config_mutation_access()
     form_data = await _read_form_data(request)
 
     admin_service = LLMConfigAdminService(api_routes.service.llm_registry)

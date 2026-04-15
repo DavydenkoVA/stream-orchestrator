@@ -113,3 +113,23 @@ def test_legacy_apply_route_still_works() -> None:
 
     assert response.status_code == 200
     assert "Apply success" in response.text
+
+
+def test_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
+    client = TestClient(app)
+    payload = _minimal_valid_payload()
+    monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
+
+    response = client.post("/llm-config/apply", data=payload)
+
+    assert response.status_code == 403
+
+
+def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
+    client = TestClient(app)
+    payload = _minimal_valid_payload()
+    monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")
+
+    response = client.post("/admin/llm-config/apply", data=payload)
+
+    assert response.status_code == 403
