@@ -48,7 +48,63 @@ def test_get_playground_returns_200() -> None:
     response = client.get("/playground")
 
     assert response.status_code == 200
-    assert "not implemented yet" in response.text
+    assert "Chat Reply" in response.text
+    assert "Dynamic Prompt" in response.text
+
+
+def test_get_playground_with_dynamic_mode_returns_200() -> None:
+    client = TestClient(app)
+
+    response = client.get("/playground", params={"mode": "dynamic"})
+
+    assert response.status_code == 200
+    assert "data-initial-mode=\"dynamic\"" in response.text
+
+
+def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
+    temp_prompts_dir,
+) -> None:
+    client = TestClient(app)
+
+    dynamic_dir = temp_prompts_dir / "dynamic"
+    (dynamic_dir / "weekly_summary_system.txt").write_text("system", encoding="utf-8")
+    (dynamic_dir / "weekly_summary_template.txt").write_text("hello {foo}", encoding="utf-8")
+    (dynamic_dir / "incomplete_system.txt").write_text("system", encoding="utf-8")
+
+    response = client.get("/playground/api/dynamic-prompts")
+
+    assert response.status_code == 200
+    names = [item["name"] for item in response.json()["items"]]
+    assert names == ["test", "weekly_summary"]
+
+
+def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
+    client = TestClient(app)
+
+    response = client.get("/playground/api/dynamic-prompts/test")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "test"
+    assert payload["required_fields"] == ["loot", "user"]
+    assert payload["system_prompt"] == "dynamic system"
+    assert payload["template_prompt"] == "hello {user}, loot={loot}"
+
+
+def test_get_dynamic_prompt_metadata_invalid_name_returns_400() -> None:
+    client = TestClient(app)
+
+    response = client.get("/playground/api/dynamic-prompts/bad.name")
+
+    assert response.status_code == 400
+
+
+def test_get_dynamic_prompt_metadata_missing_prompt_returns_404() -> None:
+    client = TestClient(app)
+
+    response = client.get("/playground/api/dynamic-prompts/missing")
+
+    assert response.status_code == 404
 
 
 def test_get_traces_returns_200() -> None:
