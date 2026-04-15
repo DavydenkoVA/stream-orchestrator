@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
+import re
 
 from fastapi.testclient import TestClient
 
@@ -276,7 +277,9 @@ def test_playground_dossier_run_uses_real_route_and_trace_header(db_session) -> 
     )
     assert response.status_code == 200
     assert response.json()["route"] == "dossier"
-    assert response.headers.get("X-Trace-Id")
+    trace_id = response.headers.get("X-Trace-Id")
+    assert trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
     app.dependency_overrides.clear()
 
 
@@ -289,6 +292,36 @@ def test_playground_layout_and_button_classes_present() -> None:
     assert 'class="btn-reset"' in response.text
     assert 'id="chat-system-editor"' in response.text
     assert 'id="dossier-system-editor"' in response.text
+    assert 'class="playground-two-col"' in response.text
+
+
+def test_chat_reply_layout_and_context_tabs_and_reply_fields() -> None:
+    client = TestClient(app)
+    response = client.get("/playground", params={"mode": "chat"})
+    assert response.status_code == 200
+    assert 'data-context-tab="system_prompt"' not in response.text
+    assert 'data-context-tab="user_prompt"' not in response.text
+    assert 'name="reply_to_message_id"' in response.text
+    assert 'name="reply_to_username"' in response.text
+    assert 'name="reply_to_text"' in response.text
+    assert 'class="playground-col-right"' in response.text
+    assert "Prompts" in response.text
+    assert "Reply Result" in response.text
+
+
+def test_dynamic_layout_right_column_and_skeleton_logic_present_in_js() -> None:
+    client = TestClient(app)
+    html = client.get("/playground", params={"mode": "dynamic"})
+    assert html.status_code == 200
+    assert 'class="playground-col-right"' in html.text
+    assert "Run Result" in html.text
+    assert "Prompts" in html.text
+
+    js = client.get("/static/admin/playground.js")
+    assert js.status_code == 200
+    assert "function buildDynamicDataSkeleton" in js.text
+    assert "field !== 'user'" in js.text
+    assert "dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));" in js.text
 
 
 def test_playground_css_uses_vertical_resize() -> None:
@@ -304,6 +337,13 @@ def test_playground_copy_feedback_is_transient() -> None:
     assert response.status_code == 200
     assert "setTimeout" in response.text
     assert "dynamicCopyStatus.hidden = true" in response.text
+
+
+def test_trace_link_source_uses_response_header() -> None:
+    client = TestClient(app)
+    response = client.get("/static/admin/playground.js")
+    assert response.status_code == 200
+    assert "response.headers.get('X-Trace-Id')" in response.text
 
 
 def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:

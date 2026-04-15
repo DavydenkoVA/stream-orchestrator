@@ -122,6 +122,13 @@
       text: String(form.get('text') || '').trim(),
       mentions_bot: boolFromSelect(form.get('mentions_bot')),
       role: String(form.get('role') || 'viewer'),
+      channel: cleanOptional(form.get('channel')),
+      message_id: cleanOptional(form.get('message_id')),
+      reply_to_message_id: cleanOptional(form.get('reply_to_message_id')),
+      reply_to_username: cleanOptional(form.get('reply_to_username')),
+      reply_to_text: cleanOptional(form.get('reply_to_text')),
+      is_mod: boolFromSelect(form.get('is_mod')),
+      is_broadcaster: boolFromSelect(form.get('is_broadcaster')),
     };
   }
 
@@ -225,6 +232,17 @@
     byId('dynamic-result-raw').textContent = dynamicRunPayload ? formatPayload(dynamicRunPayload) : 'No result yet.';
   }
 
+  function buildDynamicDataSkeleton(meta) {
+    const required = Array.isArray(meta?.required_fields)
+      ? meta.required_fields.filter((field) => field !== 'user')
+      : [];
+    const skeleton = {};
+    required.forEach((field) => {
+      skeleton[field] = '';
+    });
+    return skeleton;
+  }
+
   async function loadDynamicPromptNames(selectName) {
     const response = await requestJson(root.dataset.dynamicListEndpoint);
     dynamicPromptSelect.innerHTML = '<option value="">-- select prompt --</option>';
@@ -249,13 +267,12 @@
     (promptsPayload.items || []).forEach((item) => { map[item.part] = item.content || ''; });
     dynamicSystemEditor.value = map.system_prompt || '';
     dynamicTemplateEditor.value = map.template_prompt || '';
+    dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));
   }
 
   function buildDynamicPayloadTemplate() {
     const prompt = String(dynamicPromptSelect.value || '').trim();
-    const fields = dynamicPromptMeta?.required_data_fields || [];
-    const data = {};
-    fields.forEach((f) => { data[f] = ''; });
+    const data = buildDynamicDataSkeleton(dynamicPromptMeta);
     const payload = { prompt, user: '', data };
     const form = new FormData(dynamicForm);
     const llm = {};
@@ -363,11 +380,30 @@
     });
 
     byId('dynamic-reset-btn').addEventListener('click', () => {
-      dynamicForm.reset(); dynamicPromptMeta = null; dynamicRunPayload = null;
-      byId('dynamic-required-fields').textContent = '—';
-      dynamicSystemEditor.value = ''; dynamicTemplateEditor.value = '';
-      renderDynamicResult(); setTraceLink(dynamicTraceLink, null); buildDynamicPayloadTemplate();
-      setError(dynamicFormError, ''); setError(dynamicResultError, ''); setError(dynamicMetaError, '');
+      dynamicForm.reset();
+      dynamicRunPayload = null;
+      const selectedPrompt = dynamicPromptSelect.value;
+      const afterReset = async () => {
+        if (selectedPrompt) {
+          await loadDynamicMeta(selectedPrompt);
+          dynamicSystemManager.setClean();
+          dynamicTemplateManager.setClean();
+        } else {
+          dynamicPromptMeta = null;
+          byId('dynamic-required-fields').textContent = '—';
+          dynamicSystemEditor.value = '';
+          dynamicTemplateEditor.value = '';
+          dynamicData.value = '{}';
+        }
+      };
+      afterReset().finally(() => {
+        renderDynamicResult();
+        setTraceLink(dynamicTraceLink, null);
+        buildDynamicPayloadTemplate();
+        setError(dynamicFormError, '');
+        setError(dynamicResultError, '');
+        setError(dynamicMetaError, '');
+      });
     });
 
     byId('dynamic-copy-template-btn').addEventListener('click', async () => {

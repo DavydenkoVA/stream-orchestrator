@@ -1,3 +1,5 @@
+import re
+
 from fastapi import HTTPException
 
 from fastapi.testclient import TestClient
@@ -37,7 +39,9 @@ def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session) -> None:
     assert bot_response.status_code == 200
     assert bot_response.json()["route"] == "ignored"
     assert bot_response.json()["should_reply"] is False
-    assert bot_response.headers.get("X-Trace-Id")
+    trace_id = bot_response.headers.get("X-Trace-Id")
+    assert trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
 
     app.dependency_overrides.clear()
 
@@ -95,7 +99,9 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     )
     assert success_response.status_code == 200
     assert success_response.json()["result"] == "success"
-    assert success_response.headers.get("X-Trace-Id")
+    success_trace_id = success_response.headers.get("X-Trace-Id")
+    assert success_trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", success_trace_id)
 
     fallback_response = client.post(
         "/events/dynamic_prompt",
@@ -107,7 +113,9 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     )
     assert fallback_response.status_code == 200
     assert fallback_response.json()["result"] == "fallback"
-    assert fallback_response.headers.get("X-Trace-Id")
+    fallback_trace_id = fallback_response.headers.get("X-Trace-Id")
+    assert fallback_trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", fallback_trace_id)
 
     app.dependency_overrides.clear()
 

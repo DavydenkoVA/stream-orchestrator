@@ -26,162 +26,198 @@
   >
 
     <div id="chat-pane" class="playground-pane" {% if mode != 'chat' %}hidden{% endif %}>
-      <div class="card">
-        <h2>Chat Reply</h2>
-        <form id="chat-form" class="form-stack" novalidate>
-          <div class="row row-2">
-            <label>stream_id<input name="stream_id" required value="test_stream" /></label>
-            <label>username<input name="username" required value="operator_user" /></label>
+      <div class="playground-two-col">
+        <div class="playground-col-left">
+          <div class="card">
+            <h2>Chat Reply</h2>
+            <form id="chat-form" class="form-stack" novalidate>
+              <div class="row row-2">
+                <label>stream_id<input name="stream_id" required value="test_stream" /></label>
+                <label>username<input name="username" required value="operator_user" /></label>
+              </div>
+              <label>text<textarea name="text" rows="4" required>Привет, бот!</textarea></label>
+              <div class="row row-2">
+                <label>mentions_bot
+                  <select name="mentions_bot"><option value="false" selected>false</option><option value="true">true</option></select>
+                </label>
+                <label>role
+                  <select name="role"><option value="viewer" selected>viewer</option><option value="bot">bot</option><option value="broadcaster">broadcaster</option><option value="system">system</option></select>
+                </label>
+              </div>
+              <details>
+                <summary>Advanced</summary>
+                <div class="row row-2">
+                  <label>channel<input name="channel" /></label>
+                  <label>message_id<input name="message_id" /></label>
+                </div>
+                <div class="row row-2">
+                  <label>reply_to_message_id<input name="reply_to_message_id" /></label>
+                  <label>reply_to_username<input name="reply_to_username" /></label>
+                </div>
+                <label>reply_to_text<textarea name="reply_to_text" rows="3"></textarea></label>
+                <div class="row row-2">
+                  <label>is_mod
+                    <select name="is_mod"><option value="false" selected>false</option><option value="true">true</option></select>
+                  </label>
+                  <label>is_broadcaster
+                    <select name="is_broadcaster"><option value="false" selected>false</option><option value="true">true</option></select>
+                  </label>
+                </div>
+              </details>
+              <div class="actions">
+                <button type="button" id="chat-preview-btn" class="btn-reset">Preview context</button>
+                <button type="submit" id="chat-run-btn" class="btn-run">Run reply</button>
+                <button type="button" id="chat-delete-test-data-btn" class="btn-delete">Delete test data</button>
+                <button type="button" id="chat-reset-btn" class="btn-reset">Reset</button>
+              </div>
+              <a id="chat-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
+              <div id="chat-form-error" class="danger" hidden></div>
+              <div id="chat-delete-status" class="muted" hidden></div>
+            </form>
           </div>
-          <label>text<textarea name="text" rows="4" required>Привет, бот!</textarea></label>
-          <div class="row row-2">
-            <label>mentions_bot
-              <select name="mentions_bot"><option value="false" selected>false</option><option value="true">true</option></select>
-            </label>
-            <label>role
-              <select name="role"><option value="viewer" selected>viewer</option><option value="bot">bot</option><option value="broadcaster">broadcaster</option><option value="system">system</option></select>
-            </label>
+          <div class="card">
+            <h3>Context Preview</h3>
+            <div id="chat-context-error" class="danger" hidden></div>
+            <div class="subtabs" id="chat-context-tabs">
+              <button type="button" data-context-tab="global_recent" class="active">global_recent</button>
+              <button type="button" data-context-tab="user_recent">user_recent</button>
+              <button type="button" data-context-tab="dialog_recent">dialog_recent</button>
+              <button type="button" data-context-tab="external_context">external_context</button>
+            </div>
+            <pre id="chat-context-output" class="scroll-box">No preview yet.</pre>
           </div>
-          <div class="actions">
-            <button type="button" id="chat-preview-btn" class="btn-reset">Preview context</button>
-            <button type="submit" id="chat-run-btn" class="btn-run">Run reply</button>
-            <button type="button" id="chat-delete-test-data-btn" class="btn-delete">Delete test data</button>
-            <button type="button" id="chat-reset-btn" class="btn-reset">Reset</button>
+        </div>
+        <div class="playground-col-right">
+          <div class="card">
+            <h3>Prompts</h3>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="chat-system-status" class="muted"></span></div><textarea id="chat-system-editor" rows="6" class="editor-textarea"></textarea></div>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="chat-template-status" class="muted"></span></div><textarea id="chat-template-editor" rows="8" class="editor-textarea"></textarea></div>
           </div>
-          <a id="chat-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
-          <div id="chat-form-error" class="danger" hidden></div>
-          <div id="chat-delete-status" class="muted" hidden></div>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Prompts</h3>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="chat-system-status" class="muted"></span></div><textarea id="chat-system-editor" rows="6" class="editor-textarea"></textarea></div>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="chat-template-status" class="muted"></span></div><textarea id="chat-template-editor" rows="8" class="editor-textarea"></textarea></div>
-      </div>
-
-      <div class="card">
-        <h3>Context Preview</h3>
-        <div id="chat-context-error" class="danger" hidden></div>
-        <div class="subtabs" id="chat-context-tabs">
-          <button type="button" data-context-tab="global_recent" class="active">global_recent</button>
-          <button type="button" data-context-tab="user_recent">user_recent</button>
-          <button type="button" data-context-tab="dialog_recent">dialog_recent</button>
-          <button type="button" data-context-tab="external_context">external_context</button>
-          <button type="button" data-context-tab="system_prompt">system_prompt</button>
-          <button type="button" data-context-tab="user_prompt">user_prompt</button>
+          <div class="card">
+            <h3>Reply Result</h3>
+            <div id="chat-result-error" class="danger" hidden></div>
+            <div class="subtabs" id="chat-result-tabs">
+              <button type="button" data-result-tab="view" class="active">Operator view</button>
+              <button type="button" data-result-tab="raw">Raw JSON</button>
+            </div>
+            <div id="chat-result-view" class="result-grid">
+              <div><strong>route:</strong> <span id="chat-route">—</span></div>
+              <div><strong>should_reply:</strong> <span id="chat-should-reply">—</span></div>
+              <div><strong>reply_text:</strong> <span id="chat-reply-text">—</span></div>
+            </div>
+            <pre id="chat-result-raw" class="scroll-box" hidden>No result yet.</pre>
+          </div>
         </div>
-        <pre id="chat-context-output" class="scroll-box">No preview yet.</pre>
-      </div>
-
-      <div class="card">
-        <h3>Reply Result</h3>
-        <div id="chat-result-error" class="danger" hidden></div>
-        <div class="subtabs" id="chat-result-tabs">
-          <button type="button" data-result-tab="view" class="active">Operator view</button>
-          <button type="button" data-result-tab="raw">Raw JSON</button>
-        </div>
-        <div id="chat-result-view" class="result-grid">
-          <div><strong>route:</strong> <span id="chat-route">—</span></div>
-          <div><strong>should_reply:</strong> <span id="chat-should-reply">—</span></div>
-          <div><strong>reply_text:</strong> <span id="chat-reply-text">—</span></div>
-        </div>
-        <pre id="chat-result-raw" class="scroll-box" hidden>No result yet.</pre>
       </div>
     </div>
 
     <div id="dynamic-pane" class="playground-pane" {% if mode != 'dynamic' %}hidden{% endif %}>
-      <div class="card">
-        <h2>Dynamic Prompt</h2>
-        <form id="dynamic-form" class="form-stack" novalidate>
-          <div class="row row-2">
-            <label>prompt
-              <select name="prompt" id="dynamic-prompt-select" required><option value="">-- select prompt --</option></select>
-            </label>
-            <label>user<input name="user" required value="operator_user" /></label>
+      <div class="playground-two-col">
+        <div class="playground-col-left">
+          <div class="card">
+            <h2>Dynamic Prompt</h2>
+            <form id="dynamic-form" class="form-stack" novalidate>
+              <div class="row row-2">
+                <label>prompt
+                  <select name="prompt" id="dynamic-prompt-select" required><option value="">-- select prompt --</option></select>
+                </label>
+                <label>user<input name="user" required value="operator_user" /></label>
+              </div>
+              <div class="actions"><button type="button" id="dynamic-new-prompt-btn" class="btn-reset">New prompt</button></div>
+              <label>data (JSON)<textarea id="dynamic-data" name="data" rows="10" required class="editor-textarea">{}</textarea></label>
+              <details>
+                <summary>LLM override</summary>
+                <div class="row row-2">
+                  <label>provider
+                    <select name="provider" id="dynamic-provider-select">
+                      <option value="">-- no override --</option>
+                      {% for provider_name in provider_options %}
+                        <option value="{{ provider_name }}">{{ provider_name }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label>style
+                    <select name="style" id="dynamic-style-select">
+                      {% for option in dynamic_style_options %}
+                        <option value="{{ option.value }}">{{ option.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                </div>
+                <div class="row row-2">
+                  <label>temperature
+                    <input name="temperature" type="range" min="{{ temperature_min }}" max="{{ temperature_max }}" step="{{ temperature_step }}" value="{{ temperature_min }}" />
+                    <span id="dynamic-temperature-value">{{ "%.2f"|format(temperature_min) }}</span>
+                  </label>
+                  <label>max_output_tokens<input name="max_output_tokens" type="number" step="1" min="1" /></label>
+                </div>
+              </details>
+              <div class="actions">
+                <button type="submit" id="dynamic-run-btn" class="btn-run">Run prompt</button>
+                <button type="button" id="dynamic-reset-btn" class="btn-reset">Reset</button>
+              </div>
+              <a id="dynamic-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
+              <div id="dynamic-form-error" class="danger" hidden></div>
+              <div id="dynamic-meta-error" class="danger" hidden></div>
+            </form>
           </div>
-          <div class="actions"><button type="button" id="dynamic-new-prompt-btn" class="btn-reset">New prompt</button></div>
-          <label>data (JSON)<textarea id="dynamic-data" name="data" rows="10" required class="editor-textarea">{}</textarea></label>
-          <details>
-            <summary>LLM override</summary>
-            <div class="row row-2">
-              <label>provider
-                <select name="provider" id="dynamic-provider-select">
-                  <option value="">-- no override --</option>
-                  {% for provider_name in provider_options %}
-                    <option value="{{ provider_name }}">{{ provider_name }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <label>style
-                <select name="style" id="dynamic-style-select">
-                  {% for option in dynamic_style_options %}
-                    <option value="{{ option.value }}">{{ option.label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-            </div>
-            <div class="row row-2">
-              <label>temperature
-                <input name="temperature" type="range" min="{{ temperature_min }}" max="{{ temperature_max }}" step="{{ temperature_step }}" value="{{ temperature_min }}" />
-                <span id="dynamic-temperature-value">{{ "%.2f"|format(temperature_min) }}</span>
-              </label>
-              <label>max_output_tokens<input name="max_output_tokens" type="number" step="1" min="1" /></label>
-            </div>
-          </details>
-          <div class="actions">
-            <button type="submit" id="dynamic-run-btn" class="btn-run">Run prompt</button>
-            <button type="button" id="dynamic-reset-btn" class="btn-reset">Reset</button>
+          <div class="card">
+            <h3>Prompt Metadata</h3>
+            <div><strong>required_fields:</strong> <span id="dynamic-required-fields">—</span></div>
           </div>
-          <a id="dynamic-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
-          <div id="dynamic-form-error" class="danger" hidden></div>
-          <div id="dynamic-meta-error" class="danger" hidden></div>
-        </form>
-      </div>
-      <div class="card">
-        <h3>Prompt Metadata</h3>
-        <div><strong>required_fields:</strong> <span id="dynamic-required-fields">—</span></div>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dynamic-system-status" class="muted"></span></div><textarea id="dynamic-system-editor" rows="6" class="editor-textarea"></textarea></div>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>template_prompt</strong> <span id="dynamic-template-status" class="muted"></span></div><textarea id="dynamic-template-editor" rows="8" class="editor-textarea"></textarea></div>
-      </div>
-      <div class="card">
-        <h3>Payload template</h3>
-        <div class="actions"><button type="button" id="dynamic-copy-template-btn" class="btn-reset">Copy</button><span id="dynamic-copy-status" class="muted" hidden></span></div>
-        <pre id="dynamic-payload-template" class="scroll-box">{}</pre>
-      </div>
-      <div class="card">
-        <h3>Run Result</h3>
-        <div id="dynamic-result-error" class="danger" hidden></div>
-        <div class="subtabs" id="dynamic-result-tabs"><button type="button" data-result-tab="view" class="active">Operator view</button><button type="button" data-result-tab="raw">Raw JSON</button></div>
-        <div id="dynamic-result-view" class="result-grid"><div><strong>result:</strong> <span id="dynamic-result">—</span></div><div><strong>message:</strong> <span id="dynamic-message">—</span></div></div>
-        <pre id="dynamic-result-raw" class="scroll-box" hidden>No result yet.</pre>
+          <div class="card">
+            <h3>Payload template</h3>
+            <div class="actions"><button type="button" id="dynamic-copy-template-btn" class="btn-reset">Copy</button><span id="dynamic-copy-status" class="muted" hidden></span></div>
+            <pre id="dynamic-payload-template" class="scroll-box">{}</pre>
+          </div>
+        </div>
+        <div class="playground-col-right">
+          <div class="card">
+            <h3>Prompts</h3>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dynamic-system-status" class="muted"></span></div><textarea id="dynamic-system-editor" rows="6" class="editor-textarea"></textarea></div>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>template_prompt</strong> <span id="dynamic-template-status" class="muted"></span></div><textarea id="dynamic-template-editor" rows="8" class="editor-textarea"></textarea></div>
+          </div>
+          <div class="card">
+            <h3>Run Result</h3>
+            <div id="dynamic-result-error" class="danger" hidden></div>
+            <div class="subtabs" id="dynamic-result-tabs"><button type="button" data-result-tab="view" class="active">Operator view</button><button type="button" data-result-tab="raw">Raw JSON</button></div>
+            <div id="dynamic-result-view" class="result-grid"><div><strong>result:</strong> <span id="dynamic-result">—</span></div><div><strong>message:</strong> <span id="dynamic-message">—</span></div></div>
+            <pre id="dynamic-result-raw" class="scroll-box" hidden>No result yet.</pre>
+          </div>
+        </div>
       </div>
     </div>
 
     <div id="dossier-pane" class="playground-pane" {% if mode != 'dossier' %}hidden{% endif %}>
-      <div class="card">
-        <h2>Dossier</h2>
-        <form id="dossier-form" class="form-stack" novalidate>
-          <div class="row row-3">
-            <label>stream_id<input name="stream_id" required value="test_stream" /></label>
-            <label>username<input name="username" required value="operator_user" /></label>
-            <label>dossier_target<input name="dossier_target" required value="target_user" /></label>
+      <div class="playground-two-col">
+        <div class="playground-col-left">
+          <div class="card">
+            <h2>Dossier</h2>
+            <form id="dossier-form" class="form-stack" novalidate>
+              <div class="row row-3">
+                <label>stream_id<input name="stream_id" required value="test_stream" /></label>
+                <label>username<input name="username" required value="operator_user" /></label>
+                <label>dossier_target<input name="dossier_target" required value="target_user" /></label>
+              </div>
+              <div class="actions"><button type="submit" id="dossier-run-btn" class="btn-run">Run dossier</button><button type="button" id="dossier-reset-btn" class="btn-reset">Reset</button></div>
+              <a id="dossier-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
+              <div id="dossier-form-error" class="danger" hidden></div>
+            </form>
           </div>
-          <div class="actions"><button type="submit" id="dossier-run-btn" class="btn-run">Run dossier</button><button type="button" id="dossier-reset-btn" class="btn-reset">Reset</button></div>
-          <a id="dossier-trace-link" class="trace-link" hidden target="_blank" rel="noreferrer">Open trace</a>
-          <div id="dossier-form-error" class="danger" hidden></div>
-        </form>
-      </div>
-      <div class="card">
-        <h3>Prompts</h3>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dossier-system-status" class="muted"></span></div><textarea id="dossier-system-editor" rows="6" class="editor-textarea"></textarea></div>
-        <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="dossier-template-status" class="muted"></span></div><textarea id="dossier-template-editor" rows="8" class="editor-textarea"></textarea></div>
-      </div>
-      <div class="card">
-        <h3>Result</h3>
-        <div id="dossier-result-error" class="danger" hidden></div>
-        <div class="result-grid"><div><strong>route:</strong> <span id="dossier-route">—</span></div><div><strong>should_reply:</strong> <span id="dossier-should-reply">—</span></div><div><strong>reply_text:</strong> <span id="dossier-reply-text">—</span></div></div>
-        <pre id="dossier-result-raw" class="scroll-box">No result yet.</pre>
+        </div>
+        <div class="playground-col-right">
+          <div class="card">
+            <h3>Prompts</h3>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>system_prompt</strong> <span id="dossier-system-status" class="muted"></span></div><textarea id="dossier-system-editor" rows="6" class="editor-textarea"></textarea></div>
+            <div class="prompt-editor"><div class="prompt-editor-header"><strong>user_template</strong> <span id="dossier-template-status" class="muted"></span></div><textarea id="dossier-template-editor" rows="8" class="editor-textarea"></textarea></div>
+          </div>
+          <div class="card">
+            <h3>Result</h3>
+            <div id="dossier-result-error" class="danger" hidden></div>
+            <div class="result-grid"><div><strong>route:</strong> <span id="dossier-route">—</span></div><div><strong>should_reply:</strong> <span id="dossier-should-reply">—</span></div><div><strong>reply_text:</strong> <span id="dossier-reply-text">—</span></div></div>
+            <pre id="dossier-result-raw" class="scroll-box">No result yet.</pre>
+          </div>
+        </div>
       </div>
     </div>
   </section>

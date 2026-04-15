@@ -152,11 +152,25 @@ pre {
 
 .playground-layout {
   display: block;
+  width: 100%;
 }
 
 .playground-pane {
   min-width: 0;
-  max-width: 980px;
+  width: 100%;
+}
+
+.playground-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.playground-col-left,
+.playground-col-right {
+  min-width: 0;
+  width: 100%;
 }
 
 .form-stack {
@@ -274,8 +288,8 @@ summary {
 }
 
 @media (max-width: 1024px) {
-  .playground-layout {
-    grid-template-columns: 1fr;
+  .playground-two-col {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

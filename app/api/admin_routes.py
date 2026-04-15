@@ -132,7 +132,7 @@ def _get_trace_run_id() -> str | None:
     state = get_trace_state()
     if state is None:
         return None
-    return str(state.trace_run_id)
+    return state.trace_id
 
 
 def _build_view_model() -> dict:

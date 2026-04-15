@@ -61,7 +61,7 @@ def _attach_trace_header(response: Response) -> None:
     state = get_trace_state()
     if state is None:
         return
-    response.headers["X-Trace-Id"] = str(state.trace_run_id)
+    response.headers["X-Trace-Id"] = state.trace_id
 
 
 @router.get("/health")
