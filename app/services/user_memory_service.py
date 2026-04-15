@@ -1,17 +1,18 @@
 from __future__ import annotations
+import dataclasses
+import datetime
 import json
 import logging
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Literal
+import typing
 
-from pydantic import BaseModel, Field, ValidationError
+import pydantic
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+import app.observability.trace_helpers
 from app.config import settings
+from app.models.chat import ChatMessage
 from app.models.user_memory import UserMemoryItem
-from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.llm_execution_service import LLMExecutionService
@@ -21,18 +22,23 @@ from app.services.llm_registry import LLMRegistry
 logger = logging.getLogger(__name__)
 
 
-class MemoryCandidate(BaseModel):
-    kind: Literal["preference", "pattern", "topic", "joke", "quote", "meta"]
-    text: str = Field(min_length=1)
-    evidence_count: int = Field(ge=1)
+VALID_MEMORY_KINDS: typing.Final[frozenset[str]] = frozenset(
+    {"preference", "pattern", "topic", "joke", "quote", "meta"}
+)
+
+
+class MemoryCandidate(pydantic.BaseModel):
+    kind: typing.Literal["preference", "pattern", "topic", "joke", "quote", "meta"]
+    text: str = pydantic.Field(min_length=1)
+    evidence_count: int = pydantic.Field(ge=1)
     confidence: float
 
 
-class MemoryCandidateList(BaseModel):
+class MemoryCandidateList(pydantic.BaseModel):
     root: list[MemoryCandidate]
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class MemoryExtractionResult:
     ok: bool
     status: str
@@ -85,7 +91,7 @@ class UserMemoryService:
 
         return False, "skip"
 
-    def get_messages_for_refresh(self, db: Session, username: str, mode: str):
+    def select_messages_for_refresh(self, db: Session, username: str, mode: str) -> list[ChatMessage]:
         if mode == "bootstrap":
             return self.chat_memory.recent_user_messages_for_memory(
                 db,
@@ -142,8 +148,8 @@ class UserMemoryService:
             )
 
         try:
-            parsed = json.loads(raw)
-        except Exception as exc:
+            parsed_response = json.loads(raw)
+        except json.JSONDecodeError as exc:
             logger.warning(
                 "User memory extraction returned invalid JSON: username=%s raw=%s",
                 username,
@@ -158,8 +164,8 @@ class UserMemoryService:
             )
 
         try:
-            validated = MemoryCandidateList.model_validate({"root": parsed})
-        except ValidationError as exc:
+            validated = MemoryCandidateList.model_validate({"root": parsed_response})
+        except pydantic.ValidationError as exc:
             return MemoryExtractionResult(
                 ok=False,
                 status="failed_schema",
@@ -168,11 +174,10 @@ class UserMemoryService:
                 error_details=str(exc),
             )
 
-        valid_kinds = {"preference", "pattern", "topic", "joke", "quote", "meta"}
         candidates = [
             item
             for item in validated.root
-            if item.kind in valid_kinds
+            if item.kind in VALID_MEMORY_KINDS
             and item.text.strip()
             and item.evidence_count >= 1
             and item.confidence >= settings.user_memory_min_confidence
@@ -205,7 +210,7 @@ class UserMemoryService:
         existing_items = self.get_memory_items(db, username)
         existing_map = {(item.kind.strip().lower(), item.text.strip().lower()): item for item in existing_items}
 
-        now = datetime.now(UTC)
+        now = datetime.datetime.now(datetime.UTC)
 
         for candidate in candidates:
             key = (
@@ -251,12 +256,16 @@ class UserMemoryService:
     async def refresh_user_memory_if_needed(self, db: Session, username: str) -> bool:
         should_refresh, mode = self.should_refresh_user_memory(db, username)
         if not should_refresh:
-            trace_info("user_memory.refresh.skipped", "user memory refresh skipped", payload={"username": username})
+            app.observability.trace_helpers.trace_info(
+                "user_memory.refresh.skipped",
+                "user memory refresh skipped",
+                payload={"username": username},
+            )
             return False
 
-        messages = self.get_messages_for_refresh(db, username, mode)
+        messages = self.select_messages_for_refresh(db, username, mode)
         if not messages:
-            trace_info(
+            app.observability.trace_helpers.trace_info(
                 "user_memory.refresh.skipped",
                 "user memory refresh skipped: no messages",
                 payload={"username": username},
@@ -265,7 +274,7 @@ class UserMemoryService:
 
         message_ids = [m.id for m in messages]
         message_texts = [m.text for m in messages]
-        trace_info(
+        app.observability.trace_helpers.trace_info(
             "user_memory.refresh.start",
             "user memory refresh started",
             payload={"username": username, "mode": mode, "messages_count": len(message_texts)},
@@ -279,7 +288,7 @@ class UserMemoryService:
                 error_code=extraction.error_code,
             )
             if not extraction.ok:
-                trace_failure(
+                app.observability.trace_helpers.trace_failure(
                     "user_memory.extract.failed",
                     "memory extraction failed",
                     error_code=extraction.error_code or "memory_extraction_failed",
@@ -296,28 +305,32 @@ class UserMemoryService:
                 )
                 return False
 
-            trace_success(
+            app.observability.trace_helpers.trace_success(
                 "user_memory.extract.success",
                 "memory extraction finished",
                 payload={"status": extraction.status, "candidates_count": len(extraction.candidates)},
             )
             self.merge_memory_candidates(db, username, extraction.candidates)
-            trace_success("user_memory.merge.success", "memory merge completed")
+            app.observability.trace_helpers.trace_success("user_memory.merge.success", "memory merge completed")
             self.trim_user_memory(db, username)
-            trace_success("user_memory.trim.success", "memory trim completed")
+            app.observability.trace_helpers.trace_success("user_memory.trim.success", "memory trim completed")
             self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
-            trace_success(
+            app.observability.trace_helpers.trace_success(
                 "user_memory.mark_processed.success",
                 "marked messages as processed",
                 payload={"messages_count": len(message_ids)},
             )
             db.commit()
-            trace_success(
+            app.observability.trace_helpers.trace_success(
                 "user_memory.refresh.success", "user memory refresh committed", payload={"username": username}
             )
         except Exception:
             db.rollback()
-            trace_failure("user_memory.refresh.failed", "user memory refresh failed", error_code="internal_error")
+            app.observability.trace_helpers.trace_failure(
+                "user_memory.refresh.failed",
+                "user memory refresh failed",
+                error_code="internal_error",
+            )
             raise
 
         if extraction.status == "success_empty":
