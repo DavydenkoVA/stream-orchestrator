@@ -73,13 +73,7 @@ def _validate_dynamic_prompt_name(name: str) -> str:
 
 def _build_view_model() -> dict:
     style_registry = api_routes.service.style_registry
-    admin_service = LLMConfigAdminService(
-        api_routes.service.llm_registry,
-        style_registry=style_registry,
-    )
-    raw_config = admin_service.read_raw_config()
-    if not raw_config:
-        raw_config = api_routes.service.llm_registry.export_raw_config()
+    raw_config = _read_admin_raw_config(style_registry)
 
     selector_options = [asdict(option) for option in style_registry.selector_options()]
     snapshot_meta = api_routes.service.llm_registry.get_snapshot_metadata()
@@ -129,6 +123,7 @@ def _build_view_model() -> dict:
 
     return {
         "providers": providers_list,
+        "provider_options": _extract_top_level_provider_names(raw_config),
         "features": features_list,
         "provider_type_options": list(SUPPORTED_PROVIDER_TYPES),
         "temperature_min": TEMPERATURE_MIN,
@@ -138,6 +133,30 @@ def _build_view_model() -> dict:
         "metadata": snapshot_meta,
         "active_config_path": str(Path(settings.llm_profiles_config_path)),
     }
+
+
+def _read_admin_raw_config(style_registry: StyleRegistry) -> dict:
+    admin_service = LLMConfigAdminService(
+        api_routes.service.llm_registry,
+        style_registry=style_registry,
+    )
+    raw_config = admin_service.read_raw_config()
+    if raw_config:
+        return raw_config
+    return api_routes.service.llm_registry.export_raw_config()
+
+
+def _extract_top_level_provider_names(raw_config: dict) -> list[str]:
+    providers = raw_config.get("providers", {})
+    if not isinstance(providers, dict):
+        return []
+
+    names: list[str] = []
+    for provider_name in providers.keys():
+        normalized = str(provider_name).strip()
+        if normalized and normalized not in names:
+            names.append(normalized)
+    return names
 
 
 def _resolve_selector_options_with_legacy(
@@ -229,6 +248,7 @@ def get_llm_config(request: Request):
 def get_playground(request: Request, mode: str = Query(default="chat")):
     normalized_mode = "dynamic" if mode == "dynamic" else "chat"
     style_registry = api_routes.service.style_registry
+    raw_config = _read_admin_raw_config(style_registry)
     return templates.TemplateResponse(
         request=request,
         name="admin/playground.html",
@@ -236,7 +256,7 @@ def get_playground(request: Request, mode: str = Query(default="chat")):
             "active_page": "playground",
             "page_title": "Playground",
             "mode": normalized_mode,
-            "provider_options": api_routes.service.llm_registry.list_provider_names(),
+            "provider_options": _extract_top_level_provider_names(raw_config),
             "dynamic_style_options": [asdict(option) for option in style_registry.selector_options()],
             "temperature_min": TEMPERATURE_MIN,
             "temperature_max": TEMPERATURE_MAX,

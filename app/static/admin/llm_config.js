@@ -3,6 +3,7 @@ let featureIndex = 0;
 
 const providerTypeOptions = window.LLM_CONFIG_INITIAL?.providerTypeOptions ?? [];
 const globalStyleOptions = window.LLM_CONFIG_INITIAL?.styleOptions ?? [];
+const initialProviderOptions = window.LLM_CONFIG_INITIAL?.providerOptions ?? [];
 
 function htmlFromTemplate(templateId, replacements) {
   let html = document.getElementById(templateId).innerHTML;
@@ -36,9 +37,9 @@ function buildOptions(options, selectedValue = "", placeholder = null) {
 
 function collectProviderNames() {
   const names = [];
-  document.querySelectorAll('.provider-item input[name$="[name]"]').forEach((input) => {
+  document.querySelectorAll('.provider-item .provider-name-input').forEach((input) => {
     const value = String(input.value || '').trim();
-    if (value) {
+    if (value && !names.includes(value)) {
       names.push(value);
     }
   });
@@ -90,7 +91,6 @@ function addProvider(provider = { name: '', provider: providerTypeOptions[0] ?? 
   container.appendChild(node);
 
   const providerNameInput = node.querySelector(`input[name="providers[${currentIndex}][name]"]`);
-  const providerTypeSelect = node.querySelector(`select[name="providers[${currentIndex}][provider]"]`);
   const modelsContainer = node.querySelector('.models-container');
   const addModelButton = node.querySelector('.add-model');
 
@@ -123,7 +123,6 @@ function addProvider(provider = { name: '', provider: providerTypeOptions[0] ?? 
 
   providerNameInput.addEventListener('input', syncFeatureProviderOptions);
   providerNameInput.addEventListener('change', syncFeatureProviderOptions);
-  providerTypeSelect.addEventListener('change', syncFeatureProviderOptions);
 
   if (provider.models && provider.models.length) {
     provider.models.forEach(addModel);
@@ -147,6 +146,11 @@ function addFeature(
   wrapper.innerHTML = htmlFromTemplate('feature-template', {
     __F_INDEX__: String(currentIndex),
     __F_NAME__: feature.name,
+    __F_PROVIDER_OPTIONS__: buildOptions(
+      initialProviderOptions,
+      feature.provider ?? '',
+      '-- select provider --'
+    ),
     __F_TEMP__: String(feature.temperature ?? ''),
     __F_TOKENS__: String(feature.max_output_tokens ?? ''),
     __F_STYLE__: feature.style,
