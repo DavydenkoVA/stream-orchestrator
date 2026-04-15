@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+  <h1>Styles</h1>
+  <p class="muted">Manage configured styles. <code>default</code> is required and cannot be removed.</p>
+
+  <form id="styles-form">
+    <div id="styles-container"></div>
+
+    <div class="actions">
+      <button type="button" id="add-style-btn">+ Add style</button>
+      <button
+        type="button"
+        hx-post="/styles/validate"
+        hx-include="#styles-form"
+        hx-target="#status-panel"
+        hx-swap="innerHTML"
+      >Validate</button>
+      <button
+        type="button"
+        hx-post="/styles/apply"
+        hx-include="#styles-form"
+        hx-target="#status-panel"
+        hx-swap="innerHTML"
+      >Apply</button>
+    </div>
+  </form>
+
+  <div id="status-panel"></div>
+
+  <template id="style-template">
+    <div class="card style-item" data-style-index="__S_INDEX__" data-style-key="__S_NAME__">
+      <div class="row">
+        <div>
+          <label>Name
+            <input name="styles[__S_INDEX__][name]" value="__S_NAME__" __S_NAME_READONLY__>
+          </label>
+        </div>
+        <div>
+          <label>Title
+            <input name="styles[__S_INDEX__][title]" value="__S_TITLE__">
+          </label>
+        </div>
+      </div>
+      <label>Instruction
+        <textarea name="styles[__S_INDEX__][instruction]" rows="5">__S_INSTRUCTION__</textarea>
+      </label>
+      __S_REMOVE_BUTTON__
+    </div>
+  </template>
+
+  <script>
+    window.STYLES_INITIAL = {
+      styles: {{ styles | tojson }}
+    };
+  </script>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ request.url_for('static', path='admin/styles.js') }}"></script>
+{% endblock %}
