@@ -436,6 +436,7 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     assert "style_resolution_status" not in payload["run"]
     assert [event["seq_no"] for event in payload["events"]] == [1, 2]
     assert payload["events"][0]["tone"] == "info"
+    assert payload["events"][0]["style_resolution"] is None
     assert payload["events"][1]["tone"] == "failure"
     assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
 
@@ -496,6 +497,10 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
     assert payload["run"]["style_resolution_reason"] == "random_resolved"
     assert payload["events"][0]["payload"]["requested_style"] == "random"
     assert payload["events"][0]["payload"]["style"] == "absurd"
+    assert payload["events"][0]["style_resolution"]["requested"] == "random"
+    assert payload["events"][0]["style_resolution"]["applied"] == "absurd"
+    assert payload["events"][0]["style_resolution"]["result"] == "resolved"
+    assert payload["events"][0]["style_resolution"]["tone"] == "success"
 
     app.dependency_overrides.clear()
 
@@ -539,13 +544,12 @@ def test_traces_js_contains_style_resolution_block_rendering() -> None:
     assert "Style resolution" in script
     assert "requested:" in script
     assert "applied:" in script
-    assert "style_resolution_status" in script
-    assert "normalized === 'fallback'" in script
+    assert "result:" in script
+    assert "event.style_resolution" in script
 
 
 def test_console_css_contains_style_resolution_tones() -> None:
     css = Path("app/static/admin/console.css").read_text(encoding="utf-8")
     assert ".traces-style-resolution--success" in css
-    assert ".traces-style-resolution--warning" in css
     assert ".traces-style-resolution--failure" in css
     assert ".traces-style-resolution--neutral" in css

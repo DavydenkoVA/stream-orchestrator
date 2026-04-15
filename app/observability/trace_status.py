@@ -90,3 +90,69 @@ def trace_event_tone(
         return "info"
 
     return "neutral"
+
+
+_STYLE_RESOLUTION_SUCCESS_REASONS = {
+    "requested_applied",
+    "random_resolved",
+    "default_used",
+}
+_STYLE_RESOLUTION_FAILURE_REASONS = {
+    "style_not_found",
+    "invalid_style_fallback",
+    "random_no_candidates_defaulted",
+}
+
+
+def style_resolution_tone(
+    *,
+    requested_style: str | None,
+    applied_style: str | None,
+    status: str | None,
+    reason: str | None,
+) -> str:
+    normalized_status = (status or "").strip().lower()
+    normalized_reason = (reason or "").strip().lower()
+    requested = (requested_style or "").strip().lower()
+    applied = (applied_style or "").strip().lower()
+
+    if normalized_status in {"fallback", "failed"}:
+        return "failure"
+    if normalized_reason in _STYLE_RESOLUTION_FAILURE_REASONS:
+        return "failure"
+
+    if normalized_status == "success":
+        if normalized_reason in _STYLE_RESOLUTION_SUCCESS_REASONS or normalized_reason == "":
+            return "success"
+    if normalized_reason in _STYLE_RESOLUTION_SUCCESS_REASONS:
+        return "success"
+
+    if requested and applied and requested == applied:
+        return "success"
+    if requested and applied and requested != applied:
+        return "failure"
+
+    return "neutral"
+
+
+def style_resolution_result(
+    *,
+    requested_style: str | None,
+    applied_style: str | None,
+    status: str | None,
+    reason: str | None,
+) -> str:
+    normalized_status = (status or "").strip().lower()
+    normalized_reason = (reason or "").strip().lower()
+    requested = (requested_style or "").strip().lower()
+    applied = (applied_style or "").strip().lower()
+
+    if normalized_status in {"fallback", "failed"} or normalized_reason in _STYLE_RESOLUTION_FAILURE_REASONS:
+        return "fallback"
+    if normalized_status == "success" and normalized_reason == "random_resolved":
+        return "resolved"
+    if normalized_status == "success" and (requested == applied or normalized_reason == "requested_applied"):
+        return "applied"
+    if normalized_status == "success":
+        return "resolved"
+    return "unknown"

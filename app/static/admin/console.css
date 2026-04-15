@@ -374,10 +374,6 @@ summary {
   background: #bdecb6;
 }
 
-.traces-style-resolution--warning {
-  background: #fce5cd;
-}
-
 .traces-style-resolution--failure {
   background: #f8d7da;
 }

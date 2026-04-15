@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
-from app.observability.trace_status import normalize_status_filter, trace_event_tone, trace_status_tone
+from app.observability.trace_status import (
+    normalize_status_filter,
+    style_resolution_result,
+    style_resolution_tone,
+    trace_event_tone,
+    trace_status_tone,
+)
 
 
 class TraceReadService:
@@ -93,8 +99,46 @@ class TraceReadService:
             "status": event.status,
             "level": event.level,
             "tone": trace_event_tone(status=event.status, level=event.level, step=event.step),
+            "style_resolution": self._serialize_style_resolution(payload),
             "message": event.message,
             "payload": payload,
+        }
+
+    @staticmethod
+    def _serialize_style_resolution(payload: Any) -> dict[str, str] | None:
+        if not isinstance(payload, dict):
+            return None
+
+        requested_style = payload.get("requested_style")
+        applied_style = payload.get("applied_style") or payload.get("style")
+        resolution_status = payload.get("style_resolution_status")
+        resolution_reason = payload.get("style_resolution_reason")
+
+        requested = requested_style.strip() if isinstance(requested_style, str) else ""
+        applied = applied_style.strip() if isinstance(applied_style, str) else ""
+        status = resolution_status.strip() if isinstance(resolution_status, str) else ""
+        reason = resolution_reason.strip() if isinstance(resolution_reason, str) else ""
+
+        if not requested and not applied and not status and not reason:
+            return None
+
+        return {
+            "requested": requested or "unknown",
+            "applied": applied or "unknown",
+            "status": status or "unknown",
+            "reason": reason,
+            "tone": style_resolution_tone(
+                requested_style=requested or None,
+                applied_style=applied or None,
+                status=status or None,
+                reason=reason or None,
+            ),
+            "result": style_resolution_result(
+                requested_style=requested or None,
+                applied_style=applied or None,
+                status=status or None,
+                reason=reason or None,
+            ),
         }
 
     @staticmethod

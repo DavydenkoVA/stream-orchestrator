@@ -114,43 +114,29 @@
     return '—';
   }
 
-  function styleResolutionTone(status) {
-    const normalized = String(status || '').trim().toLowerCase();
-    if (normalized === 'success') return 'success';
-    if (normalized === 'fallback') return 'warning';
-    if (normalized === 'failed') return 'failure';
-    return 'neutral';
-  }
-
   function eventStyleResolution(event) {
-    const payload = event && event.payload && typeof event.payload === 'object' ? event.payload : null;
-    if (!payload) return null;
-
+    const resolution = event && event.style_resolution && typeof event.style_resolution === 'object'
+      ? event.style_resolution
+      : null;
+    if (!resolution) return null;
     const kind = String(event.kind || '');
     const isLlmEvent = kind.startsWith('llm.') || kind.startsWith('dynamic_prompt.llm.');
     if (!isLlmEvent) return null;
-
-    const requested = String(payload.requested_style || '').trim();
-    const applied = String(payload.applied_style || payload.style || '').trim();
-    const status = String(payload.style_resolution_status || '').trim();
-    const reason = String(payload.style_resolution_reason || '').trim();
-
-    if (!requested && !applied && !status && !reason) return null;
-    return { requested, applied, status, reason };
+    return resolution;
   }
 
   function eventStyleResolutionBlock(event) {
     const resolution = eventStyleResolution(event);
     if (!resolution) return '';
 
-    const tone = styleResolutionTone(resolution.status);
+    const tone = String(resolution.tone || 'neutral');
     return `
       <div class="traces-style-resolution traces-style-resolution--${tone}">
         <div class="traces-style-resolution-title">Style resolution</div>
         <div class="traces-style-resolution-grid">
           <div>requested: ${trimText(resolution.requested || 'unknown', 48)}</div>
           <div>applied: ${trimText(resolution.applied || 'unknown', 48)}</div>
-          <div>status: ${trimText(resolution.status || 'unknown', 24)}</div>
+          <div>result: ${trimText(resolution.result || 'unknown', 24)}</div>
           ${resolution.reason ? `<div>reason: ${trimText(resolution.reason, 48)}</div>` : ''}
         </div>
       </div>
