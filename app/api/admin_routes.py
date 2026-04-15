@@ -15,6 +15,7 @@ from app.api import routes as api_routes
 from app.config import settings
 from app.db import get_db
 from app.services.llm_config_admin_service import LLMConfigAdminService
+from app.services.trace_read_service import TraceReadService
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -23,6 +24,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 _DYNAMIC_PROMPT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+_trace_read_service = TraceReadService()
 
 
 class ResetStreamRequest(BaseModel):
@@ -233,12 +237,40 @@ def reset_chat_stream(payload: ResetStreamRequest, db: Session = Depends(get_db)
 
 
 @router.get("/traces", response_class=HTMLResponse)
-def get_traces(request: Request):
+def get_traces(request: Request, run_id: str | None = Query(default=None)):
     return templates.TemplateResponse(
         request=request,
-        name="admin/traces_placeholder.html",
-        context={"active_page": "traces", "page_title": "Traces"},
+        name="admin/traces.html",
+        context={
+            "active_page": "traces",
+            "page_title": "Traces",
+            "selected_run_id": run_id or "",
+        },
     )
+
+
+@router.get("/traces/api/runs")
+def get_trace_runs(
+    limit: int = Query(default=50, ge=1, le=200),
+    stream_id: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict:
+    items = _trace_read_service.list_runs(
+        db,
+        limit=limit,
+        stream_id=stream_id,
+        status=status,
+    )
+    return {"items": items}
+
+
+@router.get("/traces/api/runs/{run_id}")
+def get_trace_run_detail(run_id: str, db: Session = Depends(get_db)) -> dict:
+    detail = _trace_read_service.get_run_detail(db, run_id=run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Trace run not found")
+    return detail
 
 
 @router.get("/admin/llm-config")
