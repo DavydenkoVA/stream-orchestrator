@@ -9,6 +9,7 @@ from app.services.styles_admin_service import StylesAdminService
 def _valid_styles_form() -> dict[str, str]:
     return {
         "styles[0][name]": "default",
+        "styles[0][system]": "default",
         "styles[0][title]": "Default",
         "styles[0][instruction]": "",
         "styles[1][name]": "fun",
@@ -21,6 +22,7 @@ def test_validate_rejects_missing_default(temp_styles_config: Path) -> None:
     service = StylesAdminService(StyleRegistry(str(temp_styles_config)))
     form = {
         "styles[0][name]": "fun",
+        "styles[0][system]": "default",
         "styles[0][title]": "Fun",
         "styles[0][instruction]": "Joke",
     }
@@ -35,6 +37,7 @@ def test_validate_rejects_reserved_random_and_duplicates(temp_styles_config: Pat
     service = StylesAdminService(StyleRegistry(str(temp_styles_config)))
     form = {
         "styles[0][name]": "default",
+        "styles[0][system]": "default",
         "styles[0][title]": "Default",
         "styles[0][instruction]": "",
         "styles[1][name]": "random",
@@ -61,6 +64,17 @@ def test_validate_rejects_invalid_style_name(temp_styles_config: Path) -> None:
 
     assert result.valid is False
     assert "invalid style name: bad.name" in result.errors
+
+
+def test_validate_rejects_renamed_default_row(temp_styles_config: Path) -> None:
+    service = StylesAdminService(StyleRegistry(str(temp_styles_config)))
+    form = _valid_styles_form()
+    form["styles[0][name]"] = "renamed_default"
+
+    result = service.validate_form_data(form)
+
+    assert result.valid is False
+    assert "default style name cannot be changed" in result.errors
 
 
 def test_apply_creates_file_when_missing(tmp_path: Path) -> None:

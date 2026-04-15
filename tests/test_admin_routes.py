@@ -83,6 +83,9 @@ def test_get_styles_page_returns_200_and_shows_default() -> None:
     assert "Manage configured styles" in response.text
     assert '"key": "default"' in response.text
     assert 'id="add-style-btn"' in response.text
+    styles_js = client.get("/static/admin/styles.js")
+    assert styles_js.status_code == 200
+    assert "readonly" in styles_js.text
 
 
 def test_get_playground_returns_200() -> None:
@@ -314,6 +317,7 @@ def test_styles_validate_and_apply_routes_work() -> None:
     client = TestClient(app)
     payload = {
         "styles[0][name]": "default",
+        "styles[0][system]": "default",
         "styles[0][title]": "Default title",
         "styles[0][instruction]": "",
         "styles[1][name]": "cinematic",
@@ -337,6 +341,7 @@ def test_styles_validate_rejects_missing_default() -> None:
     client = TestClient(app)
     payload = {
         "styles[0][name]": "fun",
+        "styles[0][system]": "default",
         "styles[0][title]": "Fun",
         "styles[0][instruction]": "Add jokes.",
     }
@@ -345,6 +350,25 @@ def test_styles_validate_rejects_missing_default() -> None:
     assert response.status_code == 200
     assert "Validation failed" in response.text
     assert "default style is required" in response.text
+
+
+def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
+    client = TestClient(app)
+    payload = {
+        "styles[0][name]": "renamed",
+        "styles[0][system]": "default",
+        "styles[0][title]": "Default",
+        "styles[0][instruction]": "",
+        "styles[1][name]": "fun",
+        "styles[1][title]": "Fun",
+        "styles[1][instruction]": "Add jokes.",
+    }
+
+    response = client.post("/styles/validate", data=payload)
+
+    assert response.status_code == 200
+    assert "Validation failed" in response.text
+    assert "default style name cannot be changed" in response.text
 
 
 def test_legacy_validate_route_still_works() -> None:

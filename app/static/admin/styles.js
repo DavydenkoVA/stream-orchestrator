@@ -23,6 +23,7 @@
     html = html.replaceAll('__S_TITLE__', escapeHtml(style.title || ''));
     html = html.replaceAll('__S_INSTRUCTION__', escapeHtml(style.instruction || ''));
     html = html.replaceAll('__S_NAME_READONLY__', isDefault ? 'readonly' : '');
+    html = html.replaceAll('__S_SYSTEM__', isDefault ? 'default' : '');
     html = html.replaceAll(
       '__S_REMOVE_BUTTON__',
       isDefault ? '' : '<button type="button" class="remove-style">Remove style</button>'
