@@ -5,7 +5,37 @@
   <p class="muted">Manage configured styles. <code>default</code> is required and cannot be removed.</p>
 
   <form id="styles-form">
-    <div id="styles-container"></div>
+    <div id="styles-container" data-next-index="{{ styles|length }}">
+      {% for style in styles %}
+        <div class="card style-item" data-style-index="{{ loop.index0 }}" data-style-key="{{ style.key }}">
+          <div class="row">
+            <div>
+              <label>Name
+                {% if style.key == "default" %}
+                  <input value="{{ style.key }}" disabled>
+                  <input type="hidden" name="styles[{{ loop.index0 }}][name]" value="{{ style.key }}">
+                  <input type="hidden" name="styles[{{ loop.index0 }}][system]" value="default">
+                {% else %}
+                  <input name="styles[{{ loop.index0 }}][name]" value="{{ style.key }}">
+                  <input type="hidden" name="styles[{{ loop.index0 }}][system]" value="">
+                {% endif %}
+              </label>
+            </div>
+            <div>
+              <label>Title
+                <input name="styles[{{ loop.index0 }}][title]" value="{{ style.title }}">
+              </label>
+            </div>
+          </div>
+          <label>Instruction
+            <textarea name="styles[{{ loop.index0 }}][instruction]" rows="5">{{ style.instruction }}</textarea>
+          </label>
+          {% if style.key != "default" %}
+            <button type="button" class="remove-style">Remove style</button>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
 
     <div class="actions">
       <button type="button" id="add-style-btn">+ Add style</button>
@@ -29,32 +59,27 @@
   <div id="status-panel"></div>
 
   <template id="style-template">
-    <div class="card style-item" data-style-index="__S_INDEX__" data-style-key="__S_NAME__">
+    <div class="card style-item" data-style-index="__S_INDEX__" data-style-key="">
       <div class="row">
         <div>
           <label>Name
-            <input name="styles[__S_INDEX__][name]" value="__S_NAME__" __S_NAME_READONLY__>
+            <input name="styles[__S_INDEX__][name]" value="">
           </label>
-          <input type="hidden" name="styles[__S_INDEX__][system]" value="__S_SYSTEM__">
+          <input type="hidden" name="styles[__S_INDEX__][system]" value="">
         </div>
         <div>
           <label>Title
-            <input name="styles[__S_INDEX__][title]" value="__S_TITLE__">
+            <input name="styles[__S_INDEX__][title]" value="">
           </label>
         </div>
       </div>
       <label>Instruction
-        <textarea name="styles[__S_INDEX__][instruction]" rows="5">__S_INSTRUCTION__</textarea>
+        <textarea name="styles[__S_INDEX__][instruction]" rows="5"></textarea>
       </label>
-      __S_REMOVE_BUTTON__
+      <button type="button" class="remove-style">Remove style</button>
     </div>
   </template>
 
-  <script>
-    window.STYLES_INITIAL = {
-      styles: {{ styles | tojson }}
-    };
-  </script>
 {% endblock %}
 
 {% block scripts %}

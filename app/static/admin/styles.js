@@ -1,47 +1,30 @@
 (function () {
-  const initial = window.STYLES_INITIAL?.styles ?? [];
   const container = document.getElementById('styles-container');
   const template = document.getElementById('style-template');
   const addStyleBtn = document.getElementById('add-style-btn');
-  let styleIndex = 0;
-
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+  if (!container || !template || !addStyleBtn) {
+    return;
   }
 
-  function renderStyle(style) {
-    const index = styleIndex++;
-    const isDefault = String(style.key || '').toLowerCase() === 'default';
-    let html = template.innerHTML;
-    html = html.replaceAll('__S_INDEX__', String(index));
-    html = html.replaceAll('__S_NAME__', escapeHtml(style.key || ''));
-    html = html.replaceAll('__S_TITLE__', escapeHtml(style.title || ''));
-    html = html.replaceAll('__S_INSTRUCTION__', escapeHtml(style.instruction || ''));
-    html = html.replaceAll('__S_NAME_READONLY__', isDefault ? 'readonly' : '');
-    html = html.replaceAll('__S_SYSTEM__', isDefault ? 'default' : '');
-    html = html.replaceAll(
-      '__S_REMOVE_BUTTON__',
-      isDefault ? '' : '<button type="button" class="remove-style">Remove style</button>'
-    );
+  let nextIndex = Number(container.dataset.nextIndex || '0');
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = html;
-    const node = wrapper.firstElementChild;
+  function bindRemoveButton(node) {
     const removeBtn = node.querySelector('.remove-style');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', () => node.remove());
+    if (!removeBtn) {
+      return;
     }
-    container.appendChild(node);
+    removeBtn.addEventListener('click', () => node.remove());
   }
 
-  initial.forEach(renderStyle);
+  container.querySelectorAll('.style-item').forEach(bindRemoveButton);
 
   addStyleBtn.addEventListener('click', () => {
-    renderStyle({ key: '', title: '', instruction: '' });
+    const index = nextIndex++;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = template.innerHTML.replaceAll('__S_INDEX__', String(index));
+    const node = wrapper.firstElementChild;
+    bindRemoveButton(node);
+    container.appendChild(node);
+    container.dataset.nextIndex = String(nextIndex);
   });
 })();

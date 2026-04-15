@@ -81,11 +81,29 @@ def test_get_styles_page_returns_200_and_shows_default() -> None:
 
     assert response.status_code == 200
     assert "Manage configured styles" in response.text
-    assert '"key": "default"' in response.text
     assert 'id="add-style-btn"' in response.text
-    styles_js = client.get("/static/admin/styles.js")
-    assert styles_js.status_code == 200
-    assert "readonly" in styles_js.text
+    assert '<input value="default" disabled>' in response.text
+    assert 'name="styles[0][name]" value="default"' in response.text
+    assert 'name="styles[0][system]" value="default"' in response.text
+
+
+def test_get_styles_page_keeps_non_default_name_editable() -> None:
+    client = TestClient(app)
+    response = client.get("/styles")
+
+    assert response.status_code == 200
+    assert 'name="styles[1][name]" value="fun"' in response.text
+    assert 'name="styles[1][name]" value="fun" disabled' not in response.text
+
+
+def test_styles_js_does_not_reinitialize_default_name_field() -> None:
+    client = TestClient(app)
+    response = client.get("/static/admin/styles.js")
+
+    assert response.status_code == 200
+    assert "querySelectorAll('.style-item').forEach(bindRemoveButton);" in response.text
+    assert "readonly" not in response.text
+    assert "removeAttribute" not in response.text
 
 
 def test_get_playground_returns_200() -> None:
@@ -318,8 +336,8 @@ def test_styles_validate_and_apply_routes_work() -> None:
     payload = {
         "styles[0][name]": "default",
         "styles[0][system]": "default",
-        "styles[0][title]": "Default title",
-        "styles[0][instruction]": "",
+        "styles[0][title]": "Default title updated",
+        "styles[0][instruction]": "Default instruction updated",
         "styles[1][name]": "cinematic",
         "styles[1][title]": "Cinematic",
         "styles[1][instruction]": "Use cinematic language.",
@@ -335,6 +353,8 @@ def test_styles_validate_and_apply_routes_work() -> None:
 
     page = client.get("/styles")
     assert "cinematic" in page.text
+    assert "Default title updated" in page.text
+    assert "Default instruction updated" in page.text
 
 
 def test_styles_validate_rejects_missing_default() -> None:
