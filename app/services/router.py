@@ -1,11 +1,11 @@
 from __future__ import annotations
-
 import logging
 import re
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.observability.trace_helpers import trace_info, trace_success
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.dossier import DossierService
@@ -19,13 +19,13 @@ from app.services.features import (
     WeeklyMoviesFeatureHandler,
 )
 from app.services.file_readers.weekly_movies import WeeklyMoviesFileService
+from app.services.llm_execution_service import LLMExecutionService
 from app.services.llm_registry import LLMRegistry
-from app.services.user_memory_service import UserMemoryService
+from app.services.provider_state_store import ProviderStateStore
 from app.services.style_prompt import StylePromptService
 from app.services.style_registry import StyleRegistry
-from app.services.llm_execution_service import LLMExecutionService
-from app.services.provider_state_store import ProviderStateStore
-from app.observability.trace_helpers import trace_info, trace_success
+from app.services.user_memory_service import UserMemoryService
+
 
 logger = logging.getLogger(__name__)
 
@@ -81,25 +81,21 @@ class RouterService:
         return any(trigger in normalized for trigger in triggers)
 
     def ingest_chat_event(
-            self,
-            db: Session,
-            *,
-            stream_id: str,
-            username: str,
-            text: str,
-            mentions_bot: bool,
-            role: str = "viewer",
-            message_id: str | None = None,
-            reply_to_message_id: str | None = None,
-            reply_to_username: str | None = None,
-            reply_to_text: str | None = None,
+        self,
+        db: Session,
+        *,
+        stream_id: str,
+        username: str,
+        text: str,
+        mentions_bot: bool,
+        role: str = "viewer",
+        message_id: str | None = None,
+        reply_to_message_id: str | None = None,
+        reply_to_username: str | None = None,
+        reply_to_text: str | None = None,
     ) -> None:
         normalized_username = self.normalize_username(username)
-        normalized_reply_to_username = (
-            self.normalize_username(reply_to_username)
-            if reply_to_username
-            else None
-        )
+        normalized_reply_to_username = self.normalize_username(reply_to_username) if reply_to_username else None
 
         trace_info("chat_message.save.start", "saving chat message", payload={"stream_id": stream_id, "role": role})
         self.chat_memory.save_message(
@@ -120,14 +116,13 @@ class RouterService:
         except Exception:
             logger.warning("trace operation failed: chat_message.save.success", exc_info=True)
 
-
     async def run_dossier(
-            self,
-            db: Session,
-            *,
-            stream_id: str,
-            username: str,
-            target_username: str,
+        self,
+        db: Session,
+        *,
+        stream_id: str,
+        username: str,
+        target_username: str,
     ) -> tuple[str, str]:
         request = ChatRequest(
             stream_id=stream_id,
@@ -150,19 +145,20 @@ class RouterService:
         handler = DossierFeatureHandler()
         response = await handler.handle(context, request)
         return response.reply_text, response.route
+
     async def handle_chat_reply(
-            self,
-            db: Session,
-            *,
-            stream_id: str,
-            username: str,
-            text: str,
-            mentions_bot: bool,
-            role: str = "viewer",
-            message_id: str | None = None,
-            reply_to_message_id: str | None = None,
-            reply_to_username: str | None = None,
-            reply_to_text: str | None = None,
+        self,
+        db: Session,
+        *,
+        stream_id: str,
+        username: str,
+        text: str,
+        mentions_bot: bool,
+        role: str = "viewer",
+        message_id: str | None = None,
+        reply_to_message_id: str | None = None,
+        reply_to_username: str | None = None,
+        reply_to_text: str | None = None,
     ) -> tuple[str, str]:
         self.ingest_chat_event(
             db,

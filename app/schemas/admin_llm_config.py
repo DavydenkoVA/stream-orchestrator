@@ -72,7 +72,7 @@ class AdminLLMConfig(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_unique_names_and_links(self) -> "AdminLLMConfig":
+    def validate_unique_names_and_links(self) -> AdminLLMConfig:
         provider_names = [provider.name for provider in self.providers]
         if len(provider_names) != len(set(provider_names)):
             raise ValueError("duplicate provider name")
@@ -80,9 +80,7 @@ class AdminLLMConfig(BaseModel):
         for provider in self.providers:
             model_names = [model.name for model in provider.models]
             if len(model_names) != len(set(model_names)):
-                raise ValueError(
-                    f"duplicate model name inside provider '{provider.name}'"
-                )
+                raise ValueError(f"duplicate model name inside provider '{provider.name}'")
 
         known_provider_names = set(provider_names)
         for feature in self.feature_settings:

@@ -1,7 +1,6 @@
 import re
 
 from fastapi import HTTPException
-
 from fastapi.testclient import TestClient
 
 from app.db import get_db
@@ -120,8 +119,6 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     app.dependency_overrides.clear()
 
 
-
-
 def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session) -> None:
     def override_get_db():
         yield db_session
@@ -142,6 +139,7 @@ def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session
     assert response.status_code == 422
 
     app.dependency_overrides.clear()
+
 
 def test_debug_context_endpoint(db_session) -> None:
     def override_get_db():
@@ -281,11 +279,11 @@ def test_debug_prompts_endpoint(db_session) -> None:
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
 
-    response = client.get('/debug/prompts/chat_system.txt')
+    response = client.get("/debug/prompts/chat_system.txt")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload['name'] == 'chat_system.txt'
-    assert payload['content']
+    assert payload["name"] == "chat_system.txt"
+    assert payload["content"]
 
     app.dependency_overrides.clear()

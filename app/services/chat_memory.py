@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
@@ -8,18 +10,18 @@ from app.models.chat import ChatMessage
 
 class ChatMemoryService:
     def save_message(
-            self,
-            db: Session,
-            *,
-            stream_id: str,
-            username: str,
-            text: str,
-            mentions_bot: bool,
-            role: str = "viewer",
-            message_id: str | None = None,
-            reply_to_message_id: str | None = None,
-            reply_to_username: str | None = None,
-            reply_to_text: str | None = None,
+        self,
+        db: Session,
+        *,
+        stream_id: str,
+        username: str,
+        text: str,
+        mentions_bot: bool,
+        role: str = "viewer",
+        message_id: str | None = None,
+        reply_to_message_id: str | None = None,
+        reply_to_username: str | None = None,
+        reply_to_text: str | None = None,
     ) -> ChatMessage:
         message = ChatMessage(
             stream_id=stream_id,
@@ -207,4 +209,4 @@ class ChatMemoryService:
     ) -> int:
         stmt = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
         result = db.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(cast(CursorResult[object], result).rowcount or 0)

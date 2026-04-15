@@ -1,8 +1,20 @@
+from typing import TypedDict
+
+
+class MemoryItemPayload(TypedDict):
+    text: str
+
+
+class DossierContextPayload(TypedDict):
+    username: str
+    memory_items: list[MemoryItemPayload]
+
+
 class LLMClient:
     def generate_chat_reply(self, *, username: str, text: str, recent_messages: list[str]) -> str:
         return f"[{username}] заглушка ответа: {text}"
 
-    def generate_dossier(self, context: dict) -> str:
+    def generate_dossier(self, context: DossierContextPayload) -> str:
         username = context["username"]
         memory_items = context["memory_items"][:3]
         if not memory_items:

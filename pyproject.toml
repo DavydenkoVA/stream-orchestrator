@@ -27,10 +27,6 @@ dev = [
   "pytest-asyncio>=0.23.7",
 ]
 
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
@@ -41,8 +37,58 @@ members = [
 
 [dependency-groups]
 dev = [
+    "auto-typing-final>=1.0.3",
+    "community-of-python-flake8-plugin>=0.4.1",
+    "flake8-pyproject>=1.2.4",
     "mypy>=1.20.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.2.0",
     "ruff>=0.15.8",
+    "types-pyyaml>=6.0.12.20250915",
 ]
+
+[tool.ruff]
+fix = true
+unsafe-fixes = true
+line-length = 120
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "C4",
+]
+ignore = [
+    "B008",
+]
+
+[tool.ruff.lint.isort]
+no-lines-before = ["standard-library", "local-folder"]
+known-third-party = []
+known-local-folder = []
+lines-after-imports = 2
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+exclude = ["^main\\.py$"]
+
+[tool.flake8]
+max-line-length = 120
+select = ["E", "F", "W"]
+extend-ignore = ["E203", "W503", "E704"]
+exclude = [".venv", ".cache", "__pycache__"]
+
+[tool.coverage.report]
+exclude_also = ["if typing.TYPE_CHECKING:"]

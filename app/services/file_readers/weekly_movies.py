@@ -1,11 +1,15 @@
 from pathlib import Path
+from typing import TypeAlias
+
+
+WeeklyMoviesRawResponse: TypeAlias = dict[str, bool | str | None]
 
 
 class WeeklyMoviesFileService:
     def __init__(self, file_path: str) -> None:
         self.file_path = Path(file_path)
 
-    def read_raw(self) -> dict:
+    def read_raw(self) -> WeeklyMoviesRawResponse:
         if not self.file_path:
             return {
                 "found": False,

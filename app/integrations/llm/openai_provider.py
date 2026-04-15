@@ -24,8 +24,8 @@ class OpenAIProvider(LLMProvider):
         *,
         system_prompt: str,
         user_prompt: str,
-        temperature: float,
-        max_output_tokens: int,
+        temperature: float = 0.7,
+        max_output_tokens: int = 400,
     ) -> str:
         response = await self.client.chat.completions.create(
             model=self.model,

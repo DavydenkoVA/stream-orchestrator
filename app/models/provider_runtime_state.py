@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String

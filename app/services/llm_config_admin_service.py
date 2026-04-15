@@ -1,10 +1,11 @@
 from __future__ import annotations
-
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import re
 import tempfile
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
@@ -24,12 +25,8 @@ class AdminValidationResult:
 
 class LLMConfigAdminService:
     PROVIDER_PATTERN = re.compile(r"^providers\[(\d+)\]\[(name|provider)\]$")
-    MODEL_PATTERN = re.compile(
-        r"^providers\[(\d+)\]\[models\]\[(\d+)\]\[(name|api_key|base_url|model)\]$"
-    )
-    FEATURE_PATTERN = re.compile(
-        r"^feature_settings\[(\d+)\]\[(name|provider|temperature|max_output_tokens|style)\]$"
-    )
+    MODEL_PATTERN = re.compile(r"^providers\[(\d+)\]\[models\]\[(\d+)\]\[(name|api_key|base_url|model)\]$")
+    FEATURE_PATTERN = re.compile(r"^feature_settings\[(\d+)\]\[(name|provider|temperature|max_output_tokens|style)\]$")
 
     def __init__(self, registry: LLMRegistry, style_registry: StyleRegistry | None = None) -> None:
         self.registry = registry
@@ -146,7 +143,6 @@ class LLMConfigAdminService:
         self.registry.apply_snapshot(snapshot)
         return validation
 
-
     def _validate_style_references(self, raw: dict) -> list[str]:
         errors: list[str] = []
         features = raw.get("feature_settings", {})
@@ -160,7 +156,7 @@ class LLMConfigAdminService:
         return errors
 
     @staticmethod
-    def _humanize_error(error: dict) -> str:
+    def _humanize_error(error: Mapping[str, Any]) -> str:
         loc = error.get("loc", ())
         message = str(error.get("msg", "validation error"))
         lowered = message.lower()

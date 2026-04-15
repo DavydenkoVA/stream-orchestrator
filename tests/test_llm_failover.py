@@ -1,7 +1,7 @@
 import asyncio
 
 from app.services.llm_execution_service import LLMExecutionService
-from app.services.llm_registry import FeatureLLMSettings, LLMRegistry
+from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
 
 

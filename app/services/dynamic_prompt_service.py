@@ -1,18 +1,18 @@
 from __future__ import annotations
-
 import logging
+import pathlib
 import re
-from pathlib import Path
-from typing import Any
+import typing
+
 from sqlalchemy.orm import Session
 
+import app.observability.trace_helpers
 from app.config import settings
 from app.prompt_store import PromptStore
-from app.services.llm_registry import LLMRegistry
-from app.text_utils import prepare_chat_text
-from app.services.style_prompt import StylePromptService
 from app.services.llm_execution_service import LLMExecutionService
-from app.observability.trace_helpers import trace_failure, trace_info, trace_success
+from app.services.llm_registry import LLMRegistry
+from app.services.style_prompt import StylePromptService
+from app.text_utils import prepare_chat_text
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ class DynamicPromptService:
     def _validate_prompt_name(self, prompt_name: str) -> str:
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", prompt_name):
             raise ValueError("Invalid prompt name")
-        trace_success("dynamic_prompt.validate.success", "dynamic prompt name validated", payload={"prompt_name": prompt_name})
+        app.observability.trace_helpers.trace_success(
+            "dynamic_prompt.validate.success", "dynamic prompt name validated", payload={"prompt_name": prompt_name}
+        )
         return prompt_name
 
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
@@ -45,7 +47,7 @@ class DynamicPromptService:
         return system_name, template_name
 
     def _prompt_exists(self, relative_name: str) -> bool:
-        prompt_path = Path(settings.prompts_dir) / relative_name
+        prompt_path = pathlib.Path(settings.prompts_dir) / relative_name
         return prompt_path.exists() and prompt_path.is_file()
 
     async def generate(
@@ -54,7 +56,7 @@ class DynamicPromptService:
         db: Session,
         prompt_name: str,
         user: str,
-        data: dict[str, Any],
+        data: dict[str, typing.Any],
         llm_provider_override: str | None = None,
         style_override: str | None = None,
         temperature_override: float | None = None,
@@ -62,10 +64,16 @@ class DynamicPromptService:
     ) -> tuple[str, str]:
         try:
             system_name, template_name = self._resolve_prompt_names(prompt_name)
-        except Exception:
+        except ValueError:
             logger.warning("Dynamic prompt name validation failed: %s", prompt_name)
-            trace_failure("dynamic_prompt.validate.failed", "dynamic prompt validation failed", error_code="validation_error")
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_prompt_name"})
+            app.observability.trace_helpers.trace_failure(
+                "dynamic_prompt.validate.failed", "dynamic prompt validation failed", error_code="validation_error"
+            )
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "invalid_prompt_name"},
+            )
             return "fallback", ""
 
         if not self._prompt_exists(system_name) or not self._prompt_exists(template_name):
@@ -75,12 +83,25 @@ class DynamicPromptService:
                 system_name,
                 template_name,
             )
-            trace_info("dynamic_prompt.template.missing", "dynamic prompt files not found", payload={"prompt_name": prompt_name})
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "template_missing"})
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.template.missing",
+                "dynamic prompt files not found",
+                payload={"prompt_name": prompt_name},
+            )
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "template_missing"},
+            )
             return "fallback", ""
 
-        if not isinstance(data, dict):
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "invalid_data"})
+        dynamic_prompt_payload = data
+        if not isinstance(dynamic_prompt_payload, dict):
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "invalid_data"},
+            )
             return "fallback", ""
 
         try:
@@ -92,15 +113,19 @@ class DynamicPromptService:
                 template_name,
                 str(exc),
             )
-            trace_failure(
+            app.observability.trace_helpers.trace_failure(
                 "dynamic_prompt.template.invalid",
                 "dynamic prompt template validation failed",
                 error_code="prompt_template_invalid",
             )
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "template_invalid"})
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "template_invalid"},
+            )
             return "fallback", ""
 
-        available_fields = {"user", *data.keys()}
+        available_fields = {"user", *dynamic_prompt_payload.keys()}
         missing_fields = sorted(required_fields - available_fields)
         if missing_fields:
             logger.warning(
@@ -110,13 +135,15 @@ class DynamicPromptService:
                 missing_fields,
                 sorted(available_fields),
             )
-            trace_failure(
+            app.observability.trace_helpers.trace_failure(
                 "dynamic_prompt.render.preflight_failed",
                 "dynamic prompt preflight missing fields",
                 payload={"missing_fields": missing_fields},
                 error_code="prompt_render_preflight_error",
             )
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "preflight_missing_field"})
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback", "fallback path selected", payload={"reason": "preflight_missing_field"}
+            )
             return "fallback", ""
 
         pool, feature_cfg = self.llm_registry.get_for_feature_with_override(
@@ -137,22 +164,40 @@ class DynamicPromptService:
             user_prompt = self.prompts.render(
                 template_name,
                 user=user,
-                **data,
+                **dynamic_prompt_payload,
             )
         except KeyError as e:
             logger.warning(
-                "Dynamic prompt render failed due to missing field after preflight: prompt=%s missing=%s available_keys=%s",
+                (
+                    "Dynamic prompt render failed due to missing field after preflight: "
+                    "prompt=%s missing=%s available_keys=%s"
+                ),
                 prompt_name,
                 str(e),
                 sorted(available_fields),
             )
-            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render missing fields", payload={"missing": str(e)}, error_code="prompt_render_error")
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_missing_field"})
+            app.observability.trace_helpers.trace_failure(
+                "dynamic_prompt.render.failed",
+                "dynamic prompt render missing fields",
+                payload={"missing": str(e)},
+                error_code="prompt_render_error",
+            )
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "render_missing_field"},
+            )
             return "fallback", ""
         except Exception:
             logger.exception("Dynamic prompt render failed: prompt=%s template=%s", prompt_name, template_name)
-            trace_failure("dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error")
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "render_failed"})
+            app.observability.trace_helpers.trace_failure(
+                "dynamic_prompt.render.failed", "dynamic prompt render failed", error_code="prompt_render_error"
+            )
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "render_failed"},
+            )
             return "fallback", ""
 
         try:
@@ -171,21 +216,39 @@ class DynamicPromptService:
             )
         except Exception:
             logger.exception("Dynamic prompt LLM call failed: prompt=%s", prompt_name)
-            trace_failure("dynamic_prompt.llm.failed", "dynamic prompt llm call failed", error_code="llm_error")
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "llm_failed"})
+            app.observability.trace_helpers.trace_failure(
+                "dynamic_prompt.llm.failed", "dynamic prompt llm call failed", error_code="llm_error"
+            )
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "llm_failed"},
+            )
             return "fallback", ""
 
         if not reply or not reply.strip():
             logger.info("Dynamic prompt returned empty reply: prompt=%s", prompt_name)
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "empty_reply"})
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "empty_reply"},
+            )
             return "fallback", ""
 
         reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()
 
         if not reply:
             logger.info("Dynamic prompt reply became empty after trim: prompt=%s", prompt_name)
-            trace_info("dynamic_prompt.fallback", "fallback path selected", payload={"reason": "empty_after_trim"})
+            app.observability.trace_helpers.trace_info(
+                "dynamic_prompt.fallback",
+                "fallback path selected",
+                payload={"reason": "empty_after_trim"},
+            )
             return "fallback", ""
 
-        trace_success("dynamic_prompt.llm.success", "dynamic prompt llm call succeeded", payload={"prompt_name": prompt_name, "reply_length": len(reply)})
+        app.observability.trace_helpers.trace_success(
+            "dynamic_prompt.llm.success",
+            "dynamic prompt llm call succeeded",
+            payload={"prompt_name": prompt_name, "reply_length": len(reply)},
+        )
         return "success", reply
