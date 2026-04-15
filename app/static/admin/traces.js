@@ -235,14 +235,32 @@
       if (run.id === selectedRunId) {
         button.classList.add('selected');
       }
-      button.innerHTML = `
-        <div class="traces-run-top">
-          <span class="traces-run-id">${run.id}</span>
-          <span class="traces-run-status">${run.status || '—'}</span>
-        </div>
-        <div class="traces-run-meta">${run.route || '—'} · stream=${run.stream_id || '—'}</div>
-        <div class="traces-run-meta">start=${fmtDate(run.started_at)}</div>
-      `;
+
+      const top = document.createElement('div');
+      top.className = 'traces-run-top';
+
+      const runId = document.createElement('span');
+      runId.className = 'traces-run-id';
+      runId.textContent = String(run.id || '—');
+
+      const runStatus = document.createElement('span');
+      runStatus.className = 'traces-run-status';
+      runStatus.textContent = String(run.status || '—');
+
+      top.appendChild(runId);
+      top.appendChild(runStatus);
+
+      const meta = document.createElement('div');
+      meta.className = 'traces-run-meta';
+      meta.textContent = `${run.route || '—'} · stream=${run.stream_id || '—'}`;
+
+      const startedAt = document.createElement('div');
+      startedAt.className = 'traces-run-meta';
+      startedAt.textContent = `start=${fmtDate(run.started_at)}`;
+
+      button.appendChild(top);
+      button.appendChild(meta);
+      button.appendChild(startedAt);
       button.addEventListener('click', function () {
         selectedRunId = run.id;
         selectedEventId = null;
