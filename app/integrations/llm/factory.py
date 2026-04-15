@@ -4,6 +4,7 @@ from app.config import settings
 from app.integrations.llm.base import LLMProvider
 from app.integrations.llm.mock_provider import MockProvider
 from app.integrations.llm.openai_provider import OpenAIProvider
+from app.services.llm_config_source import SUPPORTED_PROVIDER_TYPES
 
 
 def build_llm_provider() -> LLMProvider:
@@ -34,4 +35,6 @@ def build_llm_provider_from_config(
             model=model,
         )
 
-    raise ValueError(f"Unsupported llm provider: {provider_name}")
+    raise ValueError(
+        f"Unsupported llm provider: {provider_name}. Supported providers: {', '.join(SUPPORTED_PROVIDER_TYPES)}"
+    )

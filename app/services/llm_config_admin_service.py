@@ -157,6 +157,14 @@ class LLMConfigAdminService:
             return message
         if "provider references unknown provider" in lowered:
             return "provider references unknown provider"
+        if "unsupported provider type" in lowered:
+            return message
+        if "unknown feature name" in lowered:
+            return message
+        if "missing required feature setting" in lowered:
+            return message
+        if "duplicate feature name" in lowered:
+            return "duplicate feature name"
         if "invalid temperature" in lowered:
             return "invalid temperature"
         if "invalid max_output_tokens" in lowered:

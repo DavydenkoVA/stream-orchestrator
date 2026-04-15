@@ -22,6 +22,13 @@ from app.observability.trace_status import (
 )
 from app.services.llm_config_admin_service import LLMConfigAdminService
 from app.services.trace_read_service import TraceReadService
+from app.services.llm_config_source import (
+    SUPPORTED_FEATURE_NAMES,
+    SUPPORTED_PROVIDER_TYPES,
+    TEMPERATURE_MAX,
+    TEMPERATURE_MIN,
+    TEMPERATURE_STEP,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -65,6 +72,9 @@ def _validate_dynamic_prompt_name(name: str) -> str:
 def _build_view_model() -> dict:
     admin_service = LLMConfigAdminService(api_routes.service.llm_registry)
     raw_config = admin_service.read_raw_config()
+    if not raw_config:
+        raw_config = api_routes.service.llm_registry.export_raw_config()
+
     styles_raw = admin_service.read_styles_raw(settings.llm_styles_config_path)
     snapshot_meta = api_routes.service.llm_registry.get_snapshot_metadata()
 
@@ -81,8 +91,19 @@ def _build_view_model() -> dict:
             }
         )
 
+    feature_defaults = {
+        feature_name: {
+            "provider": "",
+            "temperature": settings.llm_temperature,
+            "max_output_tokens": settings.llm_max_output_tokens,
+            "style": "default",
+        }
+        for feature_name in SUPPORTED_FEATURE_NAMES
+    }
+
     features_list = []
-    for feature_name, feature_cfg in features.items():
+    for feature_name in SUPPORTED_FEATURE_NAMES:
+        feature_cfg = {**feature_defaults[feature_name], **(features.get(feature_name) or {})}
         features_list.append(
             {
                 "name": feature_name,
@@ -100,6 +121,10 @@ def _build_view_model() -> dict:
     return {
         "providers": providers_list,
         "features": features_list,
+        "provider_type_options": list(SUPPORTED_PROVIDER_TYPES),
+        "temperature_min": TEMPERATURE_MIN,
+        "temperature_max": TEMPERATURE_MAX,
+        "temperature_step": TEMPERATURE_STEP,
         "styles_preview": styles_preview,
         "metadata": snapshot_meta,
         "active_config_path": str(Path(settings.llm_profiles_config_path)),
@@ -183,6 +208,10 @@ def get_playground(request: Request, mode: str = Query(default="chat")):
             "active_page": "playground",
             "page_title": "Playground",
             "mode": normalized_mode,
+            "provider_options": api_routes.service.llm_registry.list_provider_names(),
+            "temperature_min": TEMPERATURE_MIN,
+            "temperature_max": TEMPERATURE_MAX,
+            "temperature_step": TEMPERATURE_STEP,
         },
     )
 

@@ -4,6 +4,8 @@
     return;
   }
 
+  const playgroundConfig = window.PLAYGROUND_CONFIG || { providers: [], temperature: { min: 0, max: 1, step: 0.01 } };
+
   function byId(id) {
     return document.getElementById(id);
   }
@@ -256,6 +258,7 @@
   const dynamicPromptSelect = byId('dynamic-prompt-select');
   const dynamicData = byId('dynamic-data');
   const dynamicResetBtn = byId('dynamic-reset-btn');
+  const dynamicTemperatureValue = byId('dynamic-temperature-value');
   const dynamicPayloadTemplate = byId('dynamic-payload-template');
   const dynamicCopyTemplateBtn = byId('dynamic-copy-template-btn');
   const dynamicCopyStatus = byId('dynamic-copy-status');
@@ -343,6 +346,20 @@
     return Number(cleaned);
   }
 
+  function optionalTemperatureFromRange(field) {
+    if (!field || field.dataset.touched !== 'true') {
+      return null;
+    }
+    return Number(field.value);
+  }
+
+  function renderTemperatureValue(field) {
+    if (!field || !dynamicTemperatureValue) {
+      return;
+    }
+    dynamicTemperatureValue.textContent = Number(field.value).toFixed(2);
+  }
+
   function buildDataSkeleton() {
     const skeleton = {};
     getRequiredDataFields().forEach((field) => {
@@ -363,7 +380,8 @@
     const llm = {};
     const provider = cleanOptional(String(form.get('provider') || ''));
     const style = cleanOptional(String(form.get('style') || ''));
-    const temperature = optionalNumber(String(form.get('temperature') || ''));
+    const temperatureField = dynamicForm.elements.namedItem('temperature');
+    const temperature = optionalTemperatureFromRange(temperatureField);
     const maxOutputTokens = optionalNumber(String(form.get('max_output_tokens') || ''));
 
     if (provider) llm.provider = provider;
@@ -440,12 +458,13 @@
     const llm = {};
     const provider = cleanOptional(String(form.get('provider') || ''));
     const style = cleanOptional(String(form.get('style') || ''));
-    const temperatureRaw = cleanOptional(String(form.get('temperature') || ''));
+    const temperatureField = dynamicForm.elements.namedItem('temperature');
     const maxTokensRaw = cleanOptional(String(form.get('max_output_tokens') || ''));
 
     if (provider) llm.provider = provider;
     if (style) llm.style = style;
-    if (temperatureRaw !== null) llm.temperature = Number(temperatureRaw);
+    const temperatureValue = optionalTemperatureFromRange(temperatureField);
+    if (temperatureValue !== null) llm.temperature = temperatureValue;
     if (maxTokensRaw !== null) llm.max_output_tokens = Number(maxTokensRaw);
 
     const payload = { prompt, user, data };
@@ -475,6 +494,18 @@
       field.addEventListener('change', renderDynamicPayloadTemplate);
     });
 
+    const temperatureField = dynamicForm.elements.namedItem('temperature');
+    if (temperatureField) {
+      temperatureField.dataset.touched = 'false';
+      renderTemperatureValue(temperatureField);
+      const markTouched = () => {
+        temperatureField.dataset.touched = 'true';
+        renderTemperatureValue(temperatureField);
+      };
+      temperatureField.addEventListener('input', markTouched);
+      temperatureField.addEventListener('change', markTouched);
+    }
+
     dynamicForm.addEventListener('submit', async function (event) {
       event.preventDefault();
       setError(dynamicFormError, '');
@@ -498,6 +529,11 @@
       dynamicRunPayload = null;
       dynamicDataSkeleton = {};
       dynamicData.value = '{}';
+      const temperatureField = dynamicForm.elements.namedItem('temperature');
+      if (temperatureField) {
+        temperatureField.dataset.touched = 'false';
+        renderTemperatureValue(temperatureField);
+      }
       renderDynamicMeta();
       renderDynamicResult();
       renderDynamicPayloadTemplate();
