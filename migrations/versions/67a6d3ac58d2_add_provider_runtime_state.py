@@ -1,4 +1,4 @@
-"""add provider runtime state
+"""add provider runtime state.
 
 Revision ID: 67a6d3ac58d2
 Revises: c1d1b5fb56d4

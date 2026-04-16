@@ -83,7 +83,7 @@ class RouterService:
         triggers = WeeklyMoviesFeatureHandler.TRIGGERS
         return any(trigger in normalized for trigger in triggers)
 
-    def ingest_chat_event(
+    def ingest_chat_event(  # noqa: PLR0913
         self,
         db: Session,
         *,
@@ -116,7 +116,7 @@ class RouterService:
         db.commit()
         try:
             trace_success("chat_message.save.success", "chat message saved", payload={"stream_id": stream_id})
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("trace operation failed: chat_message.save.success", exc_info=True)
 
     async def run_dossier(
@@ -149,7 +149,7 @@ class RouterService:
         response = await handler.handle(context, request)
         return response.reply_text, response.route
 
-    async def handle_chat_reply(
+    async def handle_chat_reply(  # noqa: PLR0913
         self,
         db: Session,
         *,

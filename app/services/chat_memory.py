@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class ChatMemoryService:
-    def save_message(
+    def save_message(  # noqa: PLR0913
         self,
         db: Session,
         *,
@@ -83,8 +83,6 @@ class ChatMemoryService:
         username: str,
         limit: int = 12,
     ) -> list[ChatMessage]:
-        from sqlalchemy import or_
-
         stmt = (
             select(ChatMessage)
             .where(

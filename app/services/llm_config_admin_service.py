@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import re
 import tempfile
 from dataclasses import dataclass
@@ -138,7 +137,7 @@ class LLMConfigAdminService:
             temp_path = Path(temp_file.name)
 
         try:
-            os.replace(temp_path, config_path)
+            temp_path.replace(config_path)
         finally:
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
@@ -160,7 +159,7 @@ class LLMConfigAdminService:
         return errors
 
     @staticmethod
-    def _humanize_error(error: Mapping[str, Any]) -> str:
+    def _humanize_error(error: Mapping[str, Any]) -> str:  # noqa: C901, PLR0911, PLR0912
         loc = error.get("loc", ())
         message = str(error.get("msg", "validation error"))
         lowered = message.lower()

@@ -1,4 +1,4 @@
-"""add memory extraction attempt fields
+"""add memory extraction attempt fields.
 
 Revision ID: b2c4d6e8f0a1
 Revises: 9f1c2d3e4a5b

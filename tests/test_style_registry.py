@@ -1,4 +1,4 @@
-from pytest import MonkeyPatch
+import pytest
 
 from app.services.style_prompt import StylePromptService
 from app.services.style_registry import StyleDefinition, StyleRegistry
@@ -16,7 +16,7 @@ def test_style_registry_resolves_default_and_named_styles() -> None:
     assert unknown.key == "default"
 
 
-def test_style_registry_random_selects_new_style_each_call(monkeypatch: MonkeyPatch) -> None:
+def test_style_registry_random_selects_new_style_each_call(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     returned = iter(["fun", "strict"])
@@ -46,7 +46,7 @@ def test_style_prompt_service_applies_instruction() -> None:
     assert "Дополнительная стилистическая инструкция" in styled
 
 
-def test_style_resolution_random_default_invalid(monkeypatch: MonkeyPatch) -> None:
+def test_style_resolution_random_default_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     monkeypatch.setattr(

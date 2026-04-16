@@ -22,21 +22,21 @@ if TYPE_CHECKING:
 class _AlwaysFalseHandler:
     route_name = "never"
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:
         return False
 
 
 class _AlwaysTrueHandler:
     route_name = "always"
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:
         return True
 
 
 class _SecondTrueHandler:
     route_name = "second"
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:
         return True
 
 
@@ -115,7 +115,7 @@ def test_router_handle_chat_reply_ignores_bot_role() -> None:
     router = RouterService()
     was_ingested = {"value": False}
 
-    def _fake_ingest_chat_event(*args: object, **kwargs: object) -> None:
+    def _fake_ingest_chat_event(*_args: object, **_kwargs: object) -> None:
         was_ingested["value"] = True
 
     router.ingest_chat_event = _fake_ingest_chat_event  # type: ignore[method-assign]

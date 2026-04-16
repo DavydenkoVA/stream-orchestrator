@@ -1,4 +1,4 @@
-from pytest import MonkeyPatch
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,7 +6,9 @@ from app.models.chat import ChatMessage
 from app.services.chat_memory import ChatMemoryService
 
 
-def test_save_message_does_not_commit_and_assigns_id_via_flush(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_save_message_does_not_commit_and_assigns_id_via_flush(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     service = ChatMemoryService()
 
     commit_calls = 0

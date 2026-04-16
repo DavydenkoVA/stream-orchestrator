@@ -15,6 +15,7 @@ from app.observability.trace_helpers import (
     trace_info,
     trace_success,
 )
+from app.prompt_store import PromptStore
 from app.schemas.dynamic_prompt import DynamicPromptRequest, DynamicPromptResponse
 from app.schemas.events import ChatEvent
 from app.schemas.responses import ChatReply, DebugContextResponse, IngestResponse
@@ -31,12 +32,15 @@ dynamic_prompt_service = DynamicPromptService(
     style_prompt=service.style_prompt,
 )
 logger = logging.getLogger(__name__)
+HTTP_NOT_FOUND = 404
+HTTP_BAD_REQUEST = 400
+HTTP_UNPROCESSABLE_ENTITY = 422
 
 
 def _run_trace_safely(action: str, operation: Callable[[], None]) -> None:
     try:
         operation()
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("trace operation failed: %s", action, exc_info=True)
 
 
@@ -50,9 +54,9 @@ def _start_request_trace(*, route: str, stream_id: str | None, db: Session) -> N
 
 def _error_code_for_exception(exc: Exception) -> str:
     if isinstance(exc, HTTPException):
-        if exc.status_code == 404:
+        if exc.status_code == HTTP_NOT_FOUND:
             return "not_found"
-        if exc.status_code in {400, 422}:
+        if exc.status_code in {HTTP_BAD_REQUEST, HTTP_UNPROCESSABLE_ENTITY}:
             return "bad_request"
     if isinstance(exc, ValueError):
         return "validation_error"
@@ -159,8 +163,6 @@ async def reply_chat_event(
 
 @router.get("/debug/prompts/{name}")
 def get_prompt(name: str) -> dict[str, Any]:
-    from app.prompt_store import PromptStore
-
     store = PromptStore()
     return {"name": name, "content": store.read(name)}
 

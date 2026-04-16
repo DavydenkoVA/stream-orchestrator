@@ -142,7 +142,7 @@ class UserMemoryService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return MemoryExtractionResult(
                 ok=False,
                 status="failed_provider",

@@ -4,8 +4,7 @@ import re
 def strip_basic_markdown(text: str) -> str:
     text = text.replace("**", "")
     text = text.replace("__", "")
-    text = text.replace("`", "")
-    return text
+    return text.replace("`", "")
 
 
 def normalize_whitespace(text: str) -> str:
@@ -31,5 +30,4 @@ def truncate_for_chat(text: str, limit: int) -> str:
 def prepare_chat_text(text: str, limit: int) -> str:
     text = strip_basic_markdown(text)
     text = normalize_whitespace(text)
-    text = truncate_for_chat(text, limit)
-    return text
+    return truncate_for_chat(text, limit)

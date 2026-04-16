@@ -53,7 +53,7 @@ class DynamicPromptService:
         prompt_path = pathlib.Path(settings.prompts_dir) / relative_name
         return prompt_path.exists() and prompt_path.is_file()
 
-    async def generate(
+    async def generate(  # noqa: C901, PLR0911, PLR0913, PLR0915
         self,
         *,
         db: Session,

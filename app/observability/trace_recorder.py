@@ -60,7 +60,7 @@ class TraceRecorder:
             session.refresh(run)
             return run.id
 
-    def append_event(
+    def append_event(  # noqa: PLR0913
         self,
         *,
         trace_run_id: int,
@@ -151,7 +151,7 @@ def sanitize_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     if payload is None:
         return None
 
-    def _clean(value: Any, parent_key: str = "") -> Any:
+    def _clean(value: Any, parent_key: str = "") -> Any:  # noqa: ANN401
         if isinstance(value, dict):
             cleaned: dict[str, Any] = {}
             for key, item in value.items():

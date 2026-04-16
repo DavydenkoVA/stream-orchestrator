@@ -19,7 +19,7 @@ from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from pytest import MonkeyPatch
+    import pytest
     from sqlalchemy.orm import Session
 
 
@@ -584,7 +584,7 @@ def test_legacy_apply_route_still_works() -> None:
     assert "Apply success" in response.text
 
 
-def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: MonkeyPatch) -> None:
+def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
@@ -594,7 +594,7 @@ def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: MonkeyPatch) 
     assert response.status_code == 403
 
 
-def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: MonkeyPatch) -> None:
+def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")

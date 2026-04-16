@@ -65,7 +65,7 @@ class LLMExecutionService:
 
         return bool(any(marker in text for marker in retryable_markers))
 
-    async def generate_text_with_pool(
+    async def generate_text_with_pool(  # noqa: PLR0913
         self,
         *,
         db: Session,
@@ -151,8 +151,6 @@ class LLMExecutionService:
                         "reply_length": len(reply or ""),
                     },
                 )
-                return reply
-
             except Exception as exc:
                 last_exc = exc
                 trace_failure(
@@ -177,6 +175,8 @@ class LLMExecutionService:
                     raise
 
                 continue
+
+            return reply
 
         logger.error(
             "LLM pool exhausted: provider=%s attempted=%s",

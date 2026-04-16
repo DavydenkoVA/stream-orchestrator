@@ -55,7 +55,7 @@ class LLMRegistry:
         self._last_reload_error: str | None = None
         self.reload_from_disk()
 
-    def _build_snapshot(
+    def _build_snapshot(  # noqa: C901
         self,
         raw: dict[str, Any],
         *,

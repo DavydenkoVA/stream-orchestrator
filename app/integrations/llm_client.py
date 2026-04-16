@@ -11,7 +11,7 @@ class DossierContextPayload(TypedDict):
 
 
 class LLMClient:
-    def generate_chat_reply(self, *, username: str, text: str, recent_messages: list[str]) -> str:
+    def generate_chat_reply(self, *, username: str, text: str, _recent_messages: list[str]) -> str:
         return f"[{username}] заглушка ответа: {text}"
 
     def generate_dossier(self, context: DossierContextPayload) -> str:
