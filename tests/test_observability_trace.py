@@ -1,8 +1,15 @@
 import asyncio
 import json
+from typing import TYPE_CHECKING, Never
+
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.api import routes as api_routes
 from app.db import get_db
@@ -28,21 +35,21 @@ class _Provider:
     def __init__(self, *, fail: bool) -> None:
         self.fail = fail
 
-    async def generate_text(self, **kwargs) -> str:
+    async def generate_text(self, **kwargs: object) -> str:
         if self.fail:
             raise RuntimeError("timeout")
         return "ok"
 
 
-def _client_with_db(db_session, *, raise_server_exceptions: bool = True):
-    def override_get_db():
+def _client_with_db(db_session: Session, *, raise_server_exceptions: bool = True) -> TestClient:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
-def test_request_id_header_exists(db_session) -> None:
+def test_request_id_header_exists(db_session: Session) -> None:
     client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
@@ -54,7 +61,7 @@ def test_request_id_header_exists(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_trace_run_success_and_event_order(db_session) -> None:
+def test_trace_run_success_and_event_order(db_session: Session) -> None:
     client = _client_with_db(db_session, raise_server_exceptions=False)
     response = client.post(
         "/events/chat_ingest",
@@ -76,8 +83,8 @@ def test_trace_run_success_and_event_order(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_trace_run_failed_created_on_error(db_session, monkeypatch) -> None:
-    async def crash(*args, **kwargs):
+def test_trace_run_failed_created_on_error(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+    async def crash(*args: object, **kwargs: object) -> Never:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -95,7 +102,7 @@ def test_trace_run_failed_created_on_error(db_session, monkeypatch) -> None:
     app.dependency_overrides.clear()
 
 
-def test_failed_trace_survives_business_rollback(db_session) -> None:
+def test_failed_trace_survives_business_rollback(db_session: Session) -> None:
     start_trace(route="/test", stream_id="obs_4", db=db_session)
     trace_info("request.start", "start")
 
@@ -111,7 +118,7 @@ def test_failed_trace_survives_business_rollback(db_session) -> None:
     assert db_session.scalar(select(ChatMessage).where(ChatMessage.stream_id == "obs_4")) is None
 
 
-def test_trace_payload_filters_secrets(db_session) -> None:
+def test_trace_payload_filters_secrets(db_session: Session) -> None:
     start_trace(route="/test", stream_id="obs_5", db=db_session)
     trace_info(
         "safe.payload", "payload", payload={"provider": "mock", "api_key": "secret", "nested": {"token": "x", "ok": 1}}
@@ -120,13 +127,14 @@ def test_trace_payload_filters_secrets(db_session) -> None:
 
     event = db_session.scalar(select(TraceEvent).order_by(TraceEvent.id.desc()))
     assert event is not None
+    assert event.payload_json is not None
     payload = json.loads(event.payload_json)
     assert "api_key" not in payload
     assert "token" not in payload.get("nested", {})
     assert payload["provider"] == "mock"
 
 
-def test_llm_execution_service_trace_events(db_session, monkeypatch) -> None:
+def test_llm_execution_service_trace_events(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     registry = LLMRegistry()
     executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
     pool, feature = registry.get_for_feature("chat")
@@ -174,7 +182,7 @@ def test_llm_execution_service_trace_events(db_session, monkeypatch) -> None:
     assert run.status == TRACE_RUN_STATUS_SUCCESS
 
 
-def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session) -> None:
+def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session: Session) -> None:
     start_trace(route="/events/chat_reply", db=db_session)
     trace_info("request.start", "start")
     trace_failure("llm.model.failed", "model A failed", error_code="llm_error")
@@ -189,7 +197,7 @@ def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session) 
     assert run.status != TRACE_RUN_STATUS_SUCCESS
 
 
-def test_llm_trace_payload_captures_style_resolution_fields(db_session, monkeypatch) -> None:
+def test_llm_trace_payload_captures_style_resolution_fields(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     registry = LLMRegistry()
     executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
     pool, feature = registry.get_for_feature("chat")
@@ -255,7 +263,7 @@ def test_llm_trace_payload_captures_style_resolution_fields(db_session, monkeypa
     assert fallback_payload["style_resolution_reason"] == "style_not_found"
 
 
-def test_dynamic_prompt_service_traces_fallback(db_session) -> None:
+def test_dynamic_prompt_service_traces_fallback(db_session: Session) -> None:
     router_service = api_routes.service
     dynamic_service = DynamicPromptService(
         llm_registry=router_service.llm_registry,
@@ -280,8 +288,8 @@ def test_dynamic_prompt_service_traces_fallback(db_session) -> None:
     assert "dynamic_prompt.fallback" in steps
 
 
-def test_chat_ingest_succeeds_when_trace_start_fails(db_session, monkeypatch) -> None:
-    def _explode_start_trace(*args, **kwargs):
+def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+    def _explode_start_trace(*args: object, **kwargs: object) -> Never:
         raise RuntimeError("trace table unavailable")
 
     monkeypatch.setattr("app.api.routes.start_trace", _explode_start_trace)
@@ -310,8 +318,8 @@ def test_chat_ingest_succeeds_when_trace_start_fails(db_session, monkeypatch) ->
     app.dependency_overrides.clear()
 
 
-def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(db_session, monkeypatch) -> None:
-    def _explode_trace_success(*args, **kwargs):
+def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+    def _explode_trace_success(*args: object, **kwargs: object) -> Never:
         raise RuntimeError("trace insert failed")
 
     monkeypatch.setattr("app.services.router.trace_success", _explode_trace_success)

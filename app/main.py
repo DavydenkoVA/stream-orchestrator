@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
 
@@ -28,7 +28,7 @@ _loaded_models = app_models
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     inspector = inspect(engine)
 
     if not inspector.get_table_names():
@@ -42,7 +42,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.middleware("http")
-async def request_id_middleware(request: Request, call_next):
+async def request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     request_id = generate_request_id()
     set_request_id(request, request_id)
     set_current_request_id(request_id)
@@ -57,11 +57,11 @@ async def request_id_middleware(request: Request, call_next):
 
 app.add_exception_handler(
     RequestValidationError,
-    cast(Callable[[Request, Exception], Response | Awaitable[Response]], validation_exception_handler),
+    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", validation_exception_handler),
 )
 app.add_exception_handler(
     HTTPException,
-    cast(Callable[[Request, Exception], Response | Awaitable[Response]], http_exception_handler),
+    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", http_exception_handler),
 )
 app.add_exception_handler(Exception, unhandled_exception_handler)
 

@@ -1,8 +1,11 @@
 from __future__ import annotations
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from app.services.style_registry import StyleRegistry
+
+if TYPE_CHECKING:
+    from app.services.style_registry import StyleRegistry
 
 
 logger = logging.getLogger(__name__)

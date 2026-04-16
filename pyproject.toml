@@ -64,9 +64,13 @@ select = [
     "B",
     "SIM",
     "C4",
+    "ANN",
+    "TC",
+    "FAST",
+    "INP",
 ]
 ignore = [
-    "B008",
+    "ANN401",
 ]
 
 [tool.ruff.lint.isort]
@@ -76,14 +80,7 @@ known-local-folder = []
 lines-after-imports = 2
 
 [tool.mypy]
-python_version = "3.11"
-check_untyped_defs = true
-warn_return_any = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-no_implicit_optional = true
-exclude = ["^main\\.py$"]
-
+strict = true
 [tool.flake8]
 max-line-length = 120
 select = ["E", "F", "W"]

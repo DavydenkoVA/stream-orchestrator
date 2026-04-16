@@ -1,9 +1,13 @@
 from __future__ import annotations
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.services.llm_config_admin_service import LLMConfigAdminService
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 from app.services.llm_registry import LLMRegistry
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _valid_form_data() -> dict[str, str]:

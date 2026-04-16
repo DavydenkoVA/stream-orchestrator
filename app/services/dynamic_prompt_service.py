@@ -4,15 +4,18 @@ import pathlib
 import re
 import typing
 
-from sqlalchemy.orm import Session
-
 import app.observability.trace_helpers
 from app.config import settings
-from app.prompt_store import PromptStore
-from app.services.llm_execution_service import LLMExecutionService
-from app.services.llm_registry import LLMRegistry
-from app.services.style_prompt import StylePromptService
 from app.text_utils import prepare_chat_text
+
+
+if typing.TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.prompt_store import PromptStore
+    from app.services.llm_execution_service import LLMExecutionService
+    from app.services.llm_registry import LLMRegistry
+    from app.services.style_prompt import StylePromptService
 
 
 logger = logging.getLogger(__name__)

@@ -1,12 +1,16 @@
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING
 
-from fastapi import HTTPException, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.request_id import get_request_id
 from app.schemas.errors import ErrorResponse
+
+
+if TYPE_CHECKING:
+    from fastapi import HTTPException, Request
+    from fastapi.exceptions import RequestValidationError
 
 
 logger = logging.getLogger(__name__)

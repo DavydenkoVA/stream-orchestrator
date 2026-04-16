@@ -1,14 +1,21 @@
 import re
+from typing import TYPE_CHECKING, Never
+
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
+from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
 
 
-def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session) -> None:
-    def override_get_db():
+def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -45,8 +52,8 @@ def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_routes_dossier_and_weekly_movies(db_session) -> None:
-    def override_get_db():
+def test_chat_reply_routes_dossier_and_weekly_movies(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -81,8 +88,8 @@ def test_chat_reply_routes_dossier_and_weekly_movies(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> None:
-    def override_get_db():
+def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -119,8 +126,8 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session) -> Non
     app.dependency_overrides.clear()
 
 
-def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session) -> None:
-    def override_get_db():
+def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -141,8 +148,8 @@ def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session
     app.dependency_overrides.clear()
 
 
-def test_debug_context_endpoint(db_session) -> None:
-    def override_get_db():
+def test_debug_context_endpoint(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -178,11 +185,11 @@ def test_debug_context_endpoint(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_unhandled_exception_is_sanitized(db_session, monkeypatch) -> None:
-    def override_get_db():
+def test_chat_reply_unhandled_exception_is_sanitized(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def crash(*args, **kwargs):
+    async def crash(*args: object, **kwargs: object) -> Never:
         raise RuntimeError("provider_key=secret-key stack exploded")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -213,8 +220,8 @@ def test_chat_reply_unhandled_exception_is_sanitized(db_session, monkeypatch) ->
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_validation_error_is_normalized(db_session) -> None:
-    def override_get_db():
+def test_chat_reply_validation_error_is_normalized(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -239,11 +246,11 @@ def test_chat_reply_validation_error_is_normalized(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_http_exception_is_sanitized(db_session, monkeypatch) -> None:
-    def override_get_db():
+def test_chat_reply_http_exception_is_sanitized(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def fail_with_http(*args, **kwargs):
+    async def fail_with_http(*args: object, **kwargs: object) -> Never:
         raise HTTPException(status_code=400, detail="internal failure details should stay private")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", fail_with_http)
@@ -272,8 +279,8 @@ def test_chat_reply_http_exception_is_sanitized(db_session, monkeypatch) -> None
     app.dependency_overrides.clear()
 
 
-def test_debug_prompts_endpoint(db_session) -> None:
-    def override_get_db():
+def test_debug_prompts_endpoint(db_session: Session) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db

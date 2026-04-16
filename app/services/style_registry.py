@@ -5,6 +5,7 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -51,7 +52,7 @@ class StyleRegistry:
             instruction="",
         )
 
-    def _read_raw(self) -> dict:
+    def _read_raw(self) -> dict[str, object]:
         if not self.config_path.exists():
             example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
             if example_path.exists():
@@ -61,7 +62,7 @@ class StyleRegistry:
 
     def _load(self) -> dict[str, StyleDefinition]:
         raw = self._read_raw()
-        styles_raw = raw.get("styles", {})
+        styles_raw = cast("dict[str, dict[str, object]]", raw.get("styles", {}))
 
         styles: dict[str, StyleDefinition] = {}
 
@@ -70,7 +71,7 @@ class StyleRegistry:
             if not normalized_key:
                 continue
 
-            style_cfg = cfg or {}
+            style_cfg = cfg
             styles[normalized_key] = StyleDefinition(
                 key=normalized_key,
                 title=str(style_cfg.get("title", normalized_key)).strip(),

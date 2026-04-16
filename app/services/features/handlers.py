@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import re
+from typing import cast
 
 from app.config import settings
 from app.services.features.base import ChatRequest, FeatureContext, FeatureHandler, FeatureResponse
@@ -43,8 +44,8 @@ class DossierFeatureHandler(FeatureHandler):
             normalized_target,
         )
         context_data = context.dossier.build_context(context.db, normalized_target)
-        recent_messages = context_data.get("recent_messages", [])
-        memory_items = context_data.get("memory_items", [])
+        recent_messages = cast("list[str]", context_data.get("recent_messages", []))
+        memory_items = cast("list[dict[str, object]]", context_data.get("memory_items", []))
 
         if len(recent_messages) < 2 and len(memory_items) == 0:
             return FeatureResponse(

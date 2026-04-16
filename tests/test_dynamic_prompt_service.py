@@ -1,6 +1,9 @@
 import asyncio
 from pathlib import Path
 
+from pytest import MonkeyPatch
+from sqlalchemy.orm import Session
+
 from app.config import settings
 from app.prompt_store import PromptStore
 from app.services.dynamic_prompt_service import DynamicPromptService
@@ -24,7 +27,7 @@ def _build_service() -> DynamicPromptService:
     )
 
 
-def test_dynamic_prompt_returns_success_when_prompt_and_data_are_valid(db_session) -> None:
+def test_dynamic_prompt_returns_success_when_prompt_and_data_are_valid(db_session: Session) -> None:
     service = _build_service()
 
     result, message = asyncio.run(
@@ -40,7 +43,7 @@ def test_dynamic_prompt_returns_success_when_prompt_and_data_are_valid(db_sessio
     assert message
 
 
-def test_dynamic_prompt_returns_fallback_for_missing_prompt_files(db_session) -> None:
+def test_dynamic_prompt_returns_fallback_for_missing_prompt_files(db_session: Session) -> None:
     service = _build_service()
 
     result, message = asyncio.run(
@@ -56,7 +59,7 @@ def test_dynamic_prompt_returns_fallback_for_missing_prompt_files(db_session) ->
     assert message == ""
 
 
-def test_dynamic_prompt_returns_fallback_for_invalid_name(db_session) -> None:
+def test_dynamic_prompt_returns_fallback_for_invalid_name(db_session: Session) -> None:
     service = _build_service()
 
     result, message = asyncio.run(
@@ -72,11 +75,14 @@ def test_dynamic_prompt_returns_fallback_for_invalid_name(db_session) -> None:
     assert message == ""
 
 
-def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_call(db_session, monkeypatch) -> None:
+def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_call(
+    db_session: Session,
+    monkeypatch: MonkeyPatch,
+) -> None:
     service = _build_service()
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**kwargs):
+    async def _fake_generate_text_with_pool(**kwargs: object) -> str:
         nonlocal llm_called
         llm_called = True
         return "unexpected"
@@ -97,7 +103,10 @@ def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_
     assert llm_called is False
 
 
-def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(db_session, monkeypatch) -> None:
+def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(
+    db_session: Session,
+    monkeypatch: MonkeyPatch,
+) -> None:
     broken_system = Path(settings.prompts_dir) / "dynamic" / "broken_system.txt"
     broken_template = Path(settings.prompts_dir) / "dynamic" / "broken_template.txt"
     broken_system.write_text("dynamic system", encoding="utf-8")
@@ -106,7 +115,7 @@ def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(d
     service = _build_service()
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**kwargs):
+    async def _fake_generate_text_with_pool(**kwargs: object) -> str:
         nonlocal llm_called
         llm_called = True
         return "unexpected"
@@ -127,7 +136,7 @@ def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(d
     assert llm_called is False
 
 
-def test_dynamic_prompt_allows_extra_data_fields(db_session) -> None:
+def test_dynamic_prompt_allows_extra_data_fields(db_session: Session) -> None:
     service = _build_service()
 
     result, message = asyncio.run(
@@ -143,7 +152,7 @@ def test_dynamic_prompt_allows_extra_data_fields(db_session) -> None:
     assert message
 
 
-def test_dynamic_prompt_user_field_is_available_without_data_key(db_session) -> None:
+def test_dynamic_prompt_user_field_is_available_without_data_key(db_session: Session) -> None:
     user_only_system = Path(settings.prompts_dir) / "dynamic" / "user_only_system.txt"
     user_only_template = Path(settings.prompts_dir) / "dynamic" / "user_only_template.txt"
     user_only_system.write_text("dynamic system", encoding="utf-8")

@@ -101,7 +101,7 @@ class AdminLLMConfig(BaseModel):
 
         return self
 
-    def to_raw_dict(self) -> dict:
+    def to_raw_dict(self) -> dict[str, object]:
         providers = {
             provider.name: {
                 "provider": provider.provider,

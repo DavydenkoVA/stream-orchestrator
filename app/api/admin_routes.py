@@ -2,13 +2,14 @@ from __future__ import annotations
 import re
 from dataclasses import asdict
 from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, Any
 from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session  # noqa: TC002
 
 from app.api import routes as api_routes
 from app.config import settings
@@ -35,9 +36,12 @@ from app.services.llm_config_source import (
     TEMPERATURE_MIN,
     TEMPERATURE_STEP,
 )
-from app.services.style_registry import StyleRegistry
 from app.services.styles_admin_service import StylesAdminService
 from app.services.trace_read_service import TraceReadService
+
+
+if TYPE_CHECKING:
+    from app.services.style_registry import StyleRegistry
 
 
 router = APIRouter()
@@ -133,7 +137,7 @@ def _get_trace_run_id() -> str | None:
     return state.trace_id
 
 
-def _build_view_model() -> dict:
+def _build_view_model() -> dict[str, Any]:
     style_registry = api_routes.service.style_registry
     raw_config = _read_admin_raw_config(style_registry)
 
@@ -195,7 +199,7 @@ def _build_view_model() -> dict:
     }
 
 
-def _read_admin_raw_config(style_registry: StyleRegistry) -> dict:
+def _read_admin_raw_config(style_registry: StyleRegistry) -> dict[str, Any]:
     admin_service = LLMConfigAdminService(
         api_routes.service.llm_registry,
         style_registry=style_registry,
@@ -206,7 +210,7 @@ def _read_admin_raw_config(style_registry: StyleRegistry) -> dict:
     return api_routes.service.llm_registry.export_raw_config()
 
 
-def _extract_top_level_provider_names(raw_config: dict) -> list[str]:
+def _extract_top_level_provider_names(raw_config: dict[str, Any]) -> list[str]:
     providers = raw_config.get("providers", {})
     if not isinstance(providers, dict):
         return []
@@ -281,7 +285,7 @@ async def _apply_llm_config_impl(request: Request) -> HTMLResponse:
 
 
 @router.get("/", response_class=HTMLResponse)
-def get_console_root(request: Request):
+def get_console_root(request: Request) -> HTMLResponse:
     view = _build_view_model()
     return templates.TemplateResponse(
         request=request,
@@ -291,7 +295,7 @@ def get_console_root(request: Request):
 
 
 @router.get("/llm-config", response_class=HTMLResponse)
-def get_llm_config(request: Request):
+def get_llm_config(request: Request) -> HTMLResponse:
     view = _build_view_model()
     return templates.TemplateResponse(
         request=request,
@@ -301,7 +305,7 @@ def get_llm_config(request: Request):
 
 
 @router.get("/playground", response_class=HTMLResponse)
-def get_playground(request: Request, mode: str = Query(default="chat")):
+def get_playground(request: Request, mode: Annotated[str, Query()] = "chat") -> HTMLResponse:
     normalized_mode = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
     style_registry = api_routes.service.style_registry
     raw_config = _read_admin_raw_config(style_registry)
@@ -322,7 +326,7 @@ def get_playground(request: Request, mode: str = Query(default="chat")):
 
 
 @router.get("/styles", response_class=HTMLResponse)
-def get_styles(request: Request):
+def get_styles(request: Request) -> HTMLResponse:
     style_registry = api_routes.service.style_registry
     styles_service = StylesAdminService(style_registry)
     styles = styles_service.initial_styles()
@@ -361,13 +365,13 @@ async def _apply_styles_impl(request: Request) -> HTMLResponse:
 
 
 @router.get("/playground/api/dynamic-prompts")
-def get_dynamic_prompt_names() -> dict:
+def get_dynamic_prompt_names() -> dict[str, Any]:
     names = _list_dynamic_prompt_names()
     return {"items": [{"name": name} for name in names]}
 
 
 @router.get("/playground/api/dynamic-prompts/{name}")
-def get_dynamic_prompt_metadata(name: str) -> dict:
+def get_dynamic_prompt_metadata(name: str) -> dict[str, Any]:
     validated_name = _validate_dynamic_prompt_name(name)
     if validated_name not in _list_dynamic_prompt_names():
         raise HTTPException(status_code=404, detail="Dynamic prompt not found")
@@ -397,7 +401,7 @@ def get_dynamic_prompt_metadata(name: str) -> dict:
 
 
 @router.post("/playground/api/dynamic-prompts/create")
-def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict:
+def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict[str, Any]:
     validated_name = _validate_dynamic_prompt_name(payload.name)
     existing = set(_list_dynamic_prompt_names())
     if validated_name in existing:
@@ -413,7 +417,7 @@ def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict:
 
 
 @router.get("/playground/api/prompts/{scope}")
-def get_prompt_sources(scope: str, name: str | None = Query(default=None)) -> dict:
+def get_prompt_sources(scope: str, name: Annotated[str | None, Query()] = None) -> dict[str, Any]:
     store = api_routes.service.prompts
     if scope == "dynamic":
         validated_name = _validate_dynamic_prompt_name(name or "")
@@ -443,7 +447,7 @@ def get_prompt_sources(scope: str, name: str | None = Query(default=None)) -> di
 
 
 @router.post("/playground/api/prompts/save")
-def save_prompt_source(payload: PromptSaveRequest) -> dict:
+def save_prompt_source(payload: PromptSaveRequest) -> dict[str, Any]:
     file_name = _prompt_file_for(payload.scope, payload.part, name=payload.name)
     store = api_routes.service.prompts
     store.write(file_name, payload.content)
@@ -455,8 +459,8 @@ async def run_dossier_from_playground(
     payload: DossierRunRequest,
     request: Request,
     response: Response,
-    db: Session = Depends(get_db),
-) -> dict:
+    db: Annotated[Session, Depends(get_db)],
+) -> dict[str, Any]:
     start_trace(route=str(request.url.path), stream_id=payload.stream_id, db=db)
     try:
         reply_text, route = await api_routes.service.run_dossier(
@@ -481,7 +485,7 @@ async def run_dossier_from_playground(
 
 
 @router.post("/playground/api/chat/reset-stream")
-def reset_chat_stream(payload: ResetStreamRequest, db: Session = Depends(get_db)) -> dict:
+def reset_chat_stream(payload: ResetStreamRequest, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
     stream_id = payload.stream_id.strip()
     if not stream_id:
         raise HTTPException(status_code=422, detail="stream_id must not be empty")
@@ -500,7 +504,7 @@ def reset_chat_stream(payload: ResetStreamRequest, db: Session = Depends(get_db)
 
 
 @router.get("/traces", response_class=HTMLResponse)
-def get_traces(request: Request, run_id: str | None = Query(default=None)):
+def get_traces(request: Request, run_id: Annotated[str | None, Query()] = None) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="admin/traces.html",
@@ -516,11 +520,11 @@ def get_traces(request: Request, run_id: str | None = Query(default=None)):
 
 @router.get("/traces/api/runs")
 def get_trace_runs(
-    limit: int = Query(default=50, ge=1, le=200),
-    stream_id: str | None = Query(default=None),
-    status: str | None = Query(default=None),
-    db: Session = Depends(get_db),
-) -> dict:
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    stream_id: Annotated[str | None, Query()] = None,
+    status: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
     try:
         normalized_status = normalize_status_filter(status)
     except TraceStatusValidationError as exc:
@@ -542,7 +546,7 @@ def get_trace_runs(
 
 
 @router.get("/traces/api/runs/{run_id}")
-def get_trace_run_detail(run_id: str, db: Session = Depends(get_db)) -> dict:
+def get_trace_run_detail(run_id: str, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
     detail = _trace_read_service.get_run_detail(db, run_id=run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Trace run not found")
@@ -550,35 +554,35 @@ def get_trace_run_detail(run_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/admin/llm-config")
-def get_llm_config_admin_legacy():
+def get_llm_config_admin_legacy() -> RedirectResponse:
     return RedirectResponse(url="/llm-config", status_code=307)
 
 
 @router.post("/llm-config/validate", response_class=HTMLResponse)
-async def validate_llm_config(request: Request):
+async def validate_llm_config(request: Request) -> HTMLResponse:
     return await _validate_llm_config_impl(request)
 
 
 @router.post("/llm-config/apply", response_class=HTMLResponse)
-async def apply_llm_config(request: Request):
+async def apply_llm_config(request: Request) -> HTMLResponse:
     return await _apply_llm_config_impl(request)
 
 
 @router.post("/styles/validate", response_class=HTMLResponse)
-async def validate_styles(request: Request):
+async def validate_styles(request: Request) -> HTMLResponse:
     return await _validate_styles_impl(request)
 
 
 @router.post("/styles/apply", response_class=HTMLResponse)
-async def apply_styles(request: Request):
+async def apply_styles(request: Request) -> HTMLResponse:
     return await _apply_styles_impl(request)
 
 
 @router.post("/admin/llm-config/validate", response_class=HTMLResponse)
-async def validate_llm_config_legacy(request: Request):
+async def validate_llm_config_legacy(request: Request) -> HTMLResponse:
     return await _validate_llm_config_impl(request)
 
 
 @router.post("/admin/llm-config/apply", response_class=HTMLResponse)
-async def apply_llm_config_legacy(request: Request):
+async def apply_llm_config_legacy(request: Request) -> HTMLResponse:
     return await _apply_llm_config_impl(request)

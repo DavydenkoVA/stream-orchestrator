@@ -3,6 +3,7 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi.testclient import TestClient
 
@@ -13,6 +14,13 @@ from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
 from app.observability.trace_status import TRACE_RUN_ALLOWED_STATUSES, TRACE_STATUS_FILTER_ALL
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
+
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from pytest import MonkeyPatch
+    from sqlalchemy.orm import Session
 
 
 def _minimal_valid_payload() -> dict[str, str]:
@@ -175,7 +183,7 @@ def test_playground_dynamic_provider_options_exclude_model_names() -> None:
 
 
 def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
-    temp_prompts_dir,
+    temp_prompts_dir: Path,
 ) -> None:
     client = TestClient(app)
 
@@ -260,8 +268,8 @@ def test_playground_chat_and_dossier_prompt_load_routes() -> None:
     assert dossier_parts == {"system_prompt", "user_template"}
 
 
-def test_playground_dossier_run_uses_real_route_and_trace_header(db_session) -> None:
-    def override_get_db():
+def test_playground_dossier_run_uses_real_route_and_trace_header(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -341,8 +349,8 @@ def test_trace_link_source_uses_response_header() -> None:
     assert "response.headers.get('X-Trace-Id')" in response.text
 
 
-def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
-    def override_get_db():
+def test_reset_stream_deletes_messages_and_is_idempotent(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -391,8 +399,8 @@ def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_reset_stream_rejects_empty_stream_id(db_session) -> None:
-    def override_get_db():
+def test_reset_stream_rejects_empty_stream_id(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -435,8 +443,8 @@ def test_get_traces_returns_200_with_empty_state() -> None:
         assert f'<option value="{status}">{status}</option>' in response.text
 
 
-def test_get_traces_with_run_id_returns_200(db_session) -> None:
-    def override_get_db():
+def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -576,7 +584,7 @@ def test_legacy_apply_route_still_works() -> None:
     assert "Apply success" in response.text
 
 
-def test_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
+def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: MonkeyPatch) -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
@@ -586,7 +594,7 @@ def test_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
     assert response.status_code == 403
 
 
-def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
+def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: MonkeyPatch) -> None:
     client = TestClient(app)
     payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")
@@ -596,7 +604,7 @@ def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> Non
     assert response.status_code == 403
 
 
-def _seed_trace_runs(db_session) -> None:
+def _seed_trace_runs(db_session: Session) -> None:
     base = datetime(2026, 1, 1, tzinfo=UTC)
     runs = [
         TraceRun(
@@ -661,8 +669,8 @@ def _seed_trace_runs(db_session) -> None:
     db_session.commit()
 
 
-def test_traces_api_runs_returns_newest_first_and_limit(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_returns_newest_first_and_limit(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -679,8 +687,8 @@ def test_traces_api_runs_returns_newest_first_and_limit(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_filter_by_stream_id_and_status(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -698,8 +706,8 @@ def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -714,8 +722,8 @@ def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session) 
     app.dependency_overrides.clear()
 
 
-def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_returns_run_and_ordered_events(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -739,8 +747,8 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> Non
     app.dependency_overrides.clear()
 
 
-def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -801,8 +809,8 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
     app.dependency_overrides.clear()
 
 
-def test_traces_api_run_detail_not_found_returns_404(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_not_found_returns_404(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
@@ -815,8 +823,8 @@ def test_traces_api_run_detail_not_found_returns_404(db_session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_non_regression_core_routes_still_work(db_session) -> None:
-    def override_get_db():
+def test_non_regression_core_routes_still_work(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db

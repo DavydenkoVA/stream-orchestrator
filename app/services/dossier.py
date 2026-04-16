@@ -10,7 +10,7 @@ def normalize_username(username: str) -> str:
 
 
 class DossierService:
-    def build_context(self, db: Session, username: str) -> dict:
+    def build_context(self, db: Session, username: str) -> dict[str, object]:
         normalized_username = normalize_username(username)
 
         messages = list(

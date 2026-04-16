@@ -1,10 +1,8 @@
 from __future__ import annotations
 import json
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
 
 from app.models.trace_event import TraceEvent
 from app.models.trace_run import TraceRun
@@ -15,6 +13,12 @@ from app.observability.trace_status import (
     trace_event_tone,
     trace_status_tone,
 )
+
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from sqlalchemy.orm import Session
 
 
 class TraceReadService:

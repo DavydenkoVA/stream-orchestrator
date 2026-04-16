@@ -1,11 +1,14 @@
 from datetime import UTC, datetime
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
+
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import CursorResult
 
 
 class ChatMemoryService:
@@ -209,4 +212,4 @@ class ChatMemoryService:
     ) -> int:
         stmt = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
         result = db.execute(stmt)
-        return int(cast(CursorResult[object], result).rowcount or 0)
+        return int(cast("CursorResult[object]", result).rowcount or 0)

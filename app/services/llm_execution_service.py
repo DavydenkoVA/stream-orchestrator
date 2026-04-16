@@ -1,12 +1,16 @@
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING
 
-from sqlalchemy.orm import Session
-
-from app.integrations.llm.base import LLMProvider
 from app.observability.trace_helpers import trace_failure, trace_info, trace_success
-from app.services.llm_registry import FeatureLLMSettings, LLMRegistry, ModelEndpointConfig, ProviderPoolConfig
-from app.services.provider_state_store import ProviderStateStore
+
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.integrations.llm.base import LLMProvider
+    from app.services.llm_registry import FeatureLLMSettings, LLMRegistry, ModelEndpointConfig, ProviderPoolConfig
+    from app.services.provider_state_store import ProviderStateStore
 
 
 logger = logging.getLogger(__name__)

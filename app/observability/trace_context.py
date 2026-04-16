@@ -1,8 +1,11 @@
 from __future__ import annotations
 from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from app.observability.trace_recorder import TraceRecorder
+
+if TYPE_CHECKING:
+    from app.observability.trace_recorder import TraceRecorder
 
 
 @dataclass

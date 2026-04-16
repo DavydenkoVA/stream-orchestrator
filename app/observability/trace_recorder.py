@@ -166,4 +166,4 @@ def sanitize_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
             return f"[redacted_prompt length={len(value)}]"
         return value
 
-    return cast(dict[str, Any] | None, _clean(payload))
+    return cast("dict[str, Any] | None", _clean(payload))

@@ -1,5 +1,8 @@
 import asyncio
 
+from pytest import MonkeyPatch
+from sqlalchemy.orm import Session
+
 from app.services.llm_execution_service import LLMExecutionService
 from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
@@ -11,7 +14,7 @@ class _FakeProvider:
         self.fail = fail
         self.calls = 0
 
-    async def generate_text(self, **kwargs) -> str:
+    async def generate_text(self, **kwargs: object) -> str:
         self.calls += 1
         if self.fail:
             raise RuntimeError(f"{self.name} timeout")
@@ -25,7 +28,7 @@ def _build_executor() -> tuple[LLMRegistry, LLMExecutionService, ProviderStateSt
     return registry, executor, store
 
 
-def test_failover_uses_second_model_and_persists_state(db_session, monkeypatch) -> None:
+def test_failover_uses_second_model_and_persists_state(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     registry, executor, store = _build_executor()
     pool, feature = registry.get_for_feature("chat")
 
@@ -55,7 +58,7 @@ def test_failover_uses_second_model_and_persists_state(db_session, monkeypatch) 
     assert store.get_current_model_name(db_session, pool.name) == "model_b"
 
 
-def test_if_current_model_removed_attempt_starts_from_first(db_session, monkeypatch) -> None:
+def test_if_current_model_removed_attempt_starts_from_first(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     registry, executor, store = _build_executor()
     pool, feature = registry.get_for_feature("chat")
     store.set_current_model_name(db_session, pool.name, "removed_model")
@@ -63,7 +66,7 @@ def test_if_current_model_removed_attempt_starts_from_first(db_session, monkeypa
     calls: list[str] = []
 
     class _OnlyFirst:
-        async def generate_text(self, **kwargs):
+        async def generate_text(self, **kwargs: object) -> str:
             calls.append("model_a")
             return "ok:model_a"
 
@@ -87,7 +90,7 @@ def test_if_current_model_removed_attempt_starts_from_first(db_session, monkeypa
     assert calls == ["model_a"]
 
 
-def test_if_all_models_fail_each_model_is_tried_once(db_session, monkeypatch) -> None:
+def test_if_all_models_fail_each_model_is_tried_once(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     registry, executor, _ = _build_executor()
     pool, feature = registry.get_for_feature("chat")
 
@@ -119,7 +122,7 @@ def test_if_all_models_fail_each_model_is_tried_once(db_session, monkeypatch) ->
     assert second.calls == 1
 
 
-def test_provider_state_store_roundtrip(db_session) -> None:
+def test_provider_state_store_roundtrip(db_session: Session) -> None:
     store = ProviderStateStore()
 
     assert store.get_current_model_name(db_session, "primary") is None

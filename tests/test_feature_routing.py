@@ -1,6 +1,8 @@
 import asyncio
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.services.features import (
@@ -10,8 +12,11 @@ from app.services.features import (
     FeatureSelector,
     WeeklyMoviesFeatureHandler,
 )
-from app.services.features.base import FeatureHandler
 from app.services.router import RouterService
+
+
+if TYPE_CHECKING:
+    from app.services.features.base import FeatureHandler
 
 
 class _AlwaysFalseHandler:
@@ -38,7 +43,7 @@ class _SecondTrueHandler:
 def test_feature_selector_returns_first_matching_handler() -> None:
     selector = FeatureSelector(
         cast(
-            list[FeatureHandler],
+            "list[FeatureHandler]",
             [_AlwaysFalseHandler(), _AlwaysTrueHandler(), _SecondTrueHandler()],
         )
     )
@@ -78,7 +83,7 @@ def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
         text=f"досье на @{settings.bot_username}",
         mentions_bot=False,
     )
-    context = cast(FeatureContext, SimpleNamespace())
+    context = cast("FeatureContext", SimpleNamespace())
 
     response = asyncio.run(handler.handle(context, request))
 
@@ -110,14 +115,14 @@ def test_router_handle_chat_reply_ignores_bot_role() -> None:
     router = RouterService()
     was_ingested = {"value": False}
 
-    def _fake_ingest_chat_event(*args, **kwargs):
+    def _fake_ingest_chat_event(*args: object, **kwargs: object) -> None:
         was_ingested["value"] = True
 
     router.ingest_chat_event = _fake_ingest_chat_event  # type: ignore[method-assign]
 
     reply, route = asyncio.run(
         router.handle_chat_reply(
-            db=cast(Any, None),
+            db=cast("Any", None),
             stream_id="stream-1",
             username="stream_bot",
             text="service message",
@@ -139,7 +144,7 @@ def test_router_normalizes_usernames_and_extracts_dossier_target() -> None:
     assert router.extract_dossier_target("обычное сообщение") is None
 
 
-def test_router_dossier_route_is_selected(db_session) -> None:
+def test_router_dossier_route_is_selected(db_session: Session) -> None:
     router = RouterService()
 
     reply_text, route = asyncio.run(
@@ -156,7 +161,7 @@ def test_router_dossier_route_is_selected(db_session) -> None:
     assert "мало данных" in reply_text.lower()
 
 
-def test_router_weekly_movies_route_is_selected(db_session) -> None:
+def test_router_weekly_movies_route_is_selected(db_session: Session) -> None:
     router = RouterService()
 
     reply_text, route = asyncio.run(
