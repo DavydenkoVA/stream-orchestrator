@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 def _minimal_valid_payload() -> dict[str, str]:
-    payload = {
+    request_payload = {
         "providers[0][name]": "primary",
         "providers[0][provider]": "mock",
         "providers[0][models][0][name]": "model_a",
@@ -38,13 +38,13 @@ def _minimal_valid_payload() -> dict[str, str]:
     }
 
     for idx, feature_name in enumerate(SUPPORTED_FEATURE_NAMES):
-        payload[f"feature_settings[{idx}][name]"] = feature_name
-        payload[f"feature_settings[{idx}][provider]"] = "primary"
-        payload[f"feature_settings[{idx}][temperature]"] = "0.7"
-        payload[f"feature_settings[{idx}][max_output_tokens]"] = "200"
-        payload[f"feature_settings[{idx}][style]"] = "default"
+        request_payload[f"feature_settings[{idx}][name]"] = feature_name
+        request_payload[f"feature_settings[{idx}][provider]"] = "primary"
+        request_payload[f"feature_settings[{idx}][temperature]"] = "0.7"
+        request_payload[f"feature_settings[{idx}][max_output_tokens]"] = "200"
+        request_payload[f"feature_settings[{idx}][style]"] = "default"
 
-    return payload
+    return request_payload
 
 
 def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
@@ -199,8 +199,8 @@ def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
     response = test_client.get("/playground/api/dynamic-prompts")
 
     assert response.status_code == HTTPStatus.OK
-    names = [item["name"] for item in response.json()["items"]]
-    assert names == ["test", "weekly_summary"]
+    prompt_names = [one_item["name"] for one_item in response.json()["items"]]
+    assert prompt_names == ["test", "weekly_summary"]
 
 
 def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
@@ -209,13 +209,13 @@ def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
     response = test_client.get("/playground/api/dynamic-prompts/test")
 
     assert response.status_code == HTTPStatus.OK
-    payload = response.json()
-    assert payload["name"] == "test"
-    assert payload["required_fields"] == ["loot", "user"]
-    assert payload["required_data_fields"] == ["loot"]
-    assert payload["data_skeleton"] == {"loot": ""}
-    assert payload["system_prompt"] == "dynamic system"
-    assert payload["template_prompt"] == "hello {user}, loot={loot}"
+    request_payload = response.json()
+    assert request_payload["name"] == "test"
+    assert request_payload["required_fields"] == ["loot", "user"]
+    assert request_payload["required_data_fields"] == ["loot"]
+    assert request_payload["data_skeleton"] == {"loot": ""}
+    assert request_payload["system_prompt"] == "dynamic system"
+    assert request_payload["template_prompt"] == "hello {user}, loot={loot}"
 
 
 def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
@@ -226,8 +226,8 @@ def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
     assert response.json() == {"name": "new_prompt", "created": True}
 
     list_response = test_client.get("/playground/api/dynamic-prompts")
-    names = [item["name"] for item in list_response.json()["items"]]
-    assert "new_prompt" in names
+    prompt_names = [one_item["name"] for one_item in list_response.json()["items"]]
+    assert "new_prompt" in prompt_names
 
     prompts_payload = test_client.get("/playground/api/prompts/dynamic", params={"name": "new_prompt"}).json()
     assert prompts_payload["items"][0]["content"] == ""
@@ -263,12 +263,12 @@ def test_playground_chat_and_dossier_prompt_load_routes() -> None:
 
     chat = test_client.get("/playground/api/prompts/chat")
     assert chat.status_code == HTTPStatus.OK
-    chat_parts = {item["part"] for item in chat.json()["items"]}
+    chat_parts = {one_item["part"] for one_item in chat.json()["items"]}
     assert chat_parts == {"system_prompt", "user_template"}
 
     dossier = test_client.get("/playground/api/prompts/dossier")
     assert dossier.status_code == HTTPStatus.OK
-    dossier_parts = {item["part"] for item in dossier.json()["items"]}
+    dossier_parts = {one_item["part"] for one_item in dossier.json()["items"]}
     assert dossier_parts == {"system_prompt", "user_template"}
 
 
@@ -484,10 +484,10 @@ def test_legacy_get_llm_config_redirects() -> None:
 
 def test_validate_route_returns_errors_for_invalid_payload() -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
-    payload["providers[0][models][0][api_key]"] = ""
+    request_payload = _minimal_valid_payload()
+    request_payload["providers[0][models][0][api_key]"] = ""
 
-    response = test_client.post("/llm-config/validate", data=payload)
+    response = test_client.post("/llm-config/validate", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
@@ -496,10 +496,10 @@ def test_validate_route_returns_errors_for_invalid_payload() -> None:
 
 def test_apply_route_applies_new_config() -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
-    payload["providers[0][models][0][api_key]"] = "admin-applied-key"
+    request_payload = _minimal_valid_payload()
+    request_payload["providers[0][models][0][api_key]"] = "admin-applied-key"
 
-    response = test_client.post("/llm-config/apply", data=payload)
+    response = test_client.post("/llm-config/apply", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Apply success" in response.text
@@ -510,7 +510,7 @@ def test_apply_route_applies_new_config() -> None:
 
 def test_styles_validate_and_apply_routes_work() -> None:
     test_client = TestClient(app)
-    payload = {
+    request_payload = {
         "styles[0][name]": "default",
         "styles[0][system]": "default",
         "styles[0][title]": "Default title updated",
@@ -520,11 +520,11 @@ def test_styles_validate_and_apply_routes_work() -> None:
         "styles[1][instruction]": "Use cinematic language.",
     }
 
-    validate_response = test_client.post("/styles/validate", data=payload)
+    validate_response = test_client.post("/styles/validate", data=request_payload)
     assert validate_response.status_code == HTTPStatus.OK
     assert "Validation success" in validate_response.text
 
-    apply_response = test_client.post("/styles/apply", data=payload)
+    apply_response = test_client.post("/styles/apply", data=request_payload)
     assert apply_response.status_code == HTTPStatus.OK
     assert "Apply success" in apply_response.text
 
@@ -536,13 +536,13 @@ def test_styles_validate_and_apply_routes_work() -> None:
 
 def test_styles_validate_rejects_missing_default() -> None:
     test_client = TestClient(app)
-    payload = {
+    request_payload = {
         "styles[0][name]": "fun",
         "styles[0][system]": "default",
         "styles[0][title]": "Fun",
         "styles[0][instruction]": "Add jokes.",
     }
-    response = test_client.post("/styles/validate", data=payload)
+    response = test_client.post("/styles/validate", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
@@ -551,7 +551,7 @@ def test_styles_validate_rejects_missing_default() -> None:
 
 def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
     test_client = TestClient(app)
-    payload = {
+    request_payload = {
         "styles[0][name]": "renamed",
         "styles[0][system]": "default",
         "styles[0][title]": "Default",
@@ -561,7 +561,7 @@ def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
         "styles[1][instruction]": "Add jokes.",
     }
 
-    response = test_client.post("/styles/validate", data=payload)
+    response = test_client.post("/styles/validate", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
@@ -570,9 +570,9 @@ def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
 
 def test_legacy_validate_route_still_works() -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
+    request_payload = _minimal_valid_payload()
 
-    response = test_client.post("/admin/llm-config/validate", data=payload)
+    response = test_client.post("/admin/llm-config/validate", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Validation success" in response.text
@@ -580,9 +580,9 @@ def test_legacy_validate_route_still_works() -> None:
 
 def test_legacy_apply_route_still_works() -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
+    request_payload = _minimal_valid_payload()
 
-    response = test_client.post("/admin/llm-config/apply", data=payload)
+    response = test_client.post("/admin/llm-config/apply", data=request_payload)
 
     assert response.status_code == HTTPStatus.OK
     assert "Apply success" in response.text
@@ -590,20 +590,20 @@ def test_legacy_apply_route_still_works() -> None:
 
 def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
+    request_payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
 
-    response = test_client.post("/llm-config/apply", data=payload)
+    response = test_client.post("/llm-config/apply", data=request_payload)
 
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     test_client = TestClient(app)
-    payload = _minimal_valid_payload()
+    request_payload = _minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")
 
-    response = test_client.post("/admin/llm-config/apply", data=payload)
+    response = test_client.post("/admin/llm-config/apply", data=request_payload)
 
     assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -684,9 +684,9 @@ def test_traces_api_runs_returns_newest_first_and_limit(db_session: Session) -> 
     response = test_client.get("/traces/api/runs", params={"limit": 2})
 
     assert response.status_code == HTTPStatus.OK
-    payload = response.json()
-    assert [item["id"] for item in payload["items"]] == ["trace-3", "trace-2"]
-    assert len(payload["items"]) == EXPECTED_RECENT_ITEMS
+    request_payload = response.json()
+    assert [one_item["id"] for one_item in request_payload["items"]] == ["trace-3", "trace-2"]
+    assert len(request_payload["items"]) == EXPECTED_RECENT_ITEMS
 
     app.dependency_overrides.clear()
 
@@ -701,11 +701,11 @@ def test_traces_api_runs_filter_by_stream_id_and_status(db_session: Session) -> 
 
     stream_response = test_client.get("/traces/api/runs", params={"stream_id": "stream-a"})
     assert stream_response.status_code == HTTPStatus.OK
-    assert [item["id"] for item in stream_response.json()["items"]] == ["trace-3", "trace-1"]
+    assert [one_item["id"] for one_item in stream_response.json()["items"]] == ["trace-3", "trace-1"]
 
     status_response = test_client.get("/traces/api/runs", params={"status": "failed"})
     assert status_response.status_code == HTTPStatus.OK
-    assert [item["id"] for item in status_response.json()["items"]] == ["trace-2"]
+    assert [one_item["id"] for one_item in status_response.json()["items"]] == ["trace-2"]
 
     app.dependency_overrides.clear()
 
@@ -720,8 +720,8 @@ def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session: 
     response = test_client.get("/traces/api/runs", params={"status": "unknown_status"})
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    payload = response.json()
-    assert payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
+    request_payload = response.json()
+    assert request_payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
 
     app.dependency_overrides.clear()
 
@@ -737,16 +737,16 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session: Sessio
     response = test_client.get("/traces/api/runs/trace-2")
 
     assert response.status_code == HTTPStatus.OK
-    payload = response.json()
-    assert payload["run"]["id"] == "trace-2"
-    assert "applied_style" not in payload["run"]
-    assert "requested_style" not in payload["run"]
-    assert "style_resolution_status" not in payload["run"]
-    assert [event["seq_no"] for event in payload["events"]] == [1, 2]
-    assert payload["events"][0]["tone"] == "info"
-    assert payload["events"][0]["style_resolution"] is None
-    assert payload["events"][1]["tone"] == "failure"
-    assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
+    request_payload = response.json()
+    assert request_payload["run"]["id"] == "trace-2"
+    assert "applied_style" not in request_payload["run"]
+    assert "requested_style" not in request_payload["run"]
+    assert "style_resolution_status" not in request_payload["run"]
+    assert [event["seq_no"] for event in request_payload["events"]] == [1, 2]
+    assert request_payload["events"][0]["tone"] == "info"
+    assert request_payload["events"][0]["style_resolution"] is None
+    assert request_payload["events"][1]["tone"] == "failure"
+    assert request_payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
 
     app.dependency_overrides.clear()
 
@@ -798,17 +798,17 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
     response = test_client.get("/traces/api/runs/trace-style-1")
 
     assert response.status_code == HTTPStatus.OK
-    payload = response.json()
-    assert payload["run"]["requested_style"] == "random"
-    assert payload["run"]["applied_style"] == "absurd"
-    assert payload["run"]["style_resolution_status"] == "success"
-    assert payload["run"]["style_resolution_reason"] == "random_resolved"
-    assert payload["events"][0]["payload"]["requested_style"] == "random"
-    assert payload["events"][0]["payload"]["style"] == "absurd"
-    assert payload["events"][0]["style_resolution"]["requested"] == "random"
-    assert payload["events"][0]["style_resolution"]["applied"] == "absurd"
-    assert payload["events"][0]["style_resolution"]["result"] == "resolved"
-    assert payload["events"][0]["style_resolution"]["tone"] == "success"
+    request_payload = response.json()
+    assert request_payload["run"]["requested_style"] == "random"
+    assert request_payload["run"]["applied_style"] == "absurd"
+    assert request_payload["run"]["style_resolution_status"] == "success"
+    assert request_payload["run"]["style_resolution_reason"] == "random_resolved"
+    assert request_payload["events"][0]["payload"]["requested_style"] == "random"
+    assert request_payload["events"][0]["payload"]["style"] == "absurd"
+    assert request_payload["events"][0]["style_resolution"]["requested"] == "random"
+    assert request_payload["events"][0]["style_resolution"]["applied"] == "absurd"
+    assert request_payload["events"][0]["style_resolution"]["result"] == "resolved"
+    assert request_payload["events"][0]["style_resolution"]["tone"] == "success"
 
     app.dependency_overrides.clear()
 

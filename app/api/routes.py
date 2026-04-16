@@ -1,7 +1,6 @@
 import logging
 import typing
 from collections.abc import Callable
-from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
@@ -26,17 +25,17 @@ from app.services.router import RouterService
 
 api_router = APIRouter()
 # Backward-compatible alias used by app.main and tests.
-router = api_router
+router = api_router  # noqa: COP005
 router_service = RouterService()
 # Backward-compatible alias used by tests/fixtures.
-service = router_service
+service = router_service  # noqa: COP005
 dynamic_prompt_service = DynamicPromptService(
     llm_registry=service.llm_registry,
     llm_executor=service.llm_executor,
     prompts=service.prompts,
     style_prompt=service.style_prompt,
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # noqa: COP005
 HTTP_NOT_FOUND: typing.Final = 404
 HTTP_BAD_REQUEST: typing.Final = 400
 HTTP_UNPROCESSABLE_ENTITY: typing.Final = 422
@@ -49,15 +48,15 @@ def _run_trace_safely(action: str, operation: Callable[[], None]) -> None:
         logger.warning("trace operation failed: %s", action, exc_info=True)
 
 
-def _start_request_trace(*, route: str, stream_id: str | None, database_session: Session) -> None:
-    def _operation() -> None:
-        start_trace(route=route, stream_id=stream_id, db=database_session)
-        trace_info("request.start", "request started", payload={"route": route})
+def _start_request_trace(*, route_path: str, stream_id: str | None, database_session: Session) -> None:
+    def run_trace_operation() -> None:
+        start_trace(route=route_path, stream_id=stream_id, db=database_session)
+        trace_info("request.start", "request started", payload={"route": route_path})
 
-    _run_trace_safely("start_request_trace", _operation)
+    _run_trace_safely("start_request_trace", run_trace_operation)
 
 
-def _error_code_for_exception(exc: Exception) -> str:
+def resolve_error_code_for_exception(exc: Exception) -> str:
     if isinstance(exc, HTTPException):
         if exc.status_code == HTTP_NOT_FOUND:
             return "not_found"
@@ -68,7 +67,7 @@ def _error_code_for_exception(exc: Exception) -> str:
     return "internal_error"
 
 
-def _attach_trace_header(response: Response) -> None:
+def set_trace_header(response: Response) -> None:
     state: typing.Final = get_trace_state()
     if state is None:
         return
@@ -76,7 +75,7 @@ def _attach_trace_header(response: Response) -> None:
 
 
 @api_router.get("/health")
-def healthcheck() -> dict[str, Any]:
+def check_health() -> dict[str, typing.Any]:
     return {"ok": True}
 
 
@@ -84,10 +83,10 @@ def healthcheck() -> dict[str, Any]:
 def ingest_chat_event(
     chat_event: ChatEvent,
     request: Request,
-    database_session: Annotated[Session, Depends(get_db)],
+    database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> IngestResponse:
     request_route: typing.Final = str(request.url.path)
-    _start_request_trace(route=request_route, stream_id=chat_event.stream_id, database_session=database_session)
+    _start_request_trace(route_path=request_route, stream_id=chat_event.stream_id, database_session=database_session)
     try:
         service.ingest_chat_event(
             database_session,
@@ -107,7 +106,7 @@ def ingest_chat_event(
         _run_trace_safely("chat_ingest_mark_success", lambda: finish_trace_success(summary="chat_ingest success"))
         return IngestResponse()
     except Exception as exc:
-        error_code: typing.Final = _error_code_for_exception(exc)
+        error_code: typing.Final = resolve_error_code_for_exception(exc)
         _run_trace_safely(
             "chat_ingest_finish_failure",
             lambda: trace_failure("request.finish", "chat ingest request failed", error_code=error_code),
@@ -124,10 +123,10 @@ async def reply_chat_event(
     chat_event: ChatEvent,
     request: Request,
     response: Response,
-    database_session: Annotated[Session, Depends(get_db)],
+    database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> ChatReply:
     request_route = str(request.url.path)
-    _start_request_trace(route=request_route, stream_id=chat_event.stream_id, database_session=database_session)
+    _start_request_trace(route_path=request_route, stream_id=chat_event.stream_id, database_session=database_session)
     try:
         reply_text, selected_route = await service.handle_chat_reply(
             database_session,
@@ -150,7 +149,7 @@ async def reply_chat_event(
                 payload={"route_result": selected_route},
             ),
         )
-        _attach_trace_header(response)
+        set_trace_header(response)
         _run_trace_safely(
             "chat_reply_mark_success",
             lambda: finish_trace_success(summary=f"chat_reply {selected_route}"),
@@ -161,7 +160,7 @@ async def reply_chat_event(
             should_reply=bool(reply_text),
         )
     except Exception as exc:
-        error_code: typing.Final = _error_code_for_exception(exc)
+        error_code: typing.Final = resolve_error_code_for_exception(exc)
         _run_trace_safely(
             "chat_reply_finish_failure",
             lambda: trace_failure("request.finish", "chat reply request failed", error_code=error_code),
@@ -174,17 +173,17 @@ async def reply_chat_event(
 
 
 @api_router.get("/debug/prompts/{name}")
-def get_prompt(name: str) -> dict[str, Any]:
+def read_prompt(name: str) -> dict[str, typing.Any]:
     prompt_store: typing.Final = PromptStore()
     return {"name": name, "content": prompt_store.read(name)}
 
 
 @api_router.get("/debug/context")
-def debug_context(
+def render_debug_context(
     stream_id: str,
     username: str,
     text: str,
-    database_session: Annotated[Session, Depends(get_db)],
+    database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> DebugContextResponse:
     normalized_username: typing.Final = service.normalize_username(username)
 
@@ -235,14 +234,14 @@ def debug_context(
 
 
 @api_router.post("/events/dynamic_prompt")
-async def dynamic_prompt_event(
+async def handle_dynamic_prompt_event(
     dynamic_prompt_request: DynamicPromptRequest,
     request: Request,
     response: Response,
-    database_session: Annotated[Session, Depends(get_db)],
+    database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> DynamicPromptResponse:
     request_route: typing.Final = str(request.url.path)
-    _start_request_trace(route=request_route, stream_id=None, database_session=database_session)
+    _start_request_trace(route_path=request_route, stream_id=None, database_session=database_session)
     try:
         generation_result, generated_message = await dynamic_prompt_service.generate(
             db=database_session,
@@ -268,14 +267,14 @@ async def dynamic_prompt_event(
                 payload={"result": generation_result},
             ),
         )
-        _attach_trace_header(response)
+        set_trace_header(response)
         _run_trace_safely(
             "dynamic_prompt_mark_success",
             lambda: finish_trace_success(summary=f"dynamic_prompt {generation_result}"),
         )
         return DynamicPromptResponse(result=generation_result, message=generated_message)
     except Exception as exc:
-        error_code: typing.Final = _error_code_for_exception(exc)
+        error_code: typing.Final = resolve_error_code_for_exception(exc)
         _run_trace_safely(
             "dynamic_prompt_finish_failure",
             lambda: trace_failure("request.finish", "dynamic prompt request failed", error_code=error_code),
