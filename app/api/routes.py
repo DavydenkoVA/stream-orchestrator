@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
@@ -66,15 +67,15 @@ def _attach_trace_header(response: Response) -> None:
 
 
 @router.get("/health")
-def healthcheck() -> dict:
+def healthcheck() -> dict[str, Any]:
     return {"ok": True}
 
 
-@router.post("/events/chat_ingest", response_model=IngestResponse)
+@router.post("/events/chat_ingest")
 def ingest_chat_event(
     payload: ChatEvent,
     request: Request,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ) -> IngestResponse:
     route = str(request.url.path)
     _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
@@ -109,12 +110,12 @@ def ingest_chat_event(
         raise
 
 
-@router.post("/events/chat_reply", response_model=ChatReply)
+@router.post("/events/chat_reply")
 async def reply_chat_event(
     payload: ChatEvent,
     request: Request,
     response: Response,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ) -> ChatReply:
     route = str(request.url.path)
     _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
@@ -157,19 +158,19 @@ async def reply_chat_event(
 
 
 @router.get("/debug/prompts/{name}")
-def get_prompt(name: str) -> dict:
+def get_prompt(name: str) -> dict[str, Any]:
     from app.prompt_store import PromptStore
 
     store = PromptStore()
     return {"name": name, "content": store.read(name)}
 
 
-@router.get("/debug/context", response_model=DebugContextResponse)
+@router.get("/debug/context")
 def debug_context(
     stream_id: str,
     username: str,
     text: str,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ) -> DebugContextResponse:
     normalized_username = service.normalize_username(username)
 
@@ -213,12 +214,12 @@ def debug_context(
     )
 
 
-@router.post("/events/dynamic_prompt", response_model=DynamicPromptResponse)
+@router.post("/events/dynamic_prompt")
 async def dynamic_prompt_event(
     payload: DynamicPromptRequest,
     request: Request,
     response: Response,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ) -> DynamicPromptResponse:
     route = str(request.url.path)
     _start_request_trace(route=route, stream_id=None, db=db)

@@ -1,8 +1,12 @@
 from __future__ import annotations
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.services.style_registry import StyleRegistry
 from app.services.styles_admin_service import StylesAdminService
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _valid_styles_form() -> dict[str, str]:

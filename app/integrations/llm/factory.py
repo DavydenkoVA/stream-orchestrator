@@ -1,10 +1,14 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from app.config import settings
-from app.integrations.llm.base import LLMProvider
 from app.integrations.llm.mock_provider import MockProvider
 from app.integrations.llm.openai_provider import OpenAIProvider
 from app.services.llm_config_source import SUPPORTED_PROVIDER_TYPES
+
+
+if TYPE_CHECKING:
+    from app.integrations.llm.base import LLMProvider
 
 
 def build_llm_provider() -> LLMProvider:

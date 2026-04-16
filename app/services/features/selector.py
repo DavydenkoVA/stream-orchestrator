@@ -1,6 +1,9 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from app.services.features.base import ChatRequest, FeatureHandler
+
+if TYPE_CHECKING:
+    from app.services.features.base import ChatRequest, FeatureHandler
 
 
 class FeatureSelector:

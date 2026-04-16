@@ -2,17 +2,21 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import ValidationError
 
 from app.schemas.admin_llm_config import AdminLLMConfig
-from app.services.llm_registry import LLMRegistry
 from app.services.style_registry import StyleRegistry
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from app.services.llm_registry import LLMRegistry
 
 
 @dataclass(slots=True)
@@ -20,7 +24,7 @@ class AdminValidationResult:
     valid: bool
     errors: list[str]
     config: AdminLLMConfig | None = None
-    raw: dict | None = None
+    raw: dict[str, Any] | None = None
 
 
 class LLMConfigAdminService:
@@ -32,21 +36,21 @@ class LLMConfigAdminService:
         self.registry = registry
         self.style_registry = style_registry or StyleRegistry()
 
-    def read_raw_config(self) -> dict:
+    def read_raw_config(self) -> dict[str, Any]:
         config_path = Path(self.registry.config_path)
         if not config_path.exists():
             return {}
         return yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
 
-    def read_styles_raw(self, styles_path: str | Path) -> dict:
+    def read_styles_raw(self, styles_path: str | Path) -> dict[str, Any]:
         path = Path(styles_path)
         if not path.exists():
             return {}
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
-    def parse_form_data(self, form: dict[str, str]) -> dict:
-        providers: dict[int, dict] = {}
-        features: dict[int, dict] = {}
+    def parse_form_data(self, form: dict[str, str]) -> dict[str, Any]:
+        providers: dict[int, dict[str, Any]] = {}
+        features: dict[int, dict[str, Any]] = {}
 
         for key, value in form.items():
             m_provider = self.PROVIDER_PATTERN.match(key)
@@ -143,7 +147,7 @@ class LLMConfigAdminService:
         self.registry.apply_snapshot(snapshot)
         return validation
 
-    def _validate_style_references(self, raw: dict) -> list[str]:
+    def _validate_style_references(self, raw: dict[str, Any]) -> list[str]:
         errors: list[str] = []
         features = raw.get("feature_settings", {})
         for feature_name, feature_cfg in features.items():

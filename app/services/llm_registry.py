@@ -2,13 +2,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from app.config import settings
-from app.integrations.llm.base import LLMProvider
 from app.integrations.llm.factory import build_llm_provider_from_config
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
+
+
+if TYPE_CHECKING:
+    from app.integrations.llm.base import LLMProvider
 
 
 @dataclass(slots=True)
@@ -53,7 +57,7 @@ class LLMRegistry:
 
     def _build_snapshot(
         self,
-        raw: dict,
+        raw: dict[str, Any],
         *,
         loaded_at: datetime | None = None,
     ) -> LLMSnapshot:
@@ -142,7 +146,7 @@ class LLMRegistry:
             loaded_at=loaded_at or datetime.now(UTC),
         )
 
-    def _read_raw_from_disk(self) -> dict:
+    def _read_raw_from_disk(self) -> dict[str, Any]:
         if not self.config_path.exists():
             example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
             if example_path.exists():
@@ -152,7 +156,7 @@ class LLMRegistry:
 
         return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
 
-    def _bootstrap_raw_config(self) -> dict:
+    def _bootstrap_raw_config(self) -> dict[str, Any]:
         provider_name = "bootstrap"
         return {
             "providers": {
@@ -179,7 +183,7 @@ class LLMRegistry:
             },
         }
 
-    def export_raw_config(self) -> dict:
+    def export_raw_config(self) -> dict[str, Any]:
         snapshot = self._require_snapshot()
         return {
             "providers": {
@@ -214,10 +218,10 @@ class LLMRegistry:
     def _provider_cache_key(self, provider_kind: str, endpoint: ModelEndpointConfig) -> str:
         return f"{provider_kind}|{endpoint.base_url}|{endpoint.api_key}|{endpoint.model}"
 
-    def validate_raw(self, raw: dict) -> None:
+    def validate_raw(self, raw: dict[str, Any]) -> None:
         self._build_snapshot(raw)
 
-    def build_snapshot_from_raw(self, raw: dict) -> LLMSnapshot:
+    def build_snapshot_from_raw(self, raw: dict[str, Any]) -> LLMSnapshot:
         return self._build_snapshot(raw)
 
     def reload_from_disk(self) -> None:

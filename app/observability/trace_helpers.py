@@ -1,13 +1,15 @@
 from __future__ import annotations
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
-
-from sqlalchemy.orm import Session
 
 from app.observability.request_context import get_current_request_id
 from app.observability.trace_context import TraceState, clear_trace_state, get_trace_state, set_trace_state
 from app.observability.trace_recorder import TraceRecorder
 from app.observability.trace_status import TRACE_RUN_STATUS_FAILED
+
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def start_trace(*, route: str, stream_id: str | None = None, db: Session | None = None) -> str:

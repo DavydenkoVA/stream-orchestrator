@@ -7,16 +7,20 @@ import typing
 
 import pydantic
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
 
 import app.observability.trace_helpers
 from app.config import settings
-from app.models.chat import ChatMessage
 from app.models.user_memory import UserMemoryItem
-from app.prompt_store import PromptStore
-from app.services.chat_memory import ChatMemoryService
-from app.services.llm_execution_service import LLMExecutionService
-from app.services.llm_registry import LLMRegistry
+
+
+if typing.TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.models.chat import ChatMessage
+    from app.prompt_store import PromptStore
+    from app.services.chat_memory import ChatMemoryService
+    from app.services.llm_execution_service import LLMExecutionService
+    from app.services.llm_registry import LLMRegistry
 
 
 logger = logging.getLogger(__name__)

@@ -1,16 +1,18 @@
+from pytest import MonkeyPatch
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
 from app.services.chat_memory import ChatMemoryService
 
 
-def test_save_message_does_not_commit_and_assigns_id_via_flush(db_session, monkeypatch) -> None:
+def test_save_message_does_not_commit_and_assigns_id_via_flush(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     service = ChatMemoryService()
 
     commit_calls = 0
     original_commit = db_session.commit
 
-    def counting_commit():
+    def counting_commit() -> None:
         nonlocal commit_calls
         commit_calls += 1
         return original_commit()
@@ -29,7 +31,7 @@ def test_save_message_does_not_commit_and_assigns_id_via_flush(db_session, monke
     assert commit_calls == 0
 
 
-def test_save_message_persists_only_after_external_commit(db_session) -> None:
+def test_save_message_persists_only_after_external_commit(db_session: Session) -> None:
     service = ChatMemoryService()
 
     service.save_message(
@@ -46,7 +48,7 @@ def test_save_message_persists_only_after_external_commit(db_session) -> None:
     assert len(rows) == 1
 
 
-def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_session) -> None:
+def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_session: Session) -> None:
     service = ChatMemoryService()
 
     processed = service.save_message(

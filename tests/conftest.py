@@ -1,6 +1,5 @@
 from __future__ import annotations
-from collections.abc import Generator
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import create_engine
@@ -11,6 +10,11 @@ from app.config import settings
 from app.db import Base
 from app.services.dynamic_prompt_service import DynamicPromptService
 from app.services.router import RouterService
+
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+    from pathlib import Path
 
 
 @pytest.fixture

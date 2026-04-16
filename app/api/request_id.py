@@ -1,7 +1,10 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from fastapi import Request
+
+if TYPE_CHECKING:
+    from fastapi import Request
 
 
 REQUEST_ID_STATE_KEY = "request_id"

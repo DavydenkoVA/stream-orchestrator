@@ -1,5 +1,7 @@
+from pytest import MonkeyPatch
+
 from app.services.style_prompt import StylePromptService
-from app.services.style_registry import StyleRegistry
+from app.services.style_registry import StyleDefinition, StyleRegistry
 
 
 def test_style_registry_resolves_default_and_named_styles() -> None:
@@ -14,12 +16,12 @@ def test_style_registry_resolves_default_and_named_styles() -> None:
     assert unknown.key == "default"
 
 
-def test_style_registry_random_selects_new_style_each_call(monkeypatch) -> None:
+def test_style_registry_random_selects_new_style_each_call(monkeypatch: MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     returned = iter(["fun", "strict"])
 
-    def fake_choice(candidates):
+    def fake_choice(candidates: list[StyleDefinition]) -> StyleDefinition:
         selected_key = next(returned)
         for candidate in candidates:
             if candidate.key == selected_key:
@@ -44,7 +46,7 @@ def test_style_prompt_service_applies_instruction() -> None:
     assert "Дополнительная стилистическая инструкция" in styled
 
 
-def test_style_resolution_random_default_invalid(monkeypatch) -> None:
+def test_style_resolution_random_default_invalid(monkeypatch: MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     monkeypatch.setattr(

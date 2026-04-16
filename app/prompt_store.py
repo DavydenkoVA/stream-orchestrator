@@ -50,7 +50,7 @@ class PromptStore:
         template = self.read(name)
         return self._extract_required_fields(template, template_name=name)
 
-    def render(self, name: str, **kwargs) -> str:
+    def render(self, name: str, **kwargs: object) -> str:
         template = self.read(name)
         self._extract_required_fields(template, template_name=name)
         return template.format(**kwargs)

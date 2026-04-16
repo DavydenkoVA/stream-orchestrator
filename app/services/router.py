@@ -1,8 +1,7 @@
 from __future__ import annotations
 import logging
 import re
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from app.config import settings
 from app.observability.trace_helpers import trace_info, trace_success
@@ -25,6 +24,10 @@ from app.services.provider_state_store import ProviderStateStore
 from app.services.style_prompt import StylePromptService
 from app.services.style_registry import StyleRegistry
 from app.services.user_memory_service import UserMemoryService
+
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 logger = logging.getLogger(__name__)
