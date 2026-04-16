@@ -253,65 +253,65 @@ def _enforce_config_mutation_access() -> None:
         )
 
 
-async def _read_form_data(request: Request) -> dict[str, str]:
-    body: typing.Final = (await request.body()).decode("utf-8")
+async def _read_form_data(http_request: Request) -> dict[str, str]:
+    body: typing.Final = (await http_request.body()).decode("utf-8")
     return dict(parse_qsl(body, keep_blank_values=True))
 
 
-async def _validate_llm_config_impl(request: Request) -> HTMLResponse:
-    form_data: typing.Final = await _read_form_data(request)
+async def _validate_llm_config_impl(http_request: Request) -> HTMLResponse:
+    form_data: typing.Final = await _read_form_data(http_request)
 
     admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
     result: typing.Final = admin_service.validate_form_data(form_data)
 
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/_status_panel.html",
         context={"result": result, "applied": False},
     )
 
 
-async def _apply_llm_config_impl(request: Request) -> HTMLResponse:
+async def _apply_llm_config_impl(http_request: Request) -> HTMLResponse:
     _enforce_config_mutation_access()
-    form_data: typing.Final = await _read_form_data(request)
+    form_data: typing.Final = await _read_form_data(http_request)
 
     admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
     result: typing.Final = admin_service.apply_form_data(form_data)
 
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/_status_panel.html",
         context={"result": result, "applied": True},
     )
 
 
 @router.get("/", response_class=HTMLResponse)
-def get_console_root(request: Request) -> HTMLResponse:
+def get_console_root(http_request: Request) -> HTMLResponse:
     view: typing.Final = _build_view_model()
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/llm_config.html",
         context={**view, "active_page": "llm-config", "page_title": "LLM Config"},
     )
 
 
 @router.get("/llm-config", response_class=HTMLResponse)
-def get_llm_config(request: Request) -> HTMLResponse:
+def get_llm_config(http_request: Request) -> HTMLResponse:
     view: typing.Final = _build_view_model()
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/llm_config.html",
         context={**view, "active_page": "llm-config", "page_title": "LLM Config"},
     )
 
 
 @router.get("/playground", response_class=HTMLResponse)
-def get_playground(request: Request, mode: Annotated[str, Query()] = "chat") -> HTMLResponse:
+def get_playground(http_request: Request, mode: Annotated[str, Query()] = "chat") -> HTMLResponse:
     normalized_mode: typing.Final = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
     style_registry: typing.Final = api_routes.service.style_registry
     raw_config: typing.Final = _read_admin_raw_config(style_registry)
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/playground.html",
         context={
             "active_page": "playground",
@@ -327,12 +327,12 @@ def get_playground(request: Request, mode: Annotated[str, Query()] = "chat") -> 
 
 
 @router.get("/styles", response_class=HTMLResponse)
-def get_styles(request: Request) -> HTMLResponse:
+def get_styles(http_request: Request) -> HTMLResponse:
     style_registry: typing.Final = api_routes.service.style_registry
     styles_service: typing.Final = StylesAdminService(style_registry)
     styles: typing.Final = styles_service.initial_styles()
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/styles.html",
         context={
             "active_page": "styles",
@@ -342,24 +342,24 @@ def get_styles(request: Request) -> HTMLResponse:
     )
 
 
-async def _validate_styles_impl(request: Request) -> HTMLResponse:
-    form_data: typing.Final = await _read_form_data(request)
+async def _validate_styles_impl(http_request: Request) -> HTMLResponse:
+    form_data: typing.Final = await _read_form_data(http_request)
     styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
     result: typing.Final = styles_service.validate_form_data(form_data)
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/_status_panel.html",
         context={"result": result, "applied": False},
     )
 
 
-async def _apply_styles_impl(request: Request) -> HTMLResponse:
+async def _apply_styles_impl(http_request: Request) -> HTMLResponse:
     _enforce_config_mutation_access()
-    form_data: typing.Final = await _read_form_data(request)
+    form_data: typing.Final = await _read_form_data(http_request)
     styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
     result: typing.Final = styles_service.apply_form_data(form_data)
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/_status_panel.html",
         context={"result": result, "applied": True},
     )
@@ -458,14 +458,14 @@ def save_prompt_source(payload: PromptSaveRequest) -> dict[str, Any]:
 @router.post("/playground/api/dossier/run")
 async def run_dossier_from_playground(
     payload: DossierRunRequest,
-    request: Request,
+    http_request: Request,
     response: Response,
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
 ) -> dict[str, Any]:
-    start_trace(route=str(request.url.path), stream_id=payload.stream_id, db=db)
+    start_trace(route=str(http_request.url.path), stream_id=payload.stream_id, db=database_session)
     try:
         reply_text, route = await api_routes.service.run_dossier(
-            db,
+            database_session,
             stream_id=payload.stream_id,
             username=payload.username,
             target_username=payload.dossier_target,
@@ -486,16 +486,18 @@ async def run_dossier_from_playground(
 
 
 @router.post("/playground/api/chat/reset-stream")
-def reset_chat_stream(payload: ResetStreamRequest, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
+def reset_chat_stream(
+    payload: ResetStreamRequest, database_session: Annotated[Session, Depends(get_db)]
+) -> dict[str, Any]:
     stream_id: typing.Final = payload.stream_id.strip()
     if not stream_id:
         raise HTTPException(status_code=422, detail="stream_id must not be empty")
 
     deleted_count: typing.Final = api_routes.service.chat_memory.delete_stream_messages(
-        db,
+        database_session,
         stream_id=stream_id,
     )
-    db.commit()
+    database_session.commit()
 
     return {
         "stream_id": stream_id,
@@ -505,9 +507,9 @@ def reset_chat_stream(payload: ResetStreamRequest, db: Annotated[Session, Depend
 
 
 @router.get("/traces", response_class=HTMLResponse)
-def get_traces(request: Request, run_id: Annotated[str | None, Query()] = None) -> HTMLResponse:
+def get_traces(http_request: Request, run_id: Annotated[str | None, Query()] = None) -> HTMLResponse:
     return templates.TemplateResponse(
-        request=request,
+        request=http_request,
         name="admin/traces.html",
         context={
             "active_page": "traces",
@@ -521,7 +523,7 @@ def get_traces(request: Request, run_id: Annotated[str | None, Query()] = None) 
 
 @router.get("/traces/api/runs")
 def get_trace_runs(
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     stream_id: Annotated[str | None, Query()] = None,
     status: Annotated[str | None, Query()] = None,
@@ -538,7 +540,7 @@ def get_trace_runs(
         ) from exc
 
     items: typing.Final = _trace_read_service.list_runs(
-        db,
+        database_session,
         limit=limit,
         stream_id=stream_id,
         status=normalized_status,
@@ -547,8 +549,8 @@ def get_trace_runs(
 
 
 @router.get("/traces/api/runs/{run_id}")
-def get_trace_run_detail(run_id: str, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
-    detail: typing.Final = _trace_read_service.get_run_detail(db, run_id=run_id)
+def get_trace_run_detail(run_id: str, database_session: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
+    detail: typing.Final = _trace_read_service.get_run_detail(database_session, run_id=run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Trace run not found")
     return detail
@@ -560,30 +562,30 @@ def get_llm_config_admin_legacy() -> RedirectResponse:
 
 
 @router.post("/llm-config/validate", response_class=HTMLResponse)
-async def validate_llm_config(request: Request) -> HTMLResponse:
-    return await _validate_llm_config_impl(request)
+async def validate_llm_config(http_request: Request) -> HTMLResponse:
+    return await _validate_llm_config_impl(http_request)
 
 
 @router.post("/llm-config/apply", response_class=HTMLResponse)
-async def apply_llm_config(request: Request) -> HTMLResponse:
-    return await _apply_llm_config_impl(request)
+async def apply_llm_config(http_request: Request) -> HTMLResponse:
+    return await _apply_llm_config_impl(http_request)
 
 
 @router.post("/styles/validate", response_class=HTMLResponse)
-async def validate_styles(request: Request) -> HTMLResponse:
-    return await _validate_styles_impl(request)
+async def validate_styles(http_request: Request) -> HTMLResponse:
+    return await _validate_styles_impl(http_request)
 
 
 @router.post("/styles/apply", response_class=HTMLResponse)
-async def apply_styles(request: Request) -> HTMLResponse:
-    return await _apply_styles_impl(request)
+async def apply_styles(http_request: Request) -> HTMLResponse:
+    return await _apply_styles_impl(http_request)
 
 
 @router.post("/admin/llm-config/validate", response_class=HTMLResponse)
-async def validate_llm_config_legacy(request: Request) -> HTMLResponse:
-    return await _validate_llm_config_impl(request)
+async def validate_llm_config_legacy(http_request: Request) -> HTMLResponse:
+    return await _validate_llm_config_impl(http_request)
 
 
 @router.post("/admin/llm-config/apply", response_class=HTMLResponse)
-async def apply_llm_config_legacy(request: Request) -> HTMLResponse:
-    return await _apply_llm_config_impl(request)
+async def apply_llm_config_legacy(http_request: Request) -> HTMLResponse:
+    return await _apply_llm_config_impl(http_request)

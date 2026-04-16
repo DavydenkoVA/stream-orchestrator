@@ -24,8 +24,12 @@ from app.services.dynamic_prompt_service import DynamicPromptService
 from app.services.router import RouterService
 
 
-router = APIRouter()
-service = RouterService()
+api_router = APIRouter()
+# Backward-compatible alias used by app.main and tests.
+router = api_router
+router_service = RouterService()
+# Backward-compatible alias used by tests/fixtures.
+service = router_service
 dynamic_prompt_service = DynamicPromptService(
     llm_registry=service.llm_registry,
     llm_executor=service.llm_executor,
@@ -45,9 +49,9 @@ def _run_trace_safely(action: str, operation: Callable[[], None]) -> None:
         logger.warning("trace operation failed: %s", action, exc_info=True)
 
 
-def _start_request_trace(*, route: str, stream_id: str | None, db: Session) -> None:
+def _start_request_trace(*, route: str, stream_id: str | None, database_session: Session) -> None:
     def _operation() -> None:
-        start_trace(route=route, stream_id=stream_id, db=db)
+        start_trace(route=route, stream_id=stream_id, db=database_session)
         trace_info("request.start", "request started", payload={"route": route})
 
     _run_trace_safely("start_request_trace", _operation)
@@ -71,31 +75,31 @@ def _attach_trace_header(response: Response) -> None:
     response.headers["X-Trace-Id"] = state.trace_id
 
 
-@router.get("/health")
+@api_router.get("/health")
 def healthcheck() -> dict[str, Any]:
     return {"ok": True}
 
 
-@router.post("/events/chat_ingest")
+@api_router.post("/events/chat_ingest")
 def ingest_chat_event(
-    payload: ChatEvent,
+    chat_event: ChatEvent,
     request: Request,
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
 ) -> IngestResponse:
-    route: typing.Final = str(request.url.path)
-    _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
+    request_route: typing.Final = str(request.url.path)
+    _start_request_trace(route=request_route, stream_id=chat_event.stream_id, database_session=database_session)
     try:
         service.ingest_chat_event(
-            db,
-            stream_id=payload.stream_id,
-            username=payload.username,
-            text=payload.text,
-            mentions_bot=payload.mentions_bot,
-            role=payload.role,
-            message_id=payload.message_id,
-            reply_to_message_id=payload.reply_to_message_id,
-            reply_to_username=payload.reply_to_username,
-            reply_to_text=payload.reply_to_text,
+            database_session,
+            stream_id=chat_event.stream_id,
+            username=chat_event.username,
+            text=chat_event.text,
+            mentions_bot=chat_event.mentions_bot,
+            role=chat_event.role,
+            message_id=chat_event.message_id,
+            reply_to_message_id=chat_event.reply_to_message_id,
+            reply_to_username=chat_event.reply_to_username,
+            reply_to_text=chat_event.reply_to_text,
         )
         _run_trace_safely(
             "chat_ingest_finish_success", lambda: trace_success("request.finish", "chat ingest request finished")
@@ -115,38 +119,45 @@ def ingest_chat_event(
         raise
 
 
-@router.post("/events/chat_reply")
+@api_router.post("/events/chat_reply")
 async def reply_chat_event(
-    payload: ChatEvent,
+    chat_event: ChatEvent,
     request: Request,
     response: Response,
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
 ) -> ChatReply:
-    route = str(request.url.path)
-    _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
+    request_route = str(request.url.path)
+    _start_request_trace(route=request_route, stream_id=chat_event.stream_id, database_session=database_session)
     try:
-        reply_text, route = await service.handle_chat_reply(
-            db,
-            stream_id=payload.stream_id,
-            username=payload.username,
-            text=payload.text,
-            mentions_bot=payload.mentions_bot,
-            role=payload.role,
-            message_id=payload.message_id,
-            reply_to_message_id=payload.reply_to_message_id,
-            reply_to_username=payload.reply_to_username,
-            reply_to_text=payload.reply_to_text,
+        reply_text, selected_route = await service.handle_chat_reply(
+            database_session,
+            stream_id=chat_event.stream_id,
+            username=chat_event.username,
+            text=chat_event.text,
+            mentions_bot=chat_event.mentions_bot,
+            role=chat_event.role,
+            message_id=chat_event.message_id,
+            reply_to_message_id=chat_event.reply_to_message_id,
+            reply_to_username=chat_event.reply_to_username,
+            reply_to_text=chat_event.reply_to_text,
         )
 
         _run_trace_safely(
             "chat_reply_finish_success",
-            lambda: trace_success("request.finish", "chat reply request finished", payload={"route_result": route}),
+            lambda: trace_success(
+                "request.finish",
+                "chat reply request finished",
+                payload={"route_result": selected_route},
+            ),
         )
         _attach_trace_header(response)
-        _run_trace_safely("chat_reply_mark_success", lambda: finish_trace_success(summary=f"chat_reply {route}"))
+        _run_trace_safely(
+            "chat_reply_mark_success",
+            lambda: finish_trace_success(summary=f"chat_reply {selected_route}"),
+        )
         return ChatReply(
             reply_text=reply_text,
-            route=route,
+            route=selected_route,
             should_reply=bool(reply_text),
         )
     except Exception as exc:
@@ -162,39 +173,45 @@ async def reply_chat_event(
         raise
 
 
-@router.get("/debug/prompts/{name}")
+@api_router.get("/debug/prompts/{name}")
 def get_prompt(name: str) -> dict[str, Any]:
-    store: typing.Final = PromptStore()
-    return {"name": name, "content": store.read(name)}
+    prompt_store: typing.Final = PromptStore()
+    return {"name": name, "content": prompt_store.read(name)}
 
 
-@router.get("/debug/context")
+@api_router.get("/debug/context")
 def debug_context(
     stream_id: str,
     username: str,
     text: str,
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
 ) -> DebugContextResponse:
     normalized_username: typing.Final = service.normalize_username(username)
 
     global_recent: typing.Final = service.chat_memory.recent_messages(
-        db,
+        database_session,
         stream_id=stream_id,
     )
     user_recent: typing.Final = service.chat_memory.recent_user_messages(
-        db,
+        database_session,
         stream_id=stream_id,
         username=normalized_username,
     )
     dialog_recent: typing.Final = service.chat_memory.recent_dialog_messages(
-        db,
+        database_session,
         stream_id=stream_id,
         username=normalized_username,
     )
 
-    global_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in global_recent]
-    user_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in user_recent]
-    dialog_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent]
+    global_recent_block: typing.Final = [
+        f"{one_message.username} [{one_message.role}]: {one_message.text}" for one_message in global_recent
+    ]
+    user_recent_block: typing.Final = [
+        f"{one_message.username} [{one_message.role}]: {one_message.text}" for one_message in user_recent
+    ]
+    dialog_recent_block: typing.Final = [
+        f"{one_message.username} [{one_message.role}]: {one_message.text}" for one_message in dialog_recent
+    ]
 
     system_prompt: typing.Final = service.prompts.read("chat_system.txt")
     user_prompt: typing.Final = service.prompts.render(
@@ -217,40 +234,46 @@ def debug_context(
     )
 
 
-@router.post("/events/dynamic_prompt")
+@api_router.post("/events/dynamic_prompt")
 async def dynamic_prompt_event(
-    payload: DynamicPromptRequest,
+    dynamic_prompt_request: DynamicPromptRequest,
     request: Request,
     response: Response,
-    db: Annotated[Session, Depends(get_db)],
+    database_session: Annotated[Session, Depends(get_db)],
 ) -> DynamicPromptResponse:
-    route: typing.Final = str(request.url.path)
-    _start_request_trace(route=route, stream_id=None, db=db)
+    request_route: typing.Final = str(request.url.path)
+    _start_request_trace(route=request_route, stream_id=None, database_session=database_session)
     try:
-        result, message = await dynamic_prompt_service.generate(
-            db=db,
-            prompt_name=payload.prompt,
-            user=payload.user,
-            data=payload.data,
-            llm_provider_override=payload.llm.provider if payload.llm else None,
-            style_override=payload.llm.style if payload.llm else None,
-            temperature_override=payload.llm.temperature if payload.llm else None,
-            max_output_tokens_override=payload.llm.max_output_tokens if payload.llm else None,
+        generation_result, generated_message = await dynamic_prompt_service.generate(
+            db=database_session,
+            prompt_name=dynamic_prompt_request.prompt,
+            user=dynamic_prompt_request.user,
+            data=dynamic_prompt_request.data,
+            llm_provider_override=dynamic_prompt_request.llm.provider if dynamic_prompt_request.llm else None,
+            style_override=dynamic_prompt_request.llm.style if dynamic_prompt_request.llm else None,
+            temperature_override=dynamic_prompt_request.llm.temperature if dynamic_prompt_request.llm else None,
+            max_output_tokens_override=dynamic_prompt_request.llm.max_output_tokens
+            if dynamic_prompt_request.llm
+            else None,
         )
 
-        if result != "success":
-            message = ""
+        if generation_result != "success":
+            generated_message = ""
 
         _run_trace_safely(
             "dynamic_prompt_finish_success",
-            lambda: trace_success("request.finish", "dynamic prompt request finished", payload={"result": result}),
+            lambda: trace_success(
+                "request.finish",
+                "dynamic prompt request finished",
+                payload={"result": generation_result},
+            ),
         )
         _attach_trace_header(response)
         _run_trace_safely(
             "dynamic_prompt_mark_success",
-            lambda: finish_trace_success(summary=f"dynamic_prompt {result}"),
+            lambda: finish_trace_success(summary=f"dynamic_prompt {generation_result}"),
         )
-        return DynamicPromptResponse(result=result, message=message)
+        return DynamicPromptResponse(result=generation_result, message=generated_message)
     except Exception as exc:
         error_code: typing.Final = _error_code_for_exception(exc)
         _run_trace_safely(
