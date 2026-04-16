@@ -5,3 +5,4 @@ data/sqlite/app.db
 config/llm_profiles.yml
 config/llm_styles.yml
 /prompts/
+/report/
