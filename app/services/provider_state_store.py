@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -13,8 +14,8 @@ if TYPE_CHECKING:
 
 class ProviderStateStore:
     def get_current_model_name(self, db: Session, provider_name: str) -> str | None:
-        stmt = select(ProviderRuntimeState).where(ProviderRuntimeState.provider_name == provider_name)
-        row = db.scalar(stmt)
+        stmt: typing.Final = select(ProviderRuntimeState).where(ProviderRuntimeState.provider_name == provider_name)
+        row: typing.Final = db.scalar(stmt)
         if row is None:
             return None
         return row.current_model_name
@@ -25,7 +26,7 @@ class ProviderStateStore:
         provider_name: str,
         model_name: str | None,
     ) -> None:
-        stmt = select(ProviderRuntimeState).where(ProviderRuntimeState.provider_name == provider_name)
+        stmt: typing.Final = select(ProviderRuntimeState).where(ProviderRuntimeState.provider_name == provider_name)
         row = db.scalar(stmt)
 
         if row is None:

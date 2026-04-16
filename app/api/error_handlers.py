@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import typing
 from typing import TYPE_CHECKING
 
 from fastapi.responses import JSONResponse
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_ERROR_MESSAGES_BY_STATUS = {
+_ERROR_MESSAGES_BY_STATUS: typing.Final = {
     400: ("bad_request", "Bad request"),
     404: ("not_found", "Not found"),
 }
@@ -29,7 +30,7 @@ def _error_payload(
     *,
     details: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    payload: dict[str, object] = ErrorResponse(
+    payload: typing.Final[dict[str, object]] = ErrorResponse(
         error_code=error_code,
         message=message,
         request_id=request_id,
@@ -40,7 +41,7 @@ def _error_payload(
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    request_id = get_request_id(request)
+    request_id: typing.Final = get_request_id(request)
     logger.warning(
         "Validation error: request_id=%s method=%s path=%s errors=%s",
         request_id,
@@ -59,7 +60,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    request_id = get_request_id(request)
+    request_id: typing.Final = get_request_id(request)
 
     error_code, message = _ERROR_MESSAGES_BY_STATUS.get(
         exc.status_code,
@@ -87,7 +88,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    request_id = get_request_id(request)
+    request_id: typing.Final = get_request_id(request)
     logger.exception(
         "Unhandled exception: request_id=%s method=%s path=%s exception_type=%s",
         request_id,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import typing
 from typing import TYPE_CHECKING
 
 from app.observability.trace_helpers import trace_failure, trace_info, trace_success
@@ -35,20 +36,20 @@ class LLMExecutionService:
         if not pool.models:
             return []
 
-        by_name = {item.name: item for item in pool.models}
+        by_name: typing.Final = {item.name: item for item in pool.models}
 
         if not current_model_name or current_model_name not in by_name:
             return list(pool.models)
 
-        current = by_name[current_model_name]
-        rest = [item for item in pool.models if item.name != current_model_name]
+        current: typing.Final = by_name[current_model_name]
+        rest: typing.Final = [item for item in pool.models if item.name != current_model_name]
         return [current, *rest]
 
     def _is_retryable_exception(self, exc: Exception) -> bool:
-        name = exc.__class__.__name__.lower()
-        text = str(exc).lower()
+        name: typing.Final = exc.__class__.__name__.lower()
+        text: typing.Final = str(exc).lower()
 
-        retryable_markers = [
+        retryable_markers: typing.Final = [
             "timeout",
             "rate limit",
             "quota",
@@ -75,8 +76,8 @@ class LLMExecutionService:
         user_prompt: str,
         style_resolution: dict[str, str | None] | None = None,
     ) -> str:
-        current_model_name = self.state_store.get_current_model_name(db, pool.name)
-        style_payload = {
+        current_model_name: typing.Final = self.state_store.get_current_model_name(db, pool.name)
+        style_payload: typing.Final = {
             "requested_style": (style_resolution or {}).get("requested_style") or feature_settings.style,
             "applied_style": (style_resolution or {}).get("applied_style") or feature_settings.style,
             "style_resolution_status": (style_resolution or {}).get("style_resolution_status") or "success",
@@ -94,7 +95,7 @@ class LLMExecutionService:
                 "model": current_model_name,
             },
         )
-        ordered_models = self._build_attempt_order(
+        ordered_models: typing.Final = self._build_attempt_order(
             pool=pool,
             current_model_name=current_model_name,
         )
@@ -103,7 +104,7 @@ class LLMExecutionService:
             raise RuntimeError(f"Provider pool '{pool.name}' has no models")
 
         last_exc: Exception | None = None
-        attempted_names: list[str] = []
+        attempted_names: typing.Final[list[str]] = []
 
         for endpoint in ordered_models:
             attempted_names.append(endpoint.name)

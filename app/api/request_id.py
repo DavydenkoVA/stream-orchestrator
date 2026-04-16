@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -7,7 +8,7 @@ if TYPE_CHECKING:
     from fastapi import Request
 
 
-REQUEST_ID_STATE_KEY = "request_id"
+REQUEST_ID_STATE_KEY: typing.Final = "request_id"
 
 
 def generate_request_id() -> str:
@@ -19,10 +20,10 @@ def set_request_id(request: Request, request_id: str) -> None:
 
 
 def get_request_id(request: Request) -> str:
-    request_id = getattr(request.state, REQUEST_ID_STATE_KEY, "")
+    request_id: typing.Final = getattr(request.state, REQUEST_ID_STATE_KEY, "")
     if request_id:
         return request_id
 
-    fallback_request_id = generate_request_id()
+    fallback_request_id: typing.Final = generate_request_id()
     set_request_id(request, fallback_request_id)
     return fallback_request_id

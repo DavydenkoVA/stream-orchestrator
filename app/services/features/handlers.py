@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import re
+import typing
 from typing import ClassVar, cast
 
 from app.config import settings
@@ -9,33 +10,35 @@ from app.text_utils import prepare_chat_text
 
 
 logger = logging.getLogger(__name__)
+MIN_RECENT_MESSAGES_FOR_DOSSIER = 2
 
 
+@typing.final
 class DossierFeatureHandler(FeatureHandler):
     route_name = "dossier"
 
     DOSSIER_PATTERN = re.compile(r"досье\s+на\s+@?([A-Za-z0-9_]+)", flags=re.IGNORECASE)
 
-    def extract_target(self, text: str) -> str | None:
-        match = self.DOSSIER_PATTERN.search(text)
+    def resolve_dossier_target(self, text: str) -> str | None:
+        match: typing.Final = self.DOSSIER_PATTERN.search(text)
         if not match:
             return None
         return match.group(1).strip()
 
     def matches(self, request: ChatRequest) -> bool:
-        return self.extract_target(request.text.strip()) is not None
+        return self.resolve_dossier_target(request.text.strip()) is not None
 
     async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
-        dossier_target = self.extract_target(request.text.strip())
+        dossier_target: typing.Final = self.resolve_dossier_target(request.text.strip())
         if dossier_target is None:
             return FeatureResponse(reply_text="", route=self.route_name)
 
-        target = dossier_target or request.username
-        normalized_target = target.strip().lstrip("@").lower()
+        target: typing.Final = dossier_target or request.username
+        normalized_target: typing.Final = target.strip().lstrip("@").lower()
 
         if normalized_target == settings.bot_username.strip().lstrip("@").lower():
             return FeatureResponse(
-                reply_text="На себя досье не веду — конфликт интересов. Kappa",
+                reply_text="На себя досье не веду — конфликт интересов. Kappa",  # noqa: RUF001
                 route=self.route_name,
             )
 
@@ -43,18 +46,18 @@ class DossierFeatureHandler(FeatureHandler):
             context.db,
             normalized_target,
         )
-        context_data = context.dossier.build_context(context.db, normalized_target)
-        recent_messages = cast("list[str]", context_data.get("recent_messages", []))
-        memory_items = cast("list[dict[str, object]]", context_data.get("memory_items", []))
+        context_data: typing.Final = context.dossier.build_context(context.db, normalized_target)
+        recent_messages: typing.Final = cast("list[str]", context_data.get("recent_messages", []))
+        memory_items: typing.Final = cast("list[dict[str, object]]", context_data.get("memory_items", []))
 
-        if len(recent_messages) < 2 and len(memory_items) == 0:
+        if len(recent_messages) < MIN_RECENT_MESSAGES_FOR_DOSSIER and len(memory_items) == 0:
             return FeatureResponse(
-                reply_text=f"На @{normalized_target} пока мало данных для нормального досье TPFufun",
+                reply_text=f"На @{normalized_target} пока мало данных для нормального досье TPFufun",  # noqa: RUF001
                 route=self.route_name,
             )
 
-        recent_block = "\n".join(f"- {msg}" for msg in recent_messages[:15]) or "- Нет данных"
-        memory_block = (
+        recent_block: typing.Final = "\n".join(f"- {msg}" for msg in recent_messages[:15]) or "- Нет данных"
+        memory_block: typing.Final = (
             "\n".join(
                 f"- type: {item['kind']}; fact: {item['text']}; "
                 f"confidence: {item['confidence']}; evidence: {item['evidence_count']}"
@@ -64,8 +67,8 @@ class DossierFeatureHandler(FeatureHandler):
         )
 
         pool, feature_cfg = context.llm_registry.get_for_feature("dossier")
-        base_system_prompt = context.prompts.read("dossier_system.txt")
-        style_result = context.style_prompt.apply_style_with_resolution(
+        base_system_prompt: typing.Final = context.prompts.read("dossier_system.txt")
+        style_result: typing.Final = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
@@ -91,7 +94,7 @@ class DossierFeatureHandler(FeatureHandler):
             )
         except Exception:
             logger.exception("Dossier generation failed")
-            reply = f"Не удалось собрать досье на @{normalized_target}"
+            reply = f"Не удалось собрать досье на @{normalized_target}"  # noqa: RUF001
 
         return FeatureResponse(
             reply_text=prepare_chat_text(reply, settings.twitch_message_limit),
@@ -99,6 +102,7 @@ class DossierFeatureHandler(FeatureHandler):
         )
 
 
+@typing.final
 class WeeklyMoviesFeatureHandler(FeatureHandler):
     route_name = "weekly_movies"
 
@@ -111,18 +115,18 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
         "что смотрим в воскресенье",
         "фильмы недели",
         "что по фильмам",
-        "что у нас по фильмам",
+        "что у нас по фильмам",  # noqa: RUF001
         "что смотрим на этой неделе",
         "что на этой неделе смотрим",
         "какие фильмы на неделе",
     ]
 
     def matches(self, request: ChatRequest) -> bool:
-        normalized = request.text.strip().lower()
+        normalized: typing.Final = request.text.strip().lower()
         return any(trigger in normalized for trigger in self.TRIGGERS)
 
     async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
-        weekly_movies_data = context.weekly_movies.read_raw()
+        weekly_movies_data: typing.Final = context.weekly_movies.read_raw()
 
         if weekly_movies_data["found"] and weekly_movies_data["content"]:
             file_content = weekly_movies_data["content"]
@@ -130,8 +134,8 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
             file_content = weekly_movies_data["message"] or "Список фильмов на эту неделю пока пуст."
 
         pool, feature_cfg = context.llm_registry.get_for_feature("weekly_movies")
-        base_system_prompt = context.prompts.read("weekly_movies_system.txt")
-        style_result = context.style_prompt.apply_style_with_resolution(
+        base_system_prompt: typing.Final = context.prompts.read("weekly_movies_system.txt")
+        style_result: typing.Final = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
@@ -156,7 +160,7 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
             )
         except Exception:
             logger.exception("Weekly movies reply failed")
-            reply = "Не удалось прочитать список фильмов"
+            reply = "Не удалось прочитать список фильмов"  # noqa: RUF001
 
         return FeatureResponse(
             reply_text=prepare_chat_text(reply, settings.twitch_message_limit),
@@ -164,6 +168,7 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
         )
 
 
+@typing.final
 class MentionChatFeatureHandler(FeatureHandler):
     route_name = "chat"
 
@@ -171,46 +176,52 @@ class MentionChatFeatureHandler(FeatureHandler):
         return request.mentions_bot
 
     async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
-        normalized_username = request.username.strip().lstrip("@").lower()
+        normalized_username: typing.Final = request.username.strip().lstrip("@").lower()
 
-        global_recent = context.chat_memory.recent_messages(
+        global_recent: typing.Final = context.chat_memory.recent_messages(
             context.db,
             stream_id=request.stream_id,
             limit=settings.chat_global_context_limit,
         )
-        user_recent = context.chat_memory.recent_user_messages(
+        user_recent: typing.Final = context.chat_memory.recent_user_messages(
             context.db,
             stream_id=request.stream_id,
             username=normalized_username,
             limit=settings.chat_user_context_limit,
         )
-        dialog_recent = context.chat_memory.recent_dialog_messages(
+        dialog_recent: typing.Final = context.chat_memory.recent_dialog_messages(
             context.db,
             stream_id=request.stream_id,
             username=normalized_username,
             limit=settings.chat_dialog_context_limit,
         )
 
-        global_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in global_recent) or "Нет данных."
+        global_recent_block: typing.Final = (
+            "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in global_recent) or "Нет данных."
+        )
 
-        user_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in user_recent) or "Нет данных."
+        user_recent_block: typing.Final = (
+            "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in user_recent) or "Нет данных."
+        )
 
-        dialog_recent_block = "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent) or "Нет данных."
+        dialog_recent_block: typing.Final = (
+            "\n".join(f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent) or "Нет данных."
+        )
 
         reply_context_block = "Нет"
 
         if request.reply_to_text:
-            parent_user = request.reply_to_username or "unknown"
+            parent_user: typing.Final = request.reply_to_username or "unknown"
             reply_context_block = f"{parent_user}: {request.reply_to_text}"
 
-        base_system_prompt = context.prompts.read("chat_system.txt")
+        base_system_prompt: typing.Final = context.prompts.read("chat_system.txt")
         pool, feature_cfg = context.llm_registry.get_for_feature("chat")
-        style_result = context.style_prompt.apply_style_with_resolution(
+        style_result: typing.Final = context.style_prompt.apply_style_with_resolution(
             base_system_prompt,
             feature_cfg.style,
         )
 
-        user_prompt = context.prompts.render(
+        user_prompt: typing.Final = context.prompts.render(
             "chat_user_template.txt",
             username=request.username,
             text=request.text.strip(),
@@ -244,6 +255,7 @@ class MentionChatFeatureHandler(FeatureHandler):
         )
 
 
+@typing.final
 class IgnoreFeatureHandler(FeatureHandler):
     route_name = "ignored"
 

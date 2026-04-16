@@ -1,3 +1,5 @@
+import typing
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,9 +13,9 @@ def normalize_username(username: str) -> str:
 
 class DossierService:
     def build_context(self, db: Session, username: str) -> dict[str, object]:
-        normalized_username = normalize_username(username)
+        normalized_username: typing.Final = normalize_username(username)
 
-        messages = list(
+        messages: typing.Final = list(
             db.scalars(
                 select(ChatMessage)
                 .where(ChatMessage.username == normalized_username)
@@ -21,7 +23,7 @@ class DossierService:
                 .limit(30)
             )
         )
-        memory_items = list(
+        memory_items: typing.Final = list(
             db.scalars(
                 select(UserMemoryItem)
                 .where(UserMemoryItem.username == normalized_username)

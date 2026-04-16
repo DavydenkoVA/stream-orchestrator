@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 import re
 import tempfile
+import typing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -11,9 +12,9 @@ import yaml
 from app.config import settings
 
 
-DEFAULT_STYLE_KEY = "default"
-RANDOM_STYLE_KEY = "random"
-STYLE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+DEFAULT_STYLE_KEY: typing.Final = "default"
+RANDOM_STYLE_KEY: typing.Final = "random"
+STYLE_NAME_PATTERN: typing.Final = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 @dataclass(slots=True)
@@ -53,17 +54,17 @@ class StyleRegistry:
 
     def _read_raw(self) -> dict[str, object]:
         if not self.config_path.exists():
-            example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
+            example_path: typing.Final = self.config_path.with_suffix(self.config_path.suffix + ".example")
             if example_path.exists():
                 return yaml.safe_load(example_path.read_text(encoding="utf-8")) or {}
             return {}
         return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
 
     def _load(self) -> dict[str, StyleDefinition]:
-        raw = self._read_raw()
-        styles_raw = cast("dict[str, dict[str, object]]", raw.get("styles", {}))
+        raw: typing.Final = self._read_raw()
+        styles_raw: typing.Final = cast("dict[str, dict[str, object]]", raw.get("styles", {}))
 
-        styles: dict[str, StyleDefinition] = {}
+        styles: typing.Final[dict[str, StyleDefinition]] = {}
 
         for key, cfg in styles_raw.items():
             normalized_key = str(key).strip().lower()
@@ -83,12 +84,12 @@ class StyleRegistry:
         return styles
 
     def list_configured_styles(self) -> list[StyleDefinition]:
-        styles = self._load()
-        keys = [DEFAULT_STYLE_KEY, *sorted([key for key in styles if key != DEFAULT_STYLE_KEY])]
+        styles: typing.Final = self._load()
+        keys: typing.Final = [DEFAULT_STYLE_KEY, *sorted([key for key in styles if key != DEFAULT_STYLE_KEY])]
         return [styles[key] for key in keys]
 
     def selector_options(self) -> list[StyleSelectorOption]:
-        options: list[StyleSelectorOption] = [
+        options: typing.Final[list[StyleSelectorOption]] = [
             StyleSelectorOption(value="", label="-- no style --", kind="empty"),
             StyleSelectorOption(value=RANDOM_STYLE_KEY, label=RANDOM_STYLE_KEY, kind="system"),
         ]
@@ -102,20 +103,20 @@ class StyleRegistry:
         if style_name is None:
             return None
 
-        normalized = style_name.strip().lower()
+        normalized: typing.Final = style_name.strip().lower()
         if not normalized:
             return None
         if normalized == RANDOM_STYLE_KEY:
             return None
 
-        styles = self._load()
+        styles: typing.Final = self._load()
         if normalized not in styles:
             return f"unknown style reference: {normalized}"
         return None
 
     def validate_configured_styles(self, styles: list[StyleDefinition]) -> list[str]:
-        errors: list[str] = []
-        seen: set[str] = set()
+        errors: typing.Final[list[str]] = []
+        seen: typing.Final[set[str]] = set()
         has_default = False
 
         for style in styles:
@@ -142,21 +143,21 @@ class StyleRegistry:
         return errors
 
     def apply_configured_styles(self, styles: list[StyleDefinition]) -> list[str]:
-        errors = self.validate_configured_styles(styles)
+        errors: typing.Final = self.validate_configured_styles(styles)
         if errors:
             return errors
 
-        styles_payload = {
+        styles_payload: typing.Final = {
             style.key: {
                 "title": style.title,
                 "instruction": style.instruction,
             }
             for style in styles
         }
-        raw = {"styles": styles_payload}
+        raw: typing.Final = {"styles": styles_payload}
 
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        yaml_payload = yaml.safe_dump(
+        yaml_payload: typing.Final = yaml.safe_dump(
             raw,
             sort_keys=False,
             allow_unicode=True,
@@ -172,7 +173,7 @@ class StyleRegistry:
             suffix=".tmp",
         ) as temp_file:
             temp_file.write(yaml_payload)
-            temp_path = Path(temp_file.name)
+            temp_path: typing.Final = Path(temp_file.name)
 
         try:
             temp_path.replace(self.config_path)
@@ -186,7 +187,7 @@ class StyleRegistry:
         return self.resolve_with_metadata(style_name).style
 
     def resolve_with_metadata(self, style_name: str | None) -> StyleResolution:
-        styles = self._load()
+        styles: typing.Final = self._load()
 
         if not style_name or not style_name.strip():
             style = styles[DEFAULT_STYLE_KEY]
@@ -198,7 +199,7 @@ class StyleRegistry:
                 style=style,
             )
 
-        normalized = style_name.strip().lower()
+        normalized: typing.Final = style_name.strip().lower()
 
         if normalized == DEFAULT_STYLE_KEY:
             style = styles[DEFAULT_STYLE_KEY]
@@ -211,7 +212,9 @@ class StyleRegistry:
             )
 
         if normalized == RANDOM_STYLE_KEY:
-            candidates = [style for key, style in styles.items() if key not in {DEFAULT_STYLE_KEY, RANDOM_STYLE_KEY}]
+            candidates: typing.Final = [
+                style for key, style in styles.items() if key not in {DEFAULT_STYLE_KEY, RANDOM_STYLE_KEY}
+            ]
             if not candidates:
                 style = styles[DEFAULT_STYLE_KEY]
                 return StyleResolution(
@@ -240,7 +243,7 @@ class StyleRegistry:
                 style=style,
             )
 
-        fallback_style = styles[DEFAULT_STYLE_KEY]
+        fallback_style: typing.Final = styles[DEFAULT_STYLE_KEY]
         return StyleResolution(
             requested_style=normalized,
             applied_style=fallback_style.key,

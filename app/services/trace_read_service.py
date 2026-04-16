@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import typing
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Select, select
@@ -35,28 +36,28 @@ class TraceReadService:
         query: Select[tuple[TraceRun]] = select(TraceRun)
         if stream_id:
             query = query.where(TraceRun.stream_id == stream_id)
-        normalized_status = normalize_status_filter(status)
+        normalized_status: typing.Final = normalize_status_filter(status)
         if normalized_status:
             query = query.where(TraceRun.status == normalized_status)
 
         query = query.order_by(TraceRun.started_at.desc(), TraceRun.id.desc()).limit(limit)
-        runs = list(db.scalars(query).all())
+        runs: typing.Final = list(db.scalars(query).all())
         return [self._serialize_run(run) for run in runs]
 
     def get_run_detail(self, db: Session, run_id: str) -> dict[str, Any] | None:
-        run = db.scalar(select(TraceRun).where(TraceRun.trace_id == run_id))
+        run: typing.Final = db.scalar(select(TraceRun).where(TraceRun.trace_id == run_id))
         if run is None:
             return None
 
-        events_query = (
+        events_query: typing.Final = (
             select(TraceEvent)
             .where(TraceEvent.trace_run_id == run.id)
             .order_by(TraceEvent.seq_no.asc(), TraceEvent.id.asc())
         )
-        events = list(db.scalars(events_query).all())
-        serialized_events = [self._serialize_event(event) for event in events]
-        style_resolution = self._derive_style_resolution(serialized_events)
-        run_payload = self._serialize_run(run)
+        events: typing.Final = list(db.scalars(events_query).all())
+        serialized_events: typing.Final = [self._serialize_event(event) for event in events]
+        style_resolution: typing.Final = self._derive_style_resolution(serialized_events)
+        run_payload: typing.Final = self._serialize_run(run)
         run_payload.update(style_resolution)
 
         return {
@@ -65,8 +66,8 @@ class TraceReadService:
         }
 
     def _serialize_run(self, run: TraceRun) -> dict[str, Any]:
-        started_at = self._iso(run.started_at)
-        finished_at = self._iso(run.finished_at)
+        started_at: typing.Final = self._iso(run.started_at)
+        finished_at: typing.Final = self._iso(run.finished_at)
 
         duration_ms: int | None = None
         if run.started_at and run.finished_at:
@@ -112,15 +113,15 @@ class TraceReadService:
         if not isinstance(payload, dict):
             return None
 
-        requested_style = payload.get("requested_style")
-        applied_style = payload.get("applied_style") or payload.get("style")
-        resolution_status = payload.get("style_resolution_status")
-        resolution_reason = payload.get("style_resolution_reason")
+        requested_style: typing.Final = payload.get("requested_style")
+        applied_style: typing.Final = payload.get("applied_style") or payload.get("style")
+        resolution_status: typing.Final = payload.get("style_resolution_status")
+        resolution_reason: typing.Final = payload.get("style_resolution_reason")
 
-        requested = requested_style.strip() if isinstance(requested_style, str) else ""
-        applied = applied_style.strip() if isinstance(applied_style, str) else ""
-        status = resolution_status.strip() if isinstance(resolution_status, str) else ""
-        reason = resolution_reason.strip() if isinstance(resolution_reason, str) else ""
+        requested: typing.Final = requested_style.strip() if isinstance(requested_style, str) else ""
+        applied: typing.Final = applied_style.strip() if isinstance(applied_style, str) else ""
+        status: typing.Final = resolution_status.strip() if isinstance(resolution_status, str) else ""
+        reason: typing.Final = resolution_reason.strip() if isinstance(resolution_reason, str) else ""
 
         if not requested and not applied and not status and not reason:
             return None
@@ -146,10 +147,10 @@ class TraceReadService:
 
     @staticmethod
     def _derive_style_resolution(events: list[dict[str, Any]]) -> dict[str, str]:  # noqa: C901
-        requested_values: set[str] = set()
-        applied_values: set[str] = set()
-        status_values: set[str] = set()
-        reason_values: set[str] = set()
+        requested_values: typing.Final[set[str]] = set()
+        applied_values: typing.Final[set[str]] = set()
+        status_values: typing.Final[set[str]] = set()
+        reason_values: typing.Final[set[str]] = set()
 
         for event in events:
             payload = event.get("payload")
@@ -183,9 +184,9 @@ class TraceReadService:
                 return next(iter(values))
             return "multiple"
 
-        derived: dict[str, str] = {}
-        requested = _single_or_multiple(requested_values)
-        applied = _single_or_multiple(applied_values)
+        derived: typing.Final[dict[str, str]] = {}
+        requested: typing.Final = _single_or_multiple(requested_values)
+        applied: typing.Final = _single_or_multiple(applied_values)
         resolution_status = _single_or_multiple(status_values)
         resolution_reason = _single_or_multiple(reason_values)
 

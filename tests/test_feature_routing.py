@@ -62,9 +62,9 @@ def test_feature_selector_returns_first_matching_handler() -> None:
 def test_dossier_handler_extracts_target_and_matches_case_insensitive() -> None:
     handler = DossierFeatureHandler()
 
-    assert handler.extract_target("Сделай досье на @Test_User") == "Test_User"
-    assert handler.extract_target("досье на viewer123") == "viewer123"
-    assert handler.extract_target("просто чат") is None
+    assert handler.resolve_dossier_target("Сделай досье на @Test_User") == "Test_User"
+    assert handler.resolve_dossier_target("досье на viewer123") == "viewer123"
+    assert handler.resolve_dossier_target("просто чат") is None
 
     request = ChatRequest(
         stream_id="stream-1",

@@ -44,13 +44,13 @@ class DynamicPromptService:
         return prompt_name
 
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
-        safe_name = self._validate_prompt_name(prompt_name)
-        system_name = f"dynamic/{safe_name}_system.txt"
-        template_name = f"dynamic/{safe_name}_template.txt"
+        safe_name: typing.Final = self._validate_prompt_name(prompt_name)
+        system_name: typing.Final = f"dynamic/{safe_name}_system.txt"
+        template_name: typing.Final = f"dynamic/{safe_name}_template.txt"
         return system_name, template_name
 
     def _prompt_exists(self, relative_name: str) -> bool:
-        prompt_path = pathlib.Path(settings.prompts_dir) / relative_name
+        prompt_path: typing.Final = pathlib.Path(settings.prompts_dir) / relative_name
         return prompt_path.exists() and prompt_path.is_file()
 
     async def generate(  # noqa: C901, PLR0911, PLR0913, PLR0915
@@ -98,7 +98,7 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        dynamic_prompt_payload = data
+        dynamic_prompt_payload: typing.Final = data
         if not isinstance(dynamic_prompt_payload, dict):
             app.observability.trace_helpers.trace_info(
                 "dynamic_prompt.fallback",
@@ -108,7 +108,7 @@ class DynamicPromptService:
             return "fallback", ""
 
         try:
-            required_fields = self.prompts.get_required_fields(template_name)
+            required_fields: typing.Final = self.prompts.get_required_fields(template_name)
         except ValueError as exc:
             logger.warning(
                 "Dynamic prompt template validation failed: prompt=%s template=%s error=%s",
@@ -128,8 +128,8 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        available_fields = {"user", *dynamic_prompt_payload.keys()}
-        missing_fields = sorted(required_fields - available_fields)
+        available_fields: typing.Final = {"user", *dynamic_prompt_payload.keys()}
+        missing_fields: typing.Final = sorted(required_fields - available_fields)
         if missing_fields:
             logger.warning(
                 "Dynamic prompt preflight failed: prompt=%s template=%s missing_fields=%s available_keys=%s",
@@ -158,13 +158,13 @@ class DynamicPromptService:
         )
 
         try:
-            base_system_prompt = self.prompts.read(system_name)
-            style_result = self.style_prompt.apply_style_with_resolution(
+            base_system_prompt: typing.Final = self.prompts.read(system_name)
+            style_result: typing.Final = self.style_prompt.apply_style_with_resolution(
                 base_system_prompt,
                 feature_cfg.style,
             )
-            system_prompt = style_result.system_prompt
-            user_prompt = self.prompts.render(
+            system_prompt: typing.Final = style_result.system_prompt
+            user_prompt: typing.Final = self.prompts.render(
                 template_name,
                 user=user,
                 **dynamic_prompt_payload,

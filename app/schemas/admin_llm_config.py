@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -25,7 +26,7 @@ class AdminProviderConfig(BaseModel):
     @field_validator("provider")
     @classmethod
     def validate_provider_type(cls, value: str) -> str:
-        normalized = value.strip().lower()
+        normalized: typing.Final = value.strip().lower()
         if normalized not in SUPPORTED_PROVIDER_TYPES:
             raise ValueError(f"unsupported provider type: {value}")
         return normalized
@@ -73,7 +74,7 @@ class AdminLLMConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_unique_names_and_links(self) -> AdminLLMConfig:
-        provider_names = [provider.name for provider in self.providers]
+        provider_names: typing.Final = [provider.name for provider in self.providers]
         if len(provider_names) != len(set(provider_names)):
             raise ValueError("duplicate provider name")
 
@@ -82,27 +83,27 @@ class AdminLLMConfig(BaseModel):
             if len(model_names) != len(set(model_names)):
                 raise ValueError(f"duplicate model name inside provider '{provider.name}'")
 
-        known_provider_names = set(provider_names)
+        known_provider_names: typing.Final = set(provider_names)
         for feature in self.feature_settings:
             if feature.provider not in known_provider_names:
                 raise ValueError("provider references unknown provider")
 
-        configured_features = [feature.name for feature in self.feature_settings]
-        known_features = set(SUPPORTED_FEATURE_NAMES)
+        configured_features: typing.Final = [feature.name for feature in self.feature_settings]
+        known_features: typing.Final = set(SUPPORTED_FEATURE_NAMES)
         if len(configured_features) != len(set(configured_features)):
             raise ValueError("duplicate feature name")
-        unknown_features = [name for name in configured_features if name not in known_features]
+        unknown_features: typing.Final = [name for name in configured_features if name not in known_features]
         if unknown_features:
             raise ValueError(f"unknown feature name: {unknown_features[0]}")
 
-        missing_features = [name for name in SUPPORTED_FEATURE_NAMES if name not in configured_features]
+        missing_features: typing.Final = [name for name in SUPPORTED_FEATURE_NAMES if name not in configured_features]
         if missing_features:
             raise ValueError(f"missing required feature setting: {missing_features[0]}")
 
         return self
 
     def to_raw_dict(self) -> dict[str, object]:
-        providers = {
+        providers: typing.Final = {
             provider.name: {
                 "provider": provider.provider,
                 "models": [
@@ -118,7 +119,7 @@ class AdminLLMConfig(BaseModel):
             for provider in self.providers
         }
 
-        features = {
+        features: typing.Final = {
             feature.name: {
                 "provider": feature.provider,
                 "temperature": feature.temperature,

@@ -1,3 +1,4 @@
+import typing
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -29,7 +30,7 @@ _loaded_models = app_models
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    inspector = inspect(engine)
+    inspector: typing.Final = inspect(engine)
 
     if not inspector.get_table_names():
         raise RuntimeError("Database is not initialized. Run migrations: alembic upgrade head")
@@ -43,12 +44,12 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-    request_id = generate_request_id()
+    request_id: typing.Final = generate_request_id()
     set_request_id(request, request_id)
     set_current_request_id(request_id)
 
     try:
-        response = await call_next(request)
+        response: typing.Final = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
     finally:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import typing
 from dataclasses import dataclass
 
 from app.services.style_registry import DEFAULT_STYLE_KEY, StyleDefinition, StyleRegistry
@@ -25,7 +26,7 @@ class StylesAdminService:
         self,
         form: dict[str, str],
     ) -> tuple[list[StyleDefinition], dict[int, str]]:
-        styles_raw: dict[int, dict[str, str]] = {}
+        styles_raw: typing.Final[dict[int, dict[str, str]]] = {}
 
         for key, value in form.items():
             match = self.STYLE_PATTERN.match(key)
@@ -35,8 +36,8 @@ class StylesAdminService:
             field = match.group(2)
             styles_raw.setdefault(idx, {})[field] = str(value).strip()
 
-        styles: list[StyleDefinition] = []
-        system_markers: dict[int, str] = {}
+        styles: typing.Final[list[StyleDefinition]] = []
+        system_markers: typing.Final[dict[int, str]] = {}
         for idx in sorted(styles_raw.keys()):
             row = styles_raw[idx]
             system_marker = row.get("system", "").strip().lower()
@@ -56,7 +57,7 @@ class StylesAdminService:
 
     def validate_form_data(self, form: dict[str, str]) -> StylesValidationResult:
         styles, system_markers = self.parse_form_data(form)
-        errors = self.style_registry.validate_configured_styles(styles)
+        errors: typing.Final = self.style_registry.validate_configured_styles(styles)
 
         for idx, marker in system_markers.items():
             if marker != DEFAULT_STYLE_KEY:
@@ -66,7 +67,7 @@ class StylesAdminService:
                 errors.append("default style name cannot be changed")
 
         if DEFAULT_STYLE_KEY in [style.key for style in styles]:
-            default_item = next(style for style in styles if style.key == DEFAULT_STYLE_KEY)
+            default_item: typing.Final = next(style for style in styles if style.key == DEFAULT_STYLE_KEY)
             if not default_item.title:
                 errors.append("default style title is empty")
 
@@ -75,11 +76,11 @@ class StylesAdminService:
         return StylesValidationResult(valid=True, errors=[], styles=styles)
 
     def apply_form_data(self, form: dict[str, str]) -> StylesValidationResult:
-        validation = self.validate_form_data(form)
+        validation: typing.Final = self.validate_form_data(form)
         if not validation.valid or validation.styles is None:
             return validation
 
-        errors = self.style_registry.apply_configured_styles(validation.styles)
+        errors: typing.Final = self.style_registry.apply_configured_styles(validation.styles)
         if errors:
             return StylesValidationResult(valid=False, errors=errors)
 

@@ -1,3 +1,4 @@
+import typing
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
@@ -26,7 +27,7 @@ class ChatMemoryService:
         reply_to_username: str | None = None,
         reply_to_text: str | None = None,
     ) -> ChatMessage:
-        message = ChatMessage(
+        message: typing.Final = ChatMessage(
             stream_id=stream_id,
             username=username,
             role=role,
@@ -48,7 +49,7 @@ class ChatMemoryService:
         stream_id: str,
         limit: int = 20,
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (
             select(ChatMessage)
             .where(ChatMessage.stream_id == stream_id)
             .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
@@ -64,7 +65,7 @@ class ChatMemoryService:
         username: str,
         limit: int = 8,
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (
             select(ChatMessage)
             .where(
                 ChatMessage.stream_id == stream_id,
@@ -83,7 +84,7 @@ class ChatMemoryService:
         username: str,
         limit: int = 12,
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (
             select(ChatMessage)
             .where(
                 ChatMessage.stream_id == stream_id,
@@ -103,7 +104,7 @@ class ChatMemoryService:
         *,
         username: str,
     ) -> int:
-        stmt = select(func.count(ChatMessage.id)).where(
+        stmt: typing.Final = select(func.count(ChatMessage.id)).where(
             ChatMessage.username == username,
             ChatMessage.role == "viewer",
         )
@@ -115,7 +116,7 @@ class ChatMemoryService:
         *,
         username: str,
     ) -> int:
-        stmt = select(func.count(ChatMessage.id)).where(
+        stmt: typing.Final = select(func.count(ChatMessage.id)).where(
             ChatMessage.username == username,
             ChatMessage.role == "viewer",
             ChatMessage.is_memory_processed.is_(False),
@@ -129,7 +130,7 @@ class ChatMemoryService:
         username: str,
         limit: int,
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (
             select(ChatMessage)
             .where(
                 ChatMessage.username == username,
@@ -147,7 +148,7 @@ class ChatMemoryService:
         username: str,
         limit: int,
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (
             select(ChatMessage)
             .where(
                 ChatMessage.username == username,
@@ -168,7 +169,7 @@ class ChatMemoryService:
         if not message_ids:
             return
 
-        stmt = (
+        stmt: typing.Final = (
             update(ChatMessage)
             .where(ChatMessage.id.in_(message_ids))
             .values(
@@ -188,7 +189,7 @@ class ChatMemoryService:
         if not message_ids:
             return
 
-        stmt = (
+        stmt: typing.Final = (
             update(ChatMessage)
             .where(
                 ChatMessage.id.in_(message_ids),
@@ -208,6 +209,6 @@ class ChatMemoryService:
         *,
         stream_id: str,
     ) -> int:
-        stmt = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
-        result = db.execute(stmt)
+        stmt: typing.Final = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
+        result: typing.Final = db.execute(stmt)
         return int(cast("CursorResult[object]", result).rowcount or 0)

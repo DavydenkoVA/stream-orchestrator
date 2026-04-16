@@ -1,11 +1,12 @@
+import typing
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data" / "sqlite"
-DEFAULT_DB_PATH = DATA_DIR / "app.db"
+BASE_DIR: typing.Final = Path(__file__).resolve().parent.parent
+DATA_DIR: typing.Final = BASE_DIR / "data" / "sqlite"
+DEFAULT_DB_PATH: typing.Final = DATA_DIR / "app.db"
 
 
 class Settings(BaseSettings):

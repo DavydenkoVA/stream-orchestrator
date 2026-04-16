@@ -1,3 +1,4 @@
+import typing
 from pathlib import Path
 from typing import TypeAlias
 
@@ -24,7 +25,7 @@ class WeeklyMoviesFileService:
                 "message": f"Файл не найден: {self.file_path}",
             }
 
-        content = self.file_path.read_text(encoding="utf-8").strip()
+        content: typing.Final = self.file_path.read_text(encoding="utf-8").strip()
 
         if not content:
             return {

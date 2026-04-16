@@ -1,4 +1,5 @@
 import re
+import typing
 
 
 def strip_basic_markdown(text: str) -> str:
@@ -19,7 +20,7 @@ def truncate_for_chat(text: str, limit: int) -> str:
         return text
 
     trimmed = text[: limit - 3].rstrip()
-    last_space = trimmed.rfind(" ")
+    last_space: typing.Final = trimmed.rfind(" ")
 
     if last_space > max(0, limit // 2):
         trimmed = trimmed[:last_space].rstrip()

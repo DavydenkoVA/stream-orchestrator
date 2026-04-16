@@ -1,14 +1,15 @@
 from __future__ import annotations
+import typing
 
 from app.config import settings
 
 
-SUPPORTED_PROVIDER_TYPES: tuple[str, ...] = (
+SUPPORTED_PROVIDER_TYPES: typing.Final[tuple[str, ...]] = (
     "openai",
     "mock",
 )
 
-SUPPORTED_FEATURE_NAMES: tuple[str, ...] = (
+SUPPORTED_FEATURE_NAMES: typing.Final[tuple[str, ...]] = (
     "chat",
     "dossier",
     "weekly_movies",
@@ -16,9 +17,9 @@ SUPPORTED_FEATURE_NAMES: tuple[str, ...] = (
     "dynamic_prompt",
 )
 
-TEMPERATURE_MIN = 0.0
-TEMPERATURE_MAX = 1.0
-TEMPERATURE_STEP = 0.01
+TEMPERATURE_MIN: typing.Final = 0.0
+TEMPERATURE_MAX: typing.Final = 1.0
+TEMPERATURE_STEP: typing.Final = 0.01
 
 
 def default_feature_settings() -> dict[str, dict[str, float | int | str | None]]:

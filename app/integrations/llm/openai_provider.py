@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 
 from openai import AsyncOpenAI
 
@@ -27,7 +28,7 @@ class OpenAIProvider(LLMProvider):
         temperature: float = 0.7,
         max_output_tokens: int = 400,
     ) -> str:
-        response = await self.client.chat.completions.create(
+        response: typing.Final = await self.client.chat.completions.create(
             model=self.model,
             temperature=temperature,
             max_tokens=max_output_tokens,
@@ -37,5 +38,5 @@ class OpenAIProvider(LLMProvider):
             ],
         )
 
-        content = response.choices[0].message.content
+        content: typing.Final = response.choices[0].message.content
         return content or ""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import typing
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -15,7 +16,7 @@ from app.observability.trace_status import (
 )
 
 
-SENSITIVE_MARKERS = {
+SENSITIVE_MARKERS: typing.Final = {
     "api_key",
     "authorization",
     "secret",
@@ -35,8 +36,8 @@ class TraceRecorder:
 
     @classmethod
     def from_db_session(cls, db: Session) -> TraceRecorder:
-        bind = db.get_bind()
-        session_factory = sessionmaker(bind=bind, autoflush=False, autocommit=False, future=True)
+        bind: typing.Final = db.get_bind()
+        session_factory: typing.Final = sessionmaker(bind=bind, autoflush=False, autocommit=False, future=True)
         return cls(session_factory=session_factory)
 
     def start_run(
@@ -48,7 +49,7 @@ class TraceRecorder:
         stream_id: str | None,
     ) -> int:
         with self._session_factory() as session:
-            run = TraceRun(
+            run: typing.Final = TraceRun(
                 trace_id=trace_id,
                 request_id=request_id,
                 route=route,
@@ -72,8 +73,8 @@ class TraceRecorder:
         payload: dict[str, Any] | None = None,
     ) -> None:
         with self._session_factory() as session:
-            safe_payload = sanitize_payload(payload)
-            event = TraceEvent(
+            safe_payload: typing.Final = sanitize_payload(payload)
+            event: typing.Final = TraceEvent(
                 trace_run_id=trace_run_id,
                 seq_no=seq_no,
                 timestamp=datetime.now(UTC),
@@ -95,7 +96,7 @@ class TraceRecorder:
         summary: str | None = None,
     ) -> None:
         with self._session_factory() as session:
-            run = session.get(TraceRun, trace_run_id)
+            run: typing.Final = session.get(TraceRun, trace_run_id)
             if run is None:
                 return
             run.status = status
@@ -111,17 +112,17 @@ class TraceRecorder:
         summary: str | None = None,
     ) -> None:
         with self._session_factory() as session:
-            run = session.get(TraceRun, trace_run_id)
+            run: typing.Final = session.get(TraceRun, trace_run_id)
             if run is None:
                 return
 
-            events = list(
+            events: typing.Final = list(
                 session.query(TraceEvent)
                 .filter(TraceEvent.trace_run_id == trace_run_id)
                 .order_by(TraceEvent.seq_no.asc(), TraceEvent.id.asc())
                 .all()
             )
-            derived_status = self._derive_success_status(run=run, events=events)
+            derived_status: typing.Final = self._derive_success_status(run=run, events=events)
 
             run.status = derived_status
             if derived_status == TRACE_RUN_STATUS_DEGRADED and not run.error_code:
@@ -132,13 +133,15 @@ class TraceRecorder:
 
     @staticmethod
     def _derive_success_status(*, run: TraceRun, events: list[TraceEvent]) -> str:
-        llm_dependent_route = run.route in {"/events/chat_reply", "/events/dynamic_prompt"}
+        llm_dependent_route: typing.Final = run.route in {"/events/chat_reply", "/events/dynamic_prompt"}
 
-        llm_success = any(event.step in {"llm.generate.success", "dynamic_prompt.llm.success"} for event in events)
-        llm_failure = any(
+        llm_success: typing.Final = any(
+            event.step in {"llm.generate.success", "dynamic_prompt.llm.success"} for event in events
+        )
+        llm_failure: typing.Final = any(
             event.step in {"llm.model.failed", "llm.generate.failed", "dynamic_prompt.llm.failed"} for event in events
         )
-        llm_was_involved = any(
+        llm_was_involved: typing.Final = any(
             event.step.startswith("llm.") or event.step.startswith("dynamic_prompt.llm.") for event in events
         )
 
@@ -153,7 +156,7 @@ def sanitize_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
 
     def _clean(value: Any, parent_key: str = "") -> Any:  # noqa: ANN401
         if isinstance(value, dict):
-            cleaned: dict[str, Any] = {}
+            cleaned: typing.Final[dict[str, Any]] = {}
             for key, item in value.items():
                 key_lower = str(key).lower()
                 if key_lower in SENSITIVE_MARKERS or any(marker in key_lower for marker in SENSITIVE_MARKERS):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import re
 import tempfile
+import typing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,20 +37,20 @@ class LLMConfigAdminService:
         self.style_registry = style_registry or StyleRegistry()
 
     def read_raw_config(self) -> dict[str, Any]:
-        config_path = Path(self.registry.config_path)
+        config_path: typing.Final = Path(self.registry.config_path)
         if not config_path.exists():
             return {}
         return yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
 
     def read_styles_raw(self, styles_path: str | Path) -> dict[str, Any]:
-        path = Path(styles_path)
+        path: typing.Final = Path(styles_path)
         if not path.exists():
             return {}
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
     def parse_form_data(self, form: dict[str, str]) -> dict[str, Any]:
-        providers: dict[int, dict[str, Any]] = {}
-        features: dict[int, dict[str, Any]] = {}
+        providers: typing.Final[dict[int, dict[str, Any]]] = {}
+        features: typing.Final[dict[int, dict[str, Any]]] = {}
 
         for key, value in form.items():
             m_provider = self.PROVIDER_PATTERN.match(key)
@@ -75,7 +76,7 @@ class LLMConfigAdminService:
                 field = m_feature.group(2)
                 features.setdefault(feature_idx, {})[field] = str(value).strip()
 
-        ordered_providers = []
+        ordered_providers: typing.Final = []
         for provider_idx in sorted(providers.keys()):
             provider_item = providers[provider_idx]
             models_map = provider_item.get("models", {})
@@ -88,37 +89,37 @@ class LLMConfigAdminService:
                 }
             )
 
-        ordered_features = [features[i] for i in sorted(features.keys())]
+        ordered_features: typing.Final = [features[i] for i in sorted(features.keys())]
         return {
             "providers": ordered_providers,
             "feature_settings": ordered_features,
         }
 
     def validate_form_data(self, form: dict[str, str]) -> AdminValidationResult:
-        raw = self.parse_form_data(form)
+        raw: typing.Final = self.parse_form_data(form)
 
         try:
-            config = AdminLLMConfig.model_validate(raw)
-            normalized_raw = config.to_raw_dict()
+            config: typing.Final = AdminLLMConfig.model_validate(raw)
+            normalized_raw: typing.Final = config.to_raw_dict()
             self.registry.validate_raw(normalized_raw)
-            style_errors = self._validate_style_references(normalized_raw)
+            style_errors: typing.Final = self._validate_style_references(normalized_raw)
             if style_errors:
                 return AdminValidationResult(valid=False, errors=style_errors)
             return AdminValidationResult(valid=True, errors=[], config=config, raw=normalized_raw)
         except ValidationError as exc:
-            errors = [self._humanize_error(error) for error in exc.errors()]
+            errors: typing.Final = [self._humanize_error(error) for error in exc.errors()]
             return AdminValidationResult(valid=False, errors=errors)
         except ValueError as exc:
             return AdminValidationResult(valid=False, errors=[str(exc)])
 
     def apply_form_data(self, form: dict[str, str]) -> AdminValidationResult:
-        validation = self.validate_form_data(form)
+        validation: typing.Final = self.validate_form_data(form)
         if not validation.valid or validation.raw is None:
             return validation
 
-        config_path = Path(self.registry.config_path)
+        config_path: typing.Final = Path(self.registry.config_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        yaml_payload = yaml.safe_dump(
+        yaml_payload: typing.Final = yaml.safe_dump(
             validation.raw,
             sort_keys=False,
             allow_unicode=True,
@@ -134,7 +135,7 @@ class LLMConfigAdminService:
             suffix=".tmp",
         ) as temp_file:
             temp_file.write(yaml_payload)
-            temp_path = Path(temp_file.name)
+            temp_path: typing.Final = Path(temp_file.name)
 
         try:
             temp_path.replace(config_path)
@@ -142,13 +143,13 @@ class LLMConfigAdminService:
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
 
-        snapshot = self.registry.build_snapshot_from_raw(validation.raw)
+        snapshot: typing.Final = self.registry.build_snapshot_from_raw(validation.raw)
         self.registry.apply_snapshot(snapshot)
         return validation
 
     def _validate_style_references(self, raw: dict[str, Any]) -> list[str]:
-        errors: list[str] = []
-        features = raw.get("feature_settings", {})
+        errors: typing.Final[list[str]] = []
+        features: typing.Final = raw.get("feature_settings", {})
         for feature_name, feature_cfg in features.items():
             style_value = feature_cfg.get("style")
             style_error = self.style_registry.validate_style_reference(
@@ -160,9 +161,9 @@ class LLMConfigAdminService:
 
     @staticmethod
     def _humanize_error(error: Mapping[str, Any]) -> str:  # noqa: C901, PLR0911, PLR0912
-        loc = error.get("loc", ())
-        message = str(error.get("msg", "validation error"))
-        lowered = message.lower()
+        loc: typing.Final = error.get("loc", ())
+        message: typing.Final = str(error.get("msg", "validation error"))
+        lowered: typing.Final = message.lower()
 
         if "providers list is empty" in lowered:
             return "providers list is empty"

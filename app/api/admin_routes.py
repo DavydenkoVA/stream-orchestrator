@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import typing
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -48,7 +49,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
-_DYNAMIC_PROMPT_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_DYNAMIC_PROMPT_NAME_RE: typing.Final = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 _trace_read_service = TraceReadService()
@@ -75,7 +76,7 @@ class DossierRunRequest(BaseModel):
     dossier_target: str = Field(..., min_length=1, max_length=128)
 
 
-PROMPT_PARTS: dict[str, dict[str, str]] = {
+PROMPT_PARTS: typing.Final[dict[str, dict[str, str]]] = {
     "chat": {
         "system_prompt": "chat_system.txt",
         "user_template": "chat_user_template.txt",
@@ -88,12 +89,12 @@ PROMPT_PARTS: dict[str, dict[str, str]] = {
 
 
 def _list_dynamic_prompt_names() -> list[str]:
-    prompts_root = Path(settings.prompts_dir) / "dynamic"
+    prompts_root: typing.Final = Path(settings.prompts_dir) / "dynamic"
     if not prompts_root.exists():
         return []
 
-    systems: set[str] = set()
-    templates_set: set[str] = set()
+    systems: typing.Final[set[str]] = set()
+    templates_set: typing.Final[set[str]] = set()
 
     for path in prompts_root.glob("*_system.txt"):
         systems.add(path.name[: -len("_system.txt")])
@@ -116,7 +117,7 @@ def _prompt_file_for(scope: str, part: str, *, name: str | None = None) -> str:
     if scope == "dynamic":
         if not name:
             raise HTTPException(status_code=400, detail="name is required for dynamic prompts")
-        validated_name = _validate_dynamic_prompt_name(name)
+        validated_name: typing.Final = _validate_dynamic_prompt_name(name)
         if part == "system_prompt":
             return f"dynamic/{validated_name}_system.txt"
         if part == "template_prompt":
@@ -124,30 +125,30 @@ def _prompt_file_for(scope: str, part: str, *, name: str | None = None) -> str:
         raise HTTPException(status_code=400, detail="Invalid dynamic prompt part")
     if scope not in PROMPT_PARTS:
         raise HTTPException(status_code=400, detail="Invalid prompt scope")
-    file_name = PROMPT_PARTS[scope].get(part)
+    file_name: typing.Final = PROMPT_PARTS[scope].get(part)
     if not file_name:
         raise HTTPException(status_code=400, detail="Invalid prompt part")
     return file_name
 
 
 def _get_trace_run_id() -> str | None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()
     if state is None:
         return None
     return state.trace_id
 
 
 def _build_view_model() -> dict[str, Any]:
-    style_registry = api_routes.service.style_registry
-    raw_config = _read_admin_raw_config(style_registry)
+    style_registry: typing.Final = api_routes.service.style_registry
+    raw_config: typing.Final = _read_admin_raw_config(style_registry)
 
-    selector_options = [asdict(option) for option in style_registry.selector_options()]
-    snapshot_meta = api_routes.service.llm_registry.get_snapshot_metadata()
+    selector_options: typing.Final = [asdict(option) for option in style_registry.selector_options()]
+    snapshot_meta: typing.Final = api_routes.service.llm_registry.get_snapshot_metadata()
 
-    providers = raw_config.get("providers", {})
-    features = raw_config.get("feature_settings", {})
+    providers: typing.Final = raw_config.get("providers", {})
+    features: typing.Final = raw_config.get("feature_settings", {})
 
-    providers_list = []
+    providers_list: typing.Final = []
     for provider_name, provider_cfg in providers.items():
         providers_list.append(
             {
@@ -157,7 +158,7 @@ def _build_view_model() -> dict[str, Any]:
             }
         )
 
-    feature_defaults = {
+    feature_defaults: typing.Final = {
         feature_name: {
             "provider": "",
             "temperature": settings.llm_temperature,
@@ -167,7 +168,7 @@ def _build_view_model() -> dict[str, Any]:
         for feature_name in SUPPORTED_FEATURE_NAMES
     }
 
-    features_list = []
+    features_list: typing.Final = []
     for feature_name in SUPPORTED_FEATURE_NAMES:
         feature_cfg = {**feature_defaults[feature_name], **(features.get(feature_name) or {})}
         style_value = str(feature_cfg.get("style", "") or "").strip()
@@ -200,22 +201,22 @@ def _build_view_model() -> dict[str, Any]:
 
 
 def _read_admin_raw_config(style_registry: StyleRegistry) -> dict[str, Any]:
-    admin_service = LLMConfigAdminService(
+    admin_service: typing.Final = LLMConfigAdminService(
         api_routes.service.llm_registry,
         style_registry=style_registry,
     )
-    raw_config = admin_service.read_raw_config()
+    raw_config: typing.Final = admin_service.read_raw_config()
     if raw_config:
         return raw_config
     return api_routes.service.llm_registry.export_raw_config()
 
 
 def _extract_top_level_provider_names(raw_config: dict[str, Any]) -> list[str]:
-    providers = raw_config.get("providers", {})
+    providers: typing.Final = raw_config.get("providers", {})
     if not isinstance(providers, dict):
         return []
 
-    names: list[str] = []
+    names: typing.Final[list[str]] = []
     for provider_name in providers:
         normalized = str(provider_name).strip()
         if normalized and normalized not in names:
@@ -227,9 +228,9 @@ def _resolve_selector_options_with_legacy(
     style_registry: StyleRegistry,
     current_value: str | None,
 ) -> list[dict[str, str]]:
-    options = [asdict(option) for option in style_registry.selector_options()]
-    normalized_current = (current_value or "").strip().lower()
-    known_values = {item["value"] for item in options}
+    options: typing.Final = [asdict(option) for option in style_registry.selector_options()]
+    normalized_current: typing.Final = (current_value or "").strip().lower()
+    known_values: typing.Final = {item["value"] for item in options}
     if normalized_current and normalized_current not in known_values:
         options.append(
             {
@@ -243,8 +244,8 @@ def _resolve_selector_options_with_legacy(
 
 def _enforce_config_mutation_access() -> None:
     """Restrict config mutation routes to non-production-style environments."""
-    allowed_envs = {"local", "dev", "test"}
-    current_env = settings.app_env.lower().strip()
+    allowed_envs: typing.Final = {"local", "dev", "test"}
+    current_env: typing.Final = settings.app_env.lower().strip()
     if current_env not in allowed_envs:
         raise HTTPException(
             status_code=403,
@@ -253,15 +254,15 @@ def _enforce_config_mutation_access() -> None:
 
 
 async def _read_form_data(request: Request) -> dict[str, str]:
-    body = (await request.body()).decode("utf-8")
+    body: typing.Final = (await request.body()).decode("utf-8")
     return dict(parse_qsl(body, keep_blank_values=True))
 
 
 async def _validate_llm_config_impl(request: Request) -> HTMLResponse:
-    form_data = await _read_form_data(request)
+    form_data: typing.Final = await _read_form_data(request)
 
-    admin_service = LLMConfigAdminService(api_routes.service.llm_registry)
-    result = admin_service.validate_form_data(form_data)
+    admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
+    result: typing.Final = admin_service.validate_form_data(form_data)
 
     return templates.TemplateResponse(
         request=request,
@@ -272,10 +273,10 @@ async def _validate_llm_config_impl(request: Request) -> HTMLResponse:
 
 async def _apply_llm_config_impl(request: Request) -> HTMLResponse:
     _enforce_config_mutation_access()
-    form_data = await _read_form_data(request)
+    form_data: typing.Final = await _read_form_data(request)
 
-    admin_service = LLMConfigAdminService(api_routes.service.llm_registry)
-    result = admin_service.apply_form_data(form_data)
+    admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
+    result: typing.Final = admin_service.apply_form_data(form_data)
 
     return templates.TemplateResponse(
         request=request,
@@ -286,7 +287,7 @@ async def _apply_llm_config_impl(request: Request) -> HTMLResponse:
 
 @router.get("/", response_class=HTMLResponse)
 def get_console_root(request: Request) -> HTMLResponse:
-    view = _build_view_model()
+    view: typing.Final = _build_view_model()
     return templates.TemplateResponse(
         request=request,
         name="admin/llm_config.html",
@@ -296,7 +297,7 @@ def get_console_root(request: Request) -> HTMLResponse:
 
 @router.get("/llm-config", response_class=HTMLResponse)
 def get_llm_config(request: Request) -> HTMLResponse:
-    view = _build_view_model()
+    view: typing.Final = _build_view_model()
     return templates.TemplateResponse(
         request=request,
         name="admin/llm_config.html",
@@ -306,9 +307,9 @@ def get_llm_config(request: Request) -> HTMLResponse:
 
 @router.get("/playground", response_class=HTMLResponse)
 def get_playground(request: Request, mode: Annotated[str, Query()] = "chat") -> HTMLResponse:
-    normalized_mode = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
-    style_registry = api_routes.service.style_registry
-    raw_config = _read_admin_raw_config(style_registry)
+    normalized_mode: typing.Final = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
+    style_registry: typing.Final = api_routes.service.style_registry
+    raw_config: typing.Final = _read_admin_raw_config(style_registry)
     return templates.TemplateResponse(
         request=request,
         name="admin/playground.html",
@@ -327,9 +328,9 @@ def get_playground(request: Request, mode: Annotated[str, Query()] = "chat") -> 
 
 @router.get("/styles", response_class=HTMLResponse)
 def get_styles(request: Request) -> HTMLResponse:
-    style_registry = api_routes.service.style_registry
-    styles_service = StylesAdminService(style_registry)
-    styles = styles_service.initial_styles()
+    style_registry: typing.Final = api_routes.service.style_registry
+    styles_service: typing.Final = StylesAdminService(style_registry)
+    styles: typing.Final = styles_service.initial_styles()
     return templates.TemplateResponse(
         request=request,
         name="admin/styles.html",
@@ -342,9 +343,9 @@ def get_styles(request: Request) -> HTMLResponse:
 
 
 async def _validate_styles_impl(request: Request) -> HTMLResponse:
-    form_data = await _read_form_data(request)
-    styles_service = StylesAdminService(api_routes.service.style_registry)
-    result = styles_service.validate_form_data(form_data)
+    form_data: typing.Final = await _read_form_data(request)
+    styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
+    result: typing.Final = styles_service.validate_form_data(form_data)
     return templates.TemplateResponse(
         request=request,
         name="admin/_status_panel.html",
@@ -354,9 +355,9 @@ async def _validate_styles_impl(request: Request) -> HTMLResponse:
 
 async def _apply_styles_impl(request: Request) -> HTMLResponse:
     _enforce_config_mutation_access()
-    form_data = await _read_form_data(request)
-    styles_service = StylesAdminService(api_routes.service.style_registry)
-    result = styles_service.apply_form_data(form_data)
+    form_data: typing.Final = await _read_form_data(request)
+    styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
+    result: typing.Final = styles_service.apply_form_data(form_data)
     return templates.TemplateResponse(
         request=request,
         name="admin/_status_panel.html",
@@ -366,27 +367,27 @@ async def _apply_styles_impl(request: Request) -> HTMLResponse:
 
 @router.get("/playground/api/dynamic-prompts")
 def get_dynamic_prompt_names() -> dict[str, Any]:
-    names = _list_dynamic_prompt_names()
+    names: typing.Final = _list_dynamic_prompt_names()
     return {"items": [{"name": name} for name in names]}
 
 
 @router.get("/playground/api/dynamic-prompts/{name}")
 def get_dynamic_prompt_metadata(name: str) -> dict[str, Any]:
-    validated_name = _validate_dynamic_prompt_name(name)
+    validated_name: typing.Final = _validate_dynamic_prompt_name(name)
     if validated_name not in _list_dynamic_prompt_names():
         raise HTTPException(status_code=404, detail="Dynamic prompt not found")
 
-    system_name = f"dynamic/{validated_name}_system.txt"
-    template_name = f"dynamic/{validated_name}_template.txt"
+    system_name: typing.Final = f"dynamic/{validated_name}_system.txt"
+    template_name: typing.Final = f"dynamic/{validated_name}_template.txt"
 
-    store = api_routes.service.prompts
+    store: typing.Final = api_routes.service.prompts
 
     try:
-        required_fields = sorted(store.get_required_fields(template_name))
-        required_data_fields = [field for field in required_fields if field != "user"]
-        data_skeleton = dict.fromkeys(required_data_fields, "")
-        system_prompt = store.read_raw(system_name)
-        template_prompt = store.read_raw(template_name)
+        required_fields: typing.Final = sorted(store.get_required_fields(template_name))
+        required_data_fields: typing.Final = [field for field in required_fields if field != "user"]
+        data_skeleton: typing.Final = dict.fromkeys(required_data_fields, "")
+        system_prompt: typing.Final = store.read_raw(system_name)
+        template_prompt: typing.Final = store.read_raw(template_name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Dynamic prompt not found") from exc
 
@@ -402,15 +403,15 @@ def get_dynamic_prompt_metadata(name: str) -> dict[str, Any]:
 
 @router.post("/playground/api/dynamic-prompts/create")
 def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict[str, Any]:
-    validated_name = _validate_dynamic_prompt_name(payload.name)
-    existing = set(_list_dynamic_prompt_names())
+    validated_name: typing.Final = _validate_dynamic_prompt_name(payload.name)
+    existing: typing.Final = set(_list_dynamic_prompt_names())
     if validated_name in existing:
         raise HTTPException(status_code=400, detail="Dynamic prompt already exists")
 
-    dynamic_root = Path(settings.prompts_dir) / "dynamic"
+    dynamic_root: typing.Final = Path(settings.prompts_dir) / "dynamic"
     dynamic_root.mkdir(parents=True, exist_ok=True)
-    system_path = dynamic_root / f"{validated_name}_system.txt"
-    template_path = dynamic_root / f"{validated_name}_template.txt"
+    system_path: typing.Final = dynamic_root / f"{validated_name}_system.txt"
+    template_path: typing.Final = dynamic_root / f"{validated_name}_template.txt"
     system_path.write_text("", encoding="utf-8")
     template_path.write_text("", encoding="utf-8")
     return {"name": validated_name, "created": True}
@@ -418,9 +419,9 @@ def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict[str, Any]
 
 @router.get("/playground/api/prompts/{scope}")
 def get_prompt_sources(scope: str, name: Annotated[str | None, Query()] = None) -> dict[str, Any]:
-    store = api_routes.service.prompts
+    store: typing.Final = api_routes.service.prompts
     if scope == "dynamic":
-        validated_name = _validate_dynamic_prompt_name(name or "")
+        validated_name: typing.Final = _validate_dynamic_prompt_name(name or "")
         return {
             "scope": scope,
             "name": validated_name,
@@ -437,10 +438,10 @@ def get_prompt_sources(scope: str, name: Annotated[str | None, Query()] = None) 
                 },
             ],
         }
-    part_map = PROMPT_PARTS.get(scope)
+    part_map: typing.Final = PROMPT_PARTS.get(scope)
     if not part_map:
         raise HTTPException(status_code=400, detail="Invalid prompt scope")
-    items = []
+    items: typing.Final = []
     for part, file_name in part_map.items():
         items.append({"part": part, "file": file_name, "content": store.read_raw(file_name)})
     return {"scope": scope, "items": items}
@@ -448,8 +449,8 @@ def get_prompt_sources(scope: str, name: Annotated[str | None, Query()] = None) 
 
 @router.post("/playground/api/prompts/save")
 def save_prompt_source(payload: PromptSaveRequest) -> dict[str, Any]:
-    file_name = _prompt_file_for(payload.scope, payload.part, name=payload.name)
-    store = api_routes.service.prompts
+    file_name: typing.Final = _prompt_file_for(payload.scope, payload.part, name=payload.name)
+    store: typing.Final = api_routes.service.prompts
     store.write(file_name, payload.content)
     return {"saved": True, "scope": payload.scope, "part": payload.part, "name": payload.name}
 
@@ -470,7 +471,7 @@ async def run_dossier_from_playground(
             target_username=payload.dossier_target,
         )
         trace_success("request.finish", "dossier playground request finished", payload={"route_result": route})
-        trace_id = _get_trace_run_id()
+        trace_id: typing.Final = _get_trace_run_id()
         if trace_id:
             response.headers["X-Trace-Id"] = trace_id
         finish_trace_success(summary=f"dossier {route}")
@@ -486,11 +487,11 @@ async def run_dossier_from_playground(
 
 @router.post("/playground/api/chat/reset-stream")
 def reset_chat_stream(payload: ResetStreamRequest, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
-    stream_id = payload.stream_id.strip()
+    stream_id: typing.Final = payload.stream_id.strip()
     if not stream_id:
         raise HTTPException(status_code=422, detail="stream_id must not be empty")
 
-    deleted_count = api_routes.service.chat_memory.delete_stream_messages(
+    deleted_count: typing.Final = api_routes.service.chat_memory.delete_stream_messages(
         db,
         stream_id=stream_id,
     )
@@ -526,7 +527,7 @@ def get_trace_runs(
     status: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     try:
-        normalized_status = normalize_status_filter(status)
+        normalized_status: typing.Final = normalize_status_filter(status)
     except TraceStatusValidationError as exc:
         raise HTTPException(
             status_code=400,
@@ -536,7 +537,7 @@ def get_trace_runs(
             },
         ) from exc
 
-    items = _trace_read_service.list_runs(
+    items: typing.Final = _trace_read_service.list_runs(
         db,
         limit=limit,
         stream_id=stream_id,
@@ -547,7 +548,7 @@ def get_trace_runs(
 
 @router.get("/traces/api/runs/{run_id}")
 def get_trace_run_detail(run_id: str, db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
-    detail = _trace_read_service.get_run_detail(db, run_id=run_id)
+    detail: typing.Final = _trace_read_service.get_run_detail(db, run_id=run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="Trace run not found")
     return detail

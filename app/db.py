@@ -1,3 +1,4 @@
+import typing
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -15,7 +16,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 
 
 def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
+    db: typing.Final = SessionLocal()
     try:
         yield db
     finally:

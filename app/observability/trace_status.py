@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from typing import TYPE_CHECKING
 
 
@@ -6,21 +7,21 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-TRACE_RUN_STATUS_RUNNING = "running"
-TRACE_RUN_STATUS_SUCCESS = "success"
-TRACE_RUN_STATUS_FAILED = "failed"
-TRACE_RUN_STATUS_DEGRADED = "degraded"
+TRACE_RUN_STATUS_RUNNING: typing.Final = "running"
+TRACE_RUN_STATUS_SUCCESS: typing.Final = "success"
+TRACE_RUN_STATUS_FAILED: typing.Final = "failed"
+TRACE_RUN_STATUS_DEGRADED: typing.Final = "degraded"
 
-TRACE_RUN_ALLOWED_STATUSES: tuple[str, ...] = (
+TRACE_RUN_ALLOWED_STATUSES: typing.Final[tuple[str, ...]] = (
     TRACE_RUN_STATUS_RUNNING,
     TRACE_RUN_STATUS_SUCCESS,
     TRACE_RUN_STATUS_FAILED,
     TRACE_RUN_STATUS_DEGRADED,
 )
 
-TRACE_STATUS_FILTER_ALL = "all"
+TRACE_STATUS_FILTER_ALL: typing.Final = "all"
 
-_TRACE_STATUS_TONE_BY_STATUS: dict[str, str] = {
+_TRACE_STATUS_TONE_BY_STATUS: typing.Final[dict[str, str]] = {
     TRACE_RUN_STATUS_SUCCESS: "success",
     TRACE_RUN_STATUS_FAILED: "failure",
     TRACE_RUN_STATUS_DEGRADED: "warning",
@@ -30,7 +31,7 @@ _TRACE_STATUS_TONE_BY_STATUS: dict[str, str] = {
 
 class TraceStatusValidationError(ValueError):
     def __init__(self, status: str, allowed: Iterable[str]) -> None:
-        allowed_values = tuple(allowed)
+        allowed_values: typing.Final = tuple(allowed)
         super().__init__(f"Unknown status '{status}'. Allowed values: {', '.join(allowed_values)}")
         self.status = status
         self.allowed_values = allowed_values
@@ -44,7 +45,7 @@ def normalize_status_filter(status: str | None) -> str | None:
     if status is None:
         return None
 
-    normalized = status.strip().lower()
+    normalized: typing.Final = status.strip().lower()
     if not normalized or normalized == TRACE_STATUS_FILTER_ALL:
         return None
 
@@ -55,7 +56,7 @@ def normalize_status_filter(status: str | None) -> str | None:
 
 
 def trace_status_tone(status: str | None) -> str:
-    normalized = (status or "").strip().lower()
+    normalized: typing.Final = (status or "").strip().lower()
     return _TRACE_STATUS_TONE_BY_STATUS.get(normalized, "neutral")
 
 
@@ -65,9 +66,9 @@ def trace_event_tone(  # noqa: PLR0911
     level: str | None,
     step: str | None = None,
 ) -> str:
-    normalized_status = (status or "").strip().lower()
-    normalized_level = (level or "").strip().upper()
-    normalized_step = (step or "").strip().lower()
+    normalized_status: typing.Final = (status or "").strip().lower()
+    normalized_level: typing.Final = (level or "").strip().upper()
+    normalized_step: typing.Final = (step or "").strip().lower()
 
     if normalized_status == "success":
         return "success"
@@ -93,12 +94,12 @@ def trace_event_tone(  # noqa: PLR0911
     return "neutral"
 
 
-_STYLE_RESOLUTION_SUCCESS_REASONS = {
+_STYLE_RESOLUTION_SUCCESS_REASONS: typing.Final = {
     "requested_applied",
     "random_resolved",
     "default_used",
 }
-_STYLE_RESOLUTION_FAILURE_REASONS = {
+_STYLE_RESOLUTION_FAILURE_REASONS: typing.Final = {
     "style_not_found",
     "invalid_style_fallback",
     "random_no_candidates_defaulted",
@@ -112,10 +113,10 @@ def style_resolution_tone(  # noqa: PLR0911
     status: str | None,
     reason: str | None,
 ) -> str:
-    normalized_status = (status or "").strip().lower()
-    normalized_reason = (reason or "").strip().lower()
-    requested = (requested_style or "").strip().lower()
-    applied = (applied_style or "").strip().lower()
+    normalized_status: typing.Final = (status or "").strip().lower()
+    normalized_reason: typing.Final = (reason or "").strip().lower()
+    requested: typing.Final = (requested_style or "").strip().lower()
+    applied: typing.Final = (applied_style or "").strip().lower()
 
     if normalized_status in {"fallback", "failed"}:
         return "failure"
@@ -144,10 +145,10 @@ def style_resolution_result(
     status: str | None,
     reason: str | None,
 ) -> str:
-    normalized_status = (status or "").strip().lower()
-    normalized_reason = (reason or "").strip().lower()
-    requested = (requested_style or "").strip().lower()
-    applied = (applied_style or "").strip().lower()
+    normalized_status: typing.Final = (status or "").strip().lower()
+    normalized_reason: typing.Final = (reason or "").strip().lower()
+    requested: typing.Final = (requested_style or "").strip().lower()
+    applied: typing.Final = (applied_style or "").strip().lower()
 
     if normalized_status in {"fallback", "failed"} or normalized_reason in _STYLE_RESOLUTION_FAILURE_REASONS:
         return "fallback"

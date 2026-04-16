@@ -1,4 +1,5 @@
 import logging
+import typing
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -32,9 +33,9 @@ dynamic_prompt_service = DynamicPromptService(
     style_prompt=service.style_prompt,
 )
 logger = logging.getLogger(__name__)
-HTTP_NOT_FOUND = 404
-HTTP_BAD_REQUEST = 400
-HTTP_UNPROCESSABLE_ENTITY = 422
+HTTP_NOT_FOUND: typing.Final = 404
+HTTP_BAD_REQUEST: typing.Final = 400
+HTTP_UNPROCESSABLE_ENTITY: typing.Final = 422
 
 
 def _run_trace_safely(action: str, operation: Callable[[], None]) -> None:
@@ -64,7 +65,7 @@ def _error_code_for_exception(exc: Exception) -> str:
 
 
 def _attach_trace_header(response: Response) -> None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()
     if state is None:
         return
     response.headers["X-Trace-Id"] = state.trace_id
@@ -81,7 +82,7 @@ def ingest_chat_event(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> IngestResponse:
-    route = str(request.url.path)
+    route: typing.Final = str(request.url.path)
     _start_request_trace(route=route, stream_id=payload.stream_id, db=db)
     try:
         service.ingest_chat_event(
@@ -102,7 +103,7 @@ def ingest_chat_event(
         _run_trace_safely("chat_ingest_mark_success", lambda: finish_trace_success(summary="chat_ingest success"))
         return IngestResponse()
     except Exception as exc:
-        error_code = _error_code_for_exception(exc)
+        error_code: typing.Final = _error_code_for_exception(exc)
         _run_trace_safely(
             "chat_ingest_finish_failure",
             lambda: trace_failure("request.finish", "chat ingest request failed", error_code=error_code),
@@ -149,7 +150,7 @@ async def reply_chat_event(
             should_reply=bool(reply_text),
         )
     except Exception as exc:
-        error_code = _error_code_for_exception(exc)
+        error_code: typing.Final = _error_code_for_exception(exc)
         _run_trace_safely(
             "chat_reply_finish_failure",
             lambda: trace_failure("request.finish", "chat reply request failed", error_code=error_code),
@@ -163,7 +164,7 @@ async def reply_chat_event(
 
 @router.get("/debug/prompts/{name}")
 def get_prompt(name: str) -> dict[str, Any]:
-    store = PromptStore()
+    store: typing.Final = PromptStore()
     return {"name": name, "content": store.read(name)}
 
 
@@ -174,29 +175,29 @@ def debug_context(
     text: str,
     db: Annotated[Session, Depends(get_db)],
 ) -> DebugContextResponse:
-    normalized_username = service.normalize_username(username)
+    normalized_username: typing.Final = service.normalize_username(username)
 
-    global_recent = service.chat_memory.recent_messages(
+    global_recent: typing.Final = service.chat_memory.recent_messages(
         db,
         stream_id=stream_id,
     )
-    user_recent = service.chat_memory.recent_user_messages(
-        db,
-        stream_id=stream_id,
-        username=normalized_username,
-    )
-    dialog_recent = service.chat_memory.recent_dialog_messages(
+    user_recent: typing.Final = service.chat_memory.recent_user_messages(
         db,
         stream_id=stream_id,
         username=normalized_username,
     )
+    dialog_recent: typing.Final = service.chat_memory.recent_dialog_messages(
+        db,
+        stream_id=stream_id,
+        username=normalized_username,
+    )
 
-    global_recent_block = [f"{m.username} [{m.role}]: {m.text}" for m in global_recent]
-    user_recent_block = [f"{m.username} [{m.role}]: {m.text}" for m in user_recent]
-    dialog_recent_block = [f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent]
+    global_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in global_recent]
+    user_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in user_recent]
+    dialog_recent_block: typing.Final = [f"{m.username} [{m.role}]: {m.text}" for m in dialog_recent]
 
-    system_prompt = service.prompts.read("chat_system.txt")
-    user_prompt = service.prompts.render(
+    system_prompt: typing.Final = service.prompts.read("chat_system.txt")
+    user_prompt: typing.Final = service.prompts.render(
         "chat_user_template.txt",
         username=username,
         text=text,
@@ -223,7 +224,7 @@ async def dynamic_prompt_event(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
 ) -> DynamicPromptResponse:
-    route = str(request.url.path)
+    route: typing.Final = str(request.url.path)
     _start_request_trace(route=route, stream_id=None, db=db)
     try:
         result, message = await dynamic_prompt_service.generate(
@@ -251,7 +252,7 @@ async def dynamic_prompt_event(
         )
         return DynamicPromptResponse(result=result, message=message)
     except Exception as exc:
-        error_code = _error_code_for_exception(exc)
+        error_code: typing.Final = _error_code_for_exception(exc)
         _run_trace_safely(
             "dynamic_prompt_finish_failure",
             lambda: trace_failure("request.finish", "dynamic prompt request failed", error_code=error_code),

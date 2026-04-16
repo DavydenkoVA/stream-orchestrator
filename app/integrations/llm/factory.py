@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from typing import TYPE_CHECKING
 
 from app.config import settings
@@ -27,7 +28,7 @@ def build_llm_provider_from_config(
     base_url: str,
     model: str,
 ) -> LLMProvider:
-    normalized = provider_name.strip().lower()
+    normalized: typing.Final = provider_name.strip().lower()
 
     if normalized == "mock":
         return MockProvider()

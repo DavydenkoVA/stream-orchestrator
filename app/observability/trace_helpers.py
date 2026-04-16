@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -13,10 +14,10 @@ if TYPE_CHECKING:
 
 
 def start_trace(*, route: str, stream_id: str | None = None, db: Session | None = None) -> str:
-    request_id = get_current_request_id() or uuid4().hex
-    trace_id = uuid4().hex
-    recorder = TraceRecorder.from_db_session(db) if db is not None else TraceRecorder()
-    trace_run_id = recorder.start_run(
+    request_id: typing.Final = get_current_request_id() or uuid4().hex
+    trace_id: typing.Final = uuid4().hex
+    recorder: typing.Final = TraceRecorder.from_db_session(db) if db is not None else TraceRecorder()
+    trace_run_id: typing.Final = recorder.start_run(
         trace_id=trace_id,
         request_id=request_id,
         route=route,
@@ -49,14 +50,14 @@ def trace_failure(
     payload: dict[str, Any] | None = None,
     error_code: str | None = None,
 ) -> None:
-    merged = dict(payload or {})
+    merged: typing.Final = dict(payload or {})
     if error_code:
         merged["error_code"] = error_code
     _append(step=step, status="failed", level="ERROR", message=message, payload=merged or None)
 
 
 def finish_trace_success(summary: str | None = None) -> None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()
     if state is None:
         return
     state.recorder.finish_run_success(trace_run_id=state.trace_run_id, summary=summary)
@@ -64,7 +65,7 @@ def finish_trace_success(summary: str | None = None) -> None:
 
 
 def finish_trace_failure(error_code: str, summary: str | None = None) -> None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()
     if state is None:
         return
     state.recorder.finish_run(
@@ -84,7 +85,7 @@ def _append(
     message: str,
     payload: dict[str, Any] | None,
 ) -> None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()
     if state is None:
         return
     state.seq_no += 1

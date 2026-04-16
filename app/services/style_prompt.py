@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import typing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -32,8 +33,8 @@ class StylePromptService:
         base_system_prompt: str,
         style_name: str | None,
     ) -> StyledPromptResult:
-        resolution = self.style_registry.resolve_with_metadata(style_name)
-        style = resolution.style
+        resolution: typing.Final = self.style_registry.resolve_with_metadata(style_name)
+        style: typing.Final = resolution.style
 
         logger.info("LLM style selected: %s", style.key)
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -61,14 +62,14 @@ class LLMRegistry:
         *,
         loaded_at: datetime | None = None,
     ) -> LLMSnapshot:
-        providers_raw = raw.get("providers", {})
-        feature_settings_raw = raw.get("feature_settings", {})
+        providers_raw: typing.Final = raw.get("providers", {})
+        feature_settings_raw: typing.Final = raw.get("feature_settings", {})
 
         if not providers_raw:
             raise ValueError("llm_profiles.yml: 'providers' section is empty")
 
-        providers: dict[str, ProviderPoolConfig] = {}
-        feature_settings: dict[str, FeatureLLMSettings] = {}
+        providers: typing.Final[dict[str, ProviderPoolConfig]] = {}
+        feature_settings: typing.Final[dict[str, FeatureLLMSettings]] = {}
 
         for provider_name, cfg in providers_raw.items():
             model_items = cfg.get("models", []) or []
@@ -131,7 +132,7 @@ class LLMRegistry:
             )
 
         if "chat" not in feature_settings:
-            first_provider = next(iter(providers.keys()))
+            first_provider: typing.Final = next(iter(providers.keys()))
             feature_settings["chat"] = FeatureLLMSettings(
                 feature_name="chat",
                 provider_name=first_provider,
@@ -148,7 +149,7 @@ class LLMRegistry:
 
     def _read_raw_from_disk(self) -> dict[str, Any]:
         if not self.config_path.exists():
-            example_path = self.config_path.with_suffix(self.config_path.suffix + ".example")
+            example_path: typing.Final = self.config_path.with_suffix(self.config_path.suffix + ".example")
             if example_path.exists():
                 return yaml.safe_load(example_path.read_text(encoding="utf-8")) or {}
 
@@ -157,7 +158,7 @@ class LLMRegistry:
         return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
 
     def _bootstrap_raw_config(self) -> dict[str, Any]:
-        provider_name = "bootstrap"
+        provider_name: typing.Final = "bootstrap"
         return {
             "providers": {
                 provider_name: {
@@ -184,7 +185,7 @@ class LLMRegistry:
         }
 
     def export_raw_config(self) -> dict[str, Any]:
-        snapshot = self._require_snapshot()
+        snapshot: typing.Final = self._require_snapshot()
         return {
             "providers": {
                 provider_name: {
@@ -225,8 +226,8 @@ class LLMRegistry:
         return self._build_snapshot(raw)
 
     def reload_from_disk(self) -> None:
-        raw = self._read_raw_from_disk()
-        snapshot = self._build_snapshot(raw)
+        raw: typing.Final = self._read_raw_from_disk()
+        snapshot: typing.Final = self._build_snapshot(raw)
         self._snapshot = snapshot
         self._last_reload_success = True
         self._last_reload_error = None
@@ -237,8 +238,8 @@ class LLMRegistry:
         self._last_reload_error = None
 
     def get_snapshot_metadata(self) -> dict[str, str | int | bool | None]:
-        snapshot = self._require_snapshot()
-        model_count = sum(len(provider.models) for provider in snapshot.providers.values())
+        snapshot: typing.Final = self._require_snapshot()
+        model_count: typing.Final = sum(len(provider.models) for provider in snapshot.providers.values())
         return {
             "config_path": str(self.config_path),
             "loaded_at": snapshot.loaded_at.isoformat(),
@@ -255,13 +256,13 @@ class LLMRegistry:
         return self._snapshot
 
     def get_feature_settings(self, feature_name: str) -> FeatureLLMSettings:
-        feature_settings = self._require_snapshot().feature_settings
+        feature_settings: typing.Final = self._require_snapshot().feature_settings
         if feature_name in feature_settings:
             return feature_settings[feature_name]
         return feature_settings["chat"]
 
     def get_provider_pool(self, provider_name: str) -> ProviderPoolConfig:
-        providers = self._require_snapshot().providers
+        providers: typing.Final = self._require_snapshot().providers
         return providers[provider_name]
 
     def get_provider_instance(
@@ -270,16 +271,16 @@ class LLMRegistry:
         provider_kind: str,
         endpoint: ModelEndpointConfig,
     ) -> LLMProvider:
-        instance_key = f"{provider_kind}:{endpoint.name}"
-        cache_key = self._provider_cache_key(provider_kind, endpoint)
+        instance_key: typing.Final = f"{provider_kind}:{endpoint.name}"
+        cache_key: typing.Final = self._provider_cache_key(provider_kind, endpoint)
 
-        cached = self._provider_instances.get(instance_key)
+        cached: typing.Final = self._provider_instances.get(instance_key)
         if cached is not None:
             old_cache_key, instance = cached
             if old_cache_key == cache_key:
                 return instance
 
-        provider = build_llm_provider_from_config(
+        provider: typing.Final = build_llm_provider_from_config(
             provider_name=provider_kind,
             api_key=endpoint.api_key,
             base_url=endpoint.base_url,
@@ -289,8 +290,8 @@ class LLMRegistry:
         return provider
 
     def get_for_feature(self, feature_name: str) -> tuple[ProviderPoolConfig, FeatureLLMSettings]:
-        feature_settings = self.get_feature_settings(feature_name)
-        pool = self.get_provider_pool(feature_settings.provider_name)
+        feature_settings: typing.Final = self.get_feature_settings(feature_name)
+        pool: typing.Final = self.get_provider_pool(feature_settings.provider_name)
         return pool, feature_settings
 
     def get_for_feature_with_override(
@@ -302,11 +303,11 @@ class LLMRegistry:
         max_output_tokens_override: int | None = None,
         style_override: str | None = None,
     ) -> tuple[ProviderPoolConfig, FeatureLLMSettings]:
-        base_settings = self.get_feature_settings(feature_name)
-        provider_name = provider_override or base_settings.provider_name
-        pool = self.get_provider_pool(provider_name)
+        base_settings: typing.Final = self.get_feature_settings(feature_name)
+        provider_name: typing.Final = provider_override or base_settings.provider_name
+        pool: typing.Final = self.get_provider_pool(provider_name)
 
-        effective_settings = FeatureLLMSettings(
+        effective_settings: typing.Final = FeatureLLMSettings(
             feature_name=feature_name,
             provider_name=provider_name,
             temperature=(temperature_override if temperature_override is not None else base_settings.temperature),
