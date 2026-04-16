@@ -108,7 +108,7 @@ class TraceReadService:
         }
 
     @staticmethod
-    def _serialize_style_resolution(payload: Any) -> dict[str, str] | None:
+    def _serialize_style_resolution(payload: Any) -> dict[str, str] | None:  # noqa: ANN401
         if not isinstance(payload, dict):
             return None
 
@@ -145,7 +145,7 @@ class TraceReadService:
         }
 
     @staticmethod
-    def _derive_style_resolution(events: list[dict[str, Any]]) -> dict[str, str]:
+    def _derive_style_resolution(events: list[dict[str, Any]]) -> dict[str, str]:  # noqa: C901
         requested_values: set[str] = set()
         applied_values: set[str] = set()
         status_values: set[str] = set()

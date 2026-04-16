@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Never
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
-from pytest import MonkeyPatch
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,7 @@ class _Provider:
     def __init__(self, *, fail: bool) -> None:
         self.fail = fail
 
-    async def generate_text(self, **kwargs: object) -> str:
+    async def generate_text(self, **_kwargs: object) -> str:
         if self.fail:
             raise RuntimeError("timeout")
         return "ok"
@@ -83,8 +83,8 @@ def test_trace_run_success_and_event_order(db_session: Session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_trace_run_failed_created_on_error(db_session: Session, monkeypatch: MonkeyPatch) -> None:
-    async def crash(*args: object, **kwargs: object) -> Never:
+def test_trace_run_failed_created_on_error(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def crash(*_args: object, **_kwargs: object) -> Never:
         raise RuntimeError("boom")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -134,13 +134,17 @@ def test_trace_payload_filters_secrets(db_session: Session) -> None:
     assert payload["provider"] == "mock"
 
 
-def test_llm_execution_service_trace_events(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_llm_execution_service_trace_events(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     registry = LLMRegistry()
     executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
     pool, feature = registry.get_for_feature("chat")
 
     providers = {"model_a": _Provider(fail=True), "model_b": _Provider(fail=False)}
-    monkeypatch.setattr(registry, "get_provider_instance", lambda provider_kind, endpoint: providers[endpoint.name])
+    monkeypatch.setattr(
+        registry,
+        "get_provider_instance",
+        lambda provider_kind, endpoint: providers[endpoint.name],  # noqa: ARG005
+    )
 
     start_trace(route="/llm", db=db_session)
     reply = asyncio.run(
@@ -197,14 +201,16 @@ def test_finish_trace_success_marks_degraded_on_llm_pool_exhaustion(db_session: 
     assert run.status != TRACE_RUN_STATUS_SUCCESS
 
 
-def test_llm_trace_payload_captures_style_resolution_fields(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_llm_trace_payload_captures_style_resolution_fields(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     registry = LLMRegistry()
     executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
     pool, feature = registry.get_for_feature("chat")
     monkeypatch.setattr(
         registry,
         "get_provider_instance",
-        lambda provider_kind, endpoint: _Provider(fail=False),
+        lambda provider_kind, endpoint: _Provider(fail=False),  # noqa: ARG005
     )
 
     start_trace(route="/llm", db=db_session)
@@ -288,8 +294,8 @@ def test_dynamic_prompt_service_traces_fallback(db_session: Session) -> None:
     assert "dynamic_prompt.fallback" in steps
 
 
-def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkeypatch: MonkeyPatch) -> None:
-    def _explode_start_trace(*args: object, **kwargs: object) -> Never:
+def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _explode_start_trace(*_args: object, **_kwargs: object) -> Never:
         raise RuntimeError("trace table unavailable")
 
     monkeypatch.setattr("app.api.routes.start_trace", _explode_start_trace)
@@ -318,8 +324,10 @@ def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkey
     app.dependency_overrides.clear()
 
 
-def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(db_session: Session, monkeypatch: MonkeyPatch) -> None:
-    def _explode_trace_success(*args: object, **kwargs: object) -> Never:
+def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _explode_trace_success(*_args: object, **_kwargs: object) -> Never:
         raise RuntimeError("trace insert failed")
 
     monkeypatch.setattr("app.services.router.trace_success", _explode_trace_success)

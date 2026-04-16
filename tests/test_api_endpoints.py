@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Never
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from pytest import MonkeyPatch
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -185,11 +185,11 @@ def test_debug_context_endpoint(db_session: Session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_unhandled_exception_is_sanitized(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_chat_reply_unhandled_exception_is_sanitized(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def crash(*args: object, **kwargs: object) -> Never:
+    async def crash(*_args: object, **_kwargs: object) -> Never:
         raise RuntimeError("provider_key=secret-key stack exploded")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -246,11 +246,11 @@ def test_chat_reply_validation_error_is_normalized(db_session: Session) -> None:
     app.dependency_overrides.clear()
 
 
-def test_chat_reply_http_exception_is_sanitized(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_chat_reply_http_exception_is_sanitized(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def fail_with_http(*args: object, **kwargs: object) -> Never:
+    async def fail_with_http(*_args: object, **_kwargs: object) -> Never:
         raise HTTPException(status_code=400, detail="internal failure details should stay private")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", fail_with_http)

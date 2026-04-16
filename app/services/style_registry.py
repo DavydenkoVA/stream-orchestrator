@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import random
 import re
 import tempfile
@@ -85,7 +84,7 @@ class StyleRegistry:
 
     def list_configured_styles(self) -> list[StyleDefinition]:
         styles = self._load()
-        keys = [DEFAULT_STYLE_KEY] + sorted([key for key in styles if key != DEFAULT_STYLE_KEY])
+        keys = [DEFAULT_STYLE_KEY, *sorted([key for key in styles if key != DEFAULT_STYLE_KEY])]
         return [styles[key] for key in keys]
 
     def selector_options(self) -> list[StyleSelectorOption]:
@@ -176,7 +175,7 @@ class StyleRegistry:
             temp_path = Path(temp_file.name)
 
         try:
-            os.replace(temp_path, self.config_path)
+            temp_path.replace(self.config_path)
         finally:
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
@@ -222,7 +221,7 @@ class StyleRegistry:
                     reason="random_no_candidates_defaulted",
                     style=style,
                 )
-            style = random.choice(candidates)
+            style = random.choice(candidates)  # noqa: S311
             return StyleResolution(
                 requested_style=normalized,
                 applied_style=style.key,

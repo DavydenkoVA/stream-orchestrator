@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pytest import MonkeyPatch
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -8,7 +8,7 @@ from app.db import Base
 from app.services.provider_state_store import ProviderStateStore
 
 
-def test_set_current_model_name_does_not_commit(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_set_current_model_name_does_not_commit(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     store = ProviderStateStore()
     commit_calls = 0
     original_commit = db_session.commit
@@ -28,12 +28,12 @@ def test_set_current_model_name_does_not_commit(db_session: Session, monkeypatch
 def test_set_current_model_name_persists_after_external_commit(tmp_path: Path) -> None:
     db_file = tmp_path / "provider_state_store.db"
     engine = create_engine(f"sqlite:///{db_file}", future=True)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Base.metadata.create_all(bind=engine)
     store = ProviderStateStore()
 
-    first: Session = SessionLocal()
-    second: Session = SessionLocal()
+    first: Session = session_local()
+    second: Session = session_local()
     try:
         store.set_current_model_name(first, "primary", "model_a")
         assert store.get_current_model_name(second, "primary") is None

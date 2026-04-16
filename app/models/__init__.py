@@ -9,10 +9,10 @@ from app.models.user_memory import UserMemoryItem
 
 __all__ = [
     "ChatMessage",
+    "KnowledgeItem",
     "ProviderRuntimeState",
     "StreamSummary",
     "TraceEvent",
     "TraceRun",
     "UserMemoryItem",
-    "KnowledgeItem",
 ]

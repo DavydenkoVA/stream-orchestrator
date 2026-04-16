@@ -1,4 +1,4 @@
-"""add trace tables
+"""add trace tables.
 
 Revision ID: 9f1c2d3e4a5b
 Revises: 67a6d3ac58d2

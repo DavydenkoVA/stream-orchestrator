@@ -59,7 +59,7 @@ def trace_status_tone(status: str | None) -> str:
     return _TRACE_STATUS_TONE_BY_STATUS.get(normalized, "neutral")
 
 
-def trace_event_tone(
+def trace_event_tone(  # noqa: PLR0911
     *,
     status: str | None,
     level: str | None,
@@ -69,7 +69,7 @@ def trace_event_tone(
     normalized_level = (level or "").strip().upper()
     normalized_step = (step or "").strip().lower()
 
-    if normalized_status in {"success"}:
+    if normalized_status == "success":
         return "success"
     if normalized_status in {"failed", "failure", "error"}:
         return "failure"
@@ -84,8 +84,7 @@ def trace_event_tone(
         return "warning"
     if normalized_level == "INFO" and (
         normalized_status == "info"
-        or normalized_step.endswith(".start")
-        or normalized_step.endswith(".running")
+        or normalized_step.endswith((".start", ".running"))
         or "start" in normalized_step
         or "running" in normalized_step
     ):
@@ -106,7 +105,7 @@ _STYLE_RESOLUTION_FAILURE_REASONS = {
 }
 
 
-def style_resolution_tone(
+def style_resolution_tone(  # noqa: PLR0911
     *,
     requested_style: str | None,
     applied_style: str | None,

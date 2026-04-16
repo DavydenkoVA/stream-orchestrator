@@ -1,7 +1,7 @@
 import asyncio
 from typing import Never
 
-from pytest import MonkeyPatch
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -54,7 +54,7 @@ def test_refresh_user_memory_if_needed_success_with_candidates(db_session: Sessi
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -77,7 +77,7 @@ def test_refresh_user_memory_if_needed_success_empty_marks_processed(db_session:
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return "[]"
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -97,7 +97,7 @@ def test_refresh_user_memory_if_needed_invalid_json_keeps_unprocessed(db_session
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return "not a json"
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -116,7 +116,7 @@ def test_refresh_user_memory_if_needed_schema_error_keeps_unprocessed(db_session
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return '[{"kind":"preference","text":"ok","confidence":0.9}]'
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -135,7 +135,7 @@ def test_refresh_user_memory_if_needed_provider_error_keeps_unprocessed(db_sessi
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> Never:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> Never:
         raise RuntimeError("provider is down")
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -154,7 +154,7 @@ def test_refresh_user_memory_if_needed_second_attempt_success_clears_error(db_se
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool_fail(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool_fail(**_kwargs: object) -> str:
         return "broken json"
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool_fail  # type: ignore[method-assign]
@@ -162,7 +162,7 @@ def test_refresh_user_memory_if_needed_second_attempt_success_clears_error(db_se
     first_refresh = asyncio.run(service.refresh_user_memory_if_needed(db_session, "alice"))
     assert first_refresh is False
 
-    async def fake_generate_text_with_pool_success(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool_success(**_kwargs: object) -> str:
         return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool_success  # type: ignore[method-assign]
@@ -177,11 +177,11 @@ def test_refresh_user_memory_if_needed_second_attempt_success_clears_error(db_se
     assert all(msg.memory_last_error_code is None for msg in messages)
 
 
-def test_refresh_user_memory_if_needed_commits_once(db_session: Session, monkeypatch: MonkeyPatch) -> None:
+def test_refresh_user_memory_if_needed_commits_once(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
@@ -206,21 +206,18 @@ def test_refresh_user_memory_if_needed_rolls_back_on_error_before_mark_processed
     service = _build_service()
     _save_two_messages(db_session, service)
 
-    async def fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def fake_generate_text_with_pool(**_kwargs: object) -> str:
         return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
 
     service.llm_executor.generate_text_with_pool = fake_generate_text_with_pool  # type: ignore[method-assign]
 
-    def fail_trim(*args: object, **kwargs: object) -> Never:
+    def fail_trim(*_args: object, **_kwargs: object) -> Never:
         raise RuntimeError("trim failed")
 
     service.trim_user_memory = fail_trim  # type: ignore[method-assign]
 
-    try:
+    with pytest.raises(RuntimeError, match="trim failed"):
         asyncio.run(service.refresh_user_memory_if_needed(db_session, "alice"))
-        raise AssertionError("Expected RuntimeError")
-    except RuntimeError as exc:
-        assert "trim failed" in str(exc)
 
     memories = service.get_memory_items(db_session, "alice")
     assert memories == []

@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from pytest import MonkeyPatch
+import pytest
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -77,12 +77,12 @@ def test_dynamic_prompt_returns_fallback_for_invalid_name(db_session: Session) -
 
 def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_call(
     db_session: Session,
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service = _build_service()
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:
         nonlocal llm_called
         llm_called = True
         return "unexpected"
@@ -105,7 +105,7 @@ def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_
 
 def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(
     db_session: Session,
-    monkeypatch: MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     broken_system = Path(settings.prompts_dir) / "dynamic" / "broken_system.txt"
     broken_template = Path(settings.prompts_dir) / "dynamic" / "broken_template.txt"
@@ -115,7 +115,7 @@ def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(
     service = _build_service()
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**kwargs: object) -> str:
+    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:
         nonlocal llm_called
         llm_called = True
         return "unexpected"

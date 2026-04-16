@@ -10,11 +10,11 @@ from app.services.features.selector import FeatureSelector
 
 __all__ = [
     "ChatRequest",
+    "DossierFeatureHandler",
     "FeatureContext",
     "FeatureResponse",
-    "DossierFeatureHandler",
+    "FeatureSelector",
     "IgnoreFeatureHandler",
     "MentionChatFeatureHandler",
     "WeeklyMoviesFeatureHandler",
-    "FeatureSelector",
 ]

@@ -157,10 +157,10 @@ def test_settings(
 def db_session(tmp_path: Path) -> Generator[Session, None, None]:
     db_file = tmp_path / "test.db"
     engine = create_engine(f"sqlite:///{db_file}", future=True)
-    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Base.metadata.create_all(bind=engine)
 
-    session = TestingSessionLocal()
+    session = testing_session_local()
     try:
         yield session
     finally:

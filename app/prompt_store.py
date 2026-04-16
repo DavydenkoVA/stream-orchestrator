@@ -40,7 +40,9 @@ class PromptStore:
                 if field_name is None:
                     continue
                 if not _SIMPLE_FIELD_RE.fullmatch(field_name):
-                    raise ValueError(f"Unsupported placeholder syntax in template '{template_name}': '{field_name}'")
+                    raise ValueError(  # noqa: TRY301
+                        f"Unsupported placeholder syntax in template '{template_name}': '{field_name}'"
+                    )
                 fields.add(field_name)
         except ValueError as exc:
             raise ValueError(f"Invalid prompt template syntax for '{template_name}': {exc}") from exc

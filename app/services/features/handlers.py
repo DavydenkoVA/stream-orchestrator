@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import re
-from typing import cast
+from typing import ClassVar, cast
 
 from app.config import settings
 from app.services.features.base import ChatRequest, FeatureContext, FeatureHandler, FeatureResponse
@@ -30,7 +30,7 @@ class DossierFeatureHandler(FeatureHandler):
         if dossier_target is None:
             return FeatureResponse(reply_text="", route=self.route_name)
 
-        target = dossier_target if dossier_target else request.username
+        target = dossier_target or request.username
         normalized_target = target.strip().lstrip("@").lower()
 
         if normalized_target == settings.bot_username.strip().lstrip("@").lower():
@@ -102,7 +102,7 @@ class DossierFeatureHandler(FeatureHandler):
 class WeeklyMoviesFeatureHandler(FeatureHandler):
     route_name = "weekly_movies"
 
-    TRIGGERS = [
+    TRIGGERS: ClassVar[list[str]] = [
         "что смотрим",
         "что будем смотреть",
         "какие фильмы",
@@ -247,8 +247,8 @@ class MentionChatFeatureHandler(FeatureHandler):
 class IgnoreFeatureHandler(FeatureHandler):
     route_name = "ignored"
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:
         return True
 
-    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
+    async def handle(self, _context: FeatureContext, _request: ChatRequest) -> FeatureResponse:
         return FeatureResponse(reply_text="", route=self.route_name)

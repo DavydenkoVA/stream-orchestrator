@@ -56,21 +56,21 @@ line-length = 120
 docstring-code-format = true
 
 [tool.ruff.lint]
-select = [
-    "E",
-    "F",
-    "I",
-    "UP",
-    "B",
-    "SIM",
-    "C4",
-    "ANN",
-    "TC",
-    "FAST",
-    "INP",
-]
+select = ["ALL"]
+external = ["COP"]
 ignore = [
-    "ANN401",
+    "EM",
+    "FBT",
+    "TRY003",
+    "D1",
+    "D203",
+    "D213",
+    "G004",
+    "FA",
+    "COM812",
+    "ISC001",
+    "PLR2004",
+    "RUF001",
 ]
 
 [tool.ruff.lint.isort]
@@ -78,6 +78,9 @@ no-lines-before = ["standard-library", "local-folder"]
 known-third-party = []
 known-local-folder = []
 lines-after-imports = 2
+
+[tool.ruff.lint.extend-per-file-ignores]
+"tests/*.py" = ["S101", "S311"]
 
 [tool.mypy]
 strict = true
