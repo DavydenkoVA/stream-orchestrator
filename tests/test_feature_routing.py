@@ -69,7 +69,7 @@ def test_dossier_handler_extracts_target_and_matches_case_insensitive() -> None:
     request = ChatRequest(
         stream_id="stream-1",
         username="author",
-        text="ДОСЬЕ НА @Viewer123",
+        text="ДОСЬЕ НА @Viewer123",  # noqa: RUF001
         mentions_bot=False,
     )
     assert handler.matches(request) is True

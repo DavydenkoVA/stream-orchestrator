@@ -1,4 +1,5 @@
 import re
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Never
 
 
@@ -12,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
+
+
+REQUEST_ID_HEX_LENGTH = 32
 
 
 def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session: Session) -> None:
@@ -30,7 +34,7 @@ def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session: Session) -> None:
     }
 
     ingest_response = client.post("/events/chat_ingest", json=ingest_payload)
-    assert ingest_response.status_code == 200
+    assert ingest_response.status_code == HTTPStatus.OK
     assert ingest_response.json()["stored"] is True
 
     bot_payload = {
@@ -42,7 +46,7 @@ def test_chat_ingest_and_chat_reply_and_ignore_bot(db_session: Session) -> None:
     }
 
     bot_response = client.post("/events/chat_reply", json=bot_payload)
-    assert bot_response.status_code == 200
+    assert bot_response.status_code == HTTPStatus.OK
     assert bot_response.json()["route"] == "ignored"
     assert bot_response.json()["should_reply"] is False
     trace_id = bot_response.headers.get("X-Trace-Id")
@@ -69,7 +73,7 @@ def test_chat_reply_routes_dossier_and_weekly_movies(db_session: Session) -> Non
             "role": "viewer",
         },
     )
-    assert dossier_response.status_code == 200
+    assert dossier_response.status_code == HTTPStatus.OK
     assert dossier_response.json()["route"] == "dossier"
 
     weekly_response = client.post(
@@ -82,7 +86,7 @@ def test_chat_reply_routes_dossier_and_weekly_movies(db_session: Session) -> Non
             "role": "viewer",
         },
     )
-    assert weekly_response.status_code == 200
+    assert weekly_response.status_code == HTTPStatus.OK
     assert weekly_response.json()["route"] == "weekly_movies"
 
     app.dependency_overrides.clear()
@@ -103,7 +107,7 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session: Sessio
             "data": {"loot": "ring"},
         },
     )
-    assert success_response.status_code == 200
+    assert success_response.status_code == HTTPStatus.OK
     assert success_response.json()["result"] == "success"
     success_trace_id = success_response.headers.get("X-Trace-Id")
     assert success_trace_id
@@ -117,7 +121,7 @@ def test_dynamic_prompt_endpoint_returns_success_and_fallback(db_session: Sessio
             "data": {"loot": "ring"},
         },
     )
-    assert fallback_response.status_code == 200
+    assert fallback_response.status_code == HTTPStatus.OK
     assert fallback_response.json()["result"] == "fallback"
     fallback_trace_id = fallback_response.headers.get("X-Trace-Id")
     assert fallback_trace_id
@@ -143,7 +147,7 @@ def test_dynamic_prompt_override_temperature_out_of_range_returns_422(db_session
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     app.dependency_overrides.clear()
 
@@ -175,7 +179,7 @@ def test_debug_context_endpoint(db_session: Session) -> None:
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["route"] == "debug_context"
     assert isinstance(payload["global_recent"], list)
@@ -208,12 +212,12 @@ def test_chat_reply_unhandled_exception_is_sanitized(db_session: Session, monkey
         },
     )
 
-    assert response.status_code == 500
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     payload = response.json()
     assert payload["error_code"] == "internal_error"
     assert payload["message"] == "Internal server error"
     assert payload["request_id"]
-    assert len(payload["request_id"]) == 32
+    assert len(payload["request_id"]) == REQUEST_ID_HEX_LENGTH
     assert "RuntimeError" not in response.text
     assert "secret-key" not in response.text
 
@@ -237,7 +241,7 @@ def test_chat_reply_validation_error_is_normalized(db_session: Session) -> None:
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     payload = response.json()
     assert payload["error_code"] == "validation_error"
     assert payload["message"] == "Validation error"
@@ -269,7 +273,7 @@ def test_chat_reply_http_exception_is_sanitized(db_session: Session, monkeypatch
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == HTTPStatus.BAD_REQUEST
     payload = response.json()
     assert payload["error_code"] == "bad_request"
     assert payload["message"] == "Bad request"
@@ -288,7 +292,7 @@ def test_debug_prompts_endpoint(db_session: Session) -> None:
 
     response = client.get("/debug/prompts/chat_system.txt")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["name"] == "chat_system.txt"
     assert payload["content"]

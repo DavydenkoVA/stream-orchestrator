@@ -1,5 +1,6 @@
 import asyncio
 import json
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Never
 
 
@@ -31,6 +32,9 @@ from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
 
 
+REQUEST_ID_HEX_LENGTH = 32
+
+
 class _Provider:
     def __init__(self, *, fail: bool) -> None:
         self.fail = fail
@@ -55,9 +59,9 @@ def test_request_id_header_exists(db_session: Session) -> None:
         "/events/chat_ingest",
         json={"stream_id": "obs_1", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
     )
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert response.headers["X-Request-ID"]
-    assert len(response.headers["X-Request-ID"]) == 32
+    assert len(response.headers["X-Request-ID"]) == REQUEST_ID_HEX_LENGTH
     app.dependency_overrides.clear()
 
 
@@ -67,7 +71,7 @@ def test_trace_run_success_and_event_order(db_session: Session) -> None:
         "/events/chat_ingest",
         json={"stream_id": "obs_2", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
     )
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
 
     run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
     assert run is not None
@@ -93,7 +97,7 @@ def test_trace_run_failed_created_on_error(db_session: Session, monkeypatch: pyt
         "/events/chat_reply",
         json={"stream_id": "obs_3", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
     )
-    assert response.status_code == 500
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
     run = db_session.scalar(select(TraceRun).order_by(TraceRun.id.desc()))
     assert run is not None
@@ -311,7 +315,7 @@ def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkey
             "role": "viewer",
         },
     )
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
 
     saved = db_session.scalar(
         select(ChatMessage).where(
@@ -343,7 +347,7 @@ def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(
             "role": "viewer",
         },
     )
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
 
     saved = db_session.scalar(
         select(ChatMessage).where(

@@ -14,6 +14,9 @@ from app.services.provider_state_store import ProviderStateStore
 from app.services.user_memory_service import UserMemoryService
 
 
+EXPECTED_RETRY_ATTEMPTS = 2
+
+
 def _build_service() -> UserMemoryService:
     registry = LLMRegistry()
     executor = LLMExecutionService(llm_registry=registry, state_store=ProviderStateStore())
@@ -173,7 +176,7 @@ def test_refresh_user_memory_if_needed_second_attempt_success_clears_error(db_se
 
     messages = _load_messages(db_session)
     assert all(msg.is_memory_processed for msg in messages)
-    assert all(msg.memory_process_attempts == 2 for msg in messages)
+    assert all(msg.memory_process_attempts == EXPECTED_RETRY_ATTEMPTS for msg in messages)
     assert all(msg.memory_last_error_code is None for msg in messages)
 
 

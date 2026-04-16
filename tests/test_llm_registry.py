@@ -1,13 +1,18 @@
 from app.services.llm_registry import LLMRegistry
 
 
+EXPECTED_MODELS_COUNT = 2
+EXPECTED_TEMPERATURE = 0.2
+EXPECTED_MAX_OUTPUT_TOKENS = 77
+
+
 def test_llm_registry_loads_pool_and_feature_settings() -> None:
     registry = LLMRegistry()
 
     pool, feature = registry.get_for_feature("chat")
 
     assert pool.name == "primary"
-    assert len(pool.models) == 2
+    assert len(pool.models) == EXPECTED_MODELS_COUNT
     assert feature.feature_name == "chat"
     assert feature.provider_name == "primary"
 
@@ -24,8 +29,8 @@ def test_llm_registry_applies_overrides() -> None:
 
     assert pool.name == "primary"
     assert feature.style == "strict"
-    assert feature.temperature == 0.2
-    assert feature.max_output_tokens == 77
+    assert feature.temperature == EXPECTED_TEMPERATURE
+    assert feature.max_output_tokens == EXPECTED_MAX_OUTPUT_TOKENS
 
 
 def test_llm_registry_reuses_cached_provider_instance() -> None:

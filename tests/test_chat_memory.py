@@ -6,6 +6,10 @@ from app.models.chat import ChatMessage
 from app.services.chat_memory import ChatMemoryService
 
 
+MAX_MEMORY_ATTEMPTS = 3
+PENDING_MEMORY_ATTEMPTS = 2
+
+
 def test_save_message_does_not_commit_and_assigns_id_via_flush(
     db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -89,9 +93,9 @@ def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_s
     pending_row = rows[pending.id]
 
     assert processed_row.is_memory_processed is True
-    assert processed_row.memory_process_attempts == 3
+    assert processed_row.memory_process_attempts == MAX_MEMORY_ATTEMPTS
     assert processed_row.memory_last_error_code is None
 
     assert pending_row.is_memory_processed is False
-    assert pending_row.memory_process_attempts == 2
+    assert pending_row.memory_process_attempts == PENDING_MEMORY_ATTEMPTS
     assert pending_row.memory_last_error_code == "memory_parse_error"
