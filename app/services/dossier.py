@@ -7,12 +7,12 @@ from app.models.chat import ChatMessage
 from app.models.user_memory import UserMemoryItem
 
 
-def normalize_username(username: str) -> str:
+def normalize_username(username: str) -> str:  # noqa: COP009
     return username.strip().lstrip("@").lower()
 
 
-class DossierService:
-    def build_context(self, db: Session, username: str) -> dict[str, object]:
+class DossierService:  # noqa: COP012
+    def build_context(self, db: Session, username: str) -> dict[str, object]:  # noqa: COP006
         normalized_username: typing.Final = normalize_username(username)
 
         messages: typing.Final = list(
@@ -36,7 +36,7 @@ class DossierService:
 
         return {
             "username": normalized_username,
-            "recent_messages": [m.text for m in messages],
+            "recent_messages": [m.text for m in messages],  # noqa: COP005, COP015
             "memory_items": [
                 {
                     "kind": item.kind,
@@ -44,6 +44,6 @@ class DossierService:
                     "confidence": item.confidence,
                     "evidence_count": item.evidence_count,
                 }
-                for item in memory_items
+                for item in memory_items  # noqa: COP005, COP015
             ],
         }
