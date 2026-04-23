@@ -82,6 +82,7 @@ lines-after-imports = 2
 
 [tool.mypy]
 strict = true
+
 [tool.flake8]
 select = ["COP"]
 exclude = [".venv", ".cache"]
