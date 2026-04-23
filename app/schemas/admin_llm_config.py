@@ -11,14 +11,14 @@ from app.services.llm_config_source import (
 )
 
 
-class AdminModelConfig(BaseModel):
+class AdminModelConfig(BaseModel):  # noqa: COP012
     name: str = Field(min_length=1)
     api_key: str = Field(min_length=1)
     base_url: str = ""
     model: str = Field(min_length=1)
 
 
-class AdminProviderConfig(BaseModel):
+class AdminProviderConfig(BaseModel):  # noqa: COP012
     name: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     models: list[AdminModelConfig] = Field(default_factory=list)
@@ -39,7 +39,7 @@ class AdminProviderConfig(BaseModel):
         return value
 
 
-class AdminFeatureSetting(BaseModel):
+class AdminFeatureSetting(BaseModel):  # noqa: COP012
     name: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     temperature: float
@@ -61,7 +61,7 @@ class AdminFeatureSetting(BaseModel):
         return value
 
 
-class AdminLLMConfig(BaseModel):
+class AdminLLMConfig(BaseModel):  # noqa: COP012
     providers: list[AdminProviderConfig] = Field(default_factory=list)
     feature_settings: list[AdminFeatureSetting] = Field(default_factory=list)
 
@@ -74,29 +74,29 @@ class AdminLLMConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_unique_names_and_links(self) -> AdminLLMConfig:
-        provider_names: typing.Final = [provider.name for provider in self.providers]
+        provider_names: typing.Final = [provider.name for provider in self.providers]  # noqa: COP015
         if len(provider_names) != len(set(provider_names)):
             raise ValueError("duplicate provider name")
 
-        for provider in self.providers:
-            model_names = [model.name for model in provider.models]
+        for provider in self.providers:  # noqa: COP015
+            model_names = [model.name for model in provider.models]  # noqa: COP005, COP015
             if len(model_names) != len(set(model_names)):
                 raise ValueError(f"duplicate model name inside provider '{provider.name}'")
 
         known_provider_names: typing.Final = set(provider_names)
-        for feature in self.feature_settings:
+        for feature in self.feature_settings:  # noqa: COP015
             if feature.provider not in known_provider_names:
                 raise ValueError("provider references unknown provider")
 
-        configured_features: typing.Final = [feature.name for feature in self.feature_settings]
+        configured_features: typing.Final = [feature.name for feature in self.feature_settings]  # noqa: COP005, COP015
         known_features: typing.Final = set(SUPPORTED_FEATURE_NAMES)
         if len(configured_features) != len(set(configured_features)):
             raise ValueError("duplicate feature name")
-        unknown_features: typing.Final = [name for name in configured_features if name not in known_features]
+        unknown_features: typing.Final = [name for name in configured_features if name not in known_features]  # noqa: COP005, COP015
         if unknown_features:
             raise ValueError(f"unknown feature name: {unknown_features[0]}")
 
-        missing_features: typing.Final = [name for name in SUPPORTED_FEATURE_NAMES if name not in configured_features]
+        missing_features: typing.Final = [name for name in SUPPORTED_FEATURE_NAMES if name not in configured_features]  # noqa: COP005, COP015
         if missing_features:
             raise ValueError(f"missing required feature setting: {missing_features[0]}")
 
@@ -113,10 +113,10 @@ class AdminLLMConfig(BaseModel):
                         "base_url": model.base_url,
                         "model": model.model,
                     }
-                    for model in provider.models
+                    for model in provider.models  # noqa: COP005, COP015
                 ],
             }
-            for provider in self.providers
+            for provider in self.providers  # noqa: COP015
         }
 
         features: typing.Final = {
@@ -126,7 +126,7 @@ class AdminLLMConfig(BaseModel):
                 "max_output_tokens": feature.max_output_tokens,
                 "style": feature.style,
             }
-            for feature in self.feature_settings
+            for feature in self.feature_settings  # noqa: COP005, COP015
         }
 
         return {"providers": providers, "feature_settings": features}
