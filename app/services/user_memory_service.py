@@ -23,7 +23,7 @@ if typing.TYPE_CHECKING:
     from app.services.llm_registry import LLMRegistry
 
 
-logger = logging.getLogger(__name__)
+LOGGER_INSTANCE = logging.getLogger(__name__)
 
 
 VALID_MEMORY_KINDS: typing.Final[frozenset[str]] = frozenset(
@@ -31,6 +31,7 @@ VALID_MEMORY_KINDS: typing.Final[frozenset[str]] = frozenset(
 )
 
 
+@typing.final
 class MemoryCandidate(pydantic.BaseModel):
     kind: typing.Literal["preference", "pattern", "topic", "joke", "quote", "meta"]
     text: str = pydantic.Field(min_length=1)
@@ -38,26 +39,29 @@ class MemoryCandidate(pydantic.BaseModel):
     confidence: float
 
 
+@typing.final
 class MemoryCandidateList(pydantic.BaseModel):
     root: list[MemoryCandidate]
 
 
-@dataclasses.dataclass(slots=True)
+@typing.final
+@dataclasses.dataclass(kw_only=True, slots=True, frozen=True)
 class MemoryExtractionResult:
-    ok: bool
-    status: str
+    ok: bool  # noqa: COP004
+    status: str  # noqa: COP004
     candidates: list[MemoryCandidate]
     error_code: str | None
     error_details: str | None = None
 
 
+@typing.final
 class UserMemoryService:
     def __init__(
         self,
         *,
         llm_registry: LLMRegistry,
         llm_executor: LLMExecutionService,
-        prompts: PromptStore,
+        prompts: PromptStore,  # noqa: COP006
         chat_memory: ChatMemoryService,
     ) -> None:
         self.llm_registry = llm_registry
@@ -65,12 +69,11 @@ class UserMemoryService:
         self.prompts = prompts
         self.chat_memory = chat_memory
 
-    def count_memory_items(self, db: Session, username: str) -> int:
-        stmt: typing.Final = select(UserMemoryItem).where(UserMemoryItem.username == username)
-        return len(list(db.scalars(stmt)))
+    def count_memory_items(self, database_session: Session, username: str) -> int:
+        return len(list(database_session.scalars(select(UserMemoryItem).where(UserMemoryItem.username == username))))
 
-    def get_memory_items(self, db: Session, username: str) -> list[UserMemoryItem]:
-        stmt: typing.Final = (
+    def list_memory_items(self, database_session: Session, username: str) -> list[UserMemoryItem]:
+        select_statement = (
             select(UserMemoryItem)
             .where(UserMemoryItem.username == username)
             .order_by(
@@ -80,187 +83,177 @@ class UserMemoryService:
                 UserMemoryItem.created_at.desc(),
             )
         )
-        return list(db.scalars(stmt))
+        return list(database_session.scalars(select_statement))
 
-    def should_refresh_user_memory(self, db: Session, username: str) -> tuple[bool, str]:
-        memory_items_count: typing.Final = self.count_memory_items(db, username)
-        total_user_messages: typing.Final = self.chat_memory.count_user_messages(db, username=username)
-        unprocessed_count: typing.Final = self.chat_memory.count_unprocessed_user_messages(db, username=username)
+    def get_memory_items(self, database_session: Session, username: str) -> list[UserMemoryItem]:  # noqa: COP009
+        return self.list_memory_items(database_session, username)
+
+    def should_refresh_user_memory(self, database_session: Session, username: str) -> tuple[bool, str]:
+        memory_items_count = self.count_memory_items(database_session, username)
+        total_user_messages = self.chat_memory.count_user_messages(database_session, username=username)
+        unprocessed_messages_count = self.chat_memory.count_unprocessed_user_messages(
+            database_session,
+            username=username,
+        )
 
         if memory_items_count == 0 and total_user_messages >= settings.user_memory_bootstrap_message_threshold:
             return True, "bootstrap"
-
-        if memory_items_count > 0 and unprocessed_count >= settings.user_memory_min_unprocessed_messages:
+        if memory_items_count > 0 and unprocessed_messages_count >= settings.user_memory_min_unprocessed_messages:
             return True, "refresh"
-
         return False, "skip"
 
-    def select_messages_for_refresh(self, db: Session, username: str, mode: str) -> list[ChatMessage]:
-        if mode == "bootstrap":
+    def select_messages_for_refresh(  # noqa: COP009
+        self,
+        database_session: Session,
+        username: str,
+        refresh_mode: str,
+    ) -> list[ChatMessage]:
+        if refresh_mode == "bootstrap":
             return self.chat_memory.recent_user_messages_for_memory(
-                db,
+                database_session,
                 username=username,
                 limit=settings.user_memory_extract_message_limit,
             )
-
         return self.chat_memory.unprocessed_user_messages_for_memory(
-            db,
+            database_session,
             username=username,
             limit=settings.user_memory_extract_message_limit,
         )
 
     async def extract_memory_candidates(
         self,
-        db: Session,
+        database_session: Session,
         username: str,
-        messages: list[str],
+        message_texts: list[str],
     ) -> MemoryExtractionResult:
-        if not messages:
-            return MemoryExtractionResult(
-                ok=True,
-                status="success_empty",
-                candidates=[],
-                error_code=None,
-            )
+        if not message_texts:
+            return MemoryExtractionResult(ok=True, status="success_empty", candidates=[], error_code=None)
 
-        pool, feature_cfg = self.llm_registry.get_for_feature("user_memory")
+        provider_pool, provider_feature_settings = self.llm_registry.get_for_feature("user_memory")
+        messages_block = "\n".join(f"- {one_message_text}" for one_message_text in message_texts)
 
-        messages_block: typing.Final = "\n".join(f"- {msg}" for msg in messages)
-
-        system_prompt: typing.Final = self.prompts.read("user_memory_system.txt")
-        user_prompt: typing.Final = self.prompts.render(
+        system_prompt = self.prompts.read("user_memory_system.txt")
+        user_prompt = self.prompts.render(
             "user_memory_user_template.txt",
             username=username,
             messages_block=messages_block,
         )
 
         try:
-            raw: typing.Final = await self.llm_executor.generate_text_with_pool(
-                db=db,
-                pool=pool,
-                feature_settings=feature_cfg,
+            raw_response_text = await self.llm_executor.generate_text_with_pool(
+                db=database_session,
+                pool=provider_pool,
+                feature_settings=provider_feature_settings,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as extraction_error:  # noqa: BLE001
             return MemoryExtractionResult(
                 ok=False,
                 status="failed_provider",
                 candidates=[],
                 error_code="memory_provider_error",
-                error_details=str(exc),
+                error_details=str(extraction_error),
             )
 
         try:
-            parsed_response: typing.Final = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            logger.warning(
+            parsed_response = json.loads(raw_response_text)
+        except json.JSONDecodeError as parsing_error:
+            LOGGER_INSTANCE.warning(
                 "User memory extraction returned invalid JSON: username=%s raw=%s",
                 username,
-                raw[:500],
+                raw_response_text[:500],
             )
             return MemoryExtractionResult(
                 ok=False,
                 status="failed_parse",
                 candidates=[],
                 error_code="memory_parse_error",
-                error_details=str(exc),
+                error_details=str(parsing_error),
             )
 
         try:
-            validated: typing.Final = MemoryCandidateList.model_validate({"root": parsed_response})
-        except pydantic.ValidationError as exc:
+            validated_candidates = MemoryCandidateList.model_validate({"root": parsed_response})
+        except pydantic.ValidationError as validation_error:
             return MemoryExtractionResult(
                 ok=False,
                 status="failed_schema",
                 candidates=[],
                 error_code="memory_schema_error",
-                error_details=str(exc),
+                error_details=str(validation_error),
             )
 
-        candidates: typing.Final = [
-            item
-            for item in validated.root
-            if item.kind in VALID_MEMORY_KINDS
-            and item.text.strip()
-            and item.evidence_count >= 1
-            and item.confidence >= settings.user_memory_min_confidence
+        filtered_candidates = [
+            one_candidate
+            for one_candidate in validated_candidates.root
+            if one_candidate.kind in VALID_MEMORY_KINDS
+            and one_candidate.text.strip()
+            and one_candidate.evidence_count >= 1
+            and one_candidate.confidence >= settings.user_memory_min_confidence
         ]
+        if not filtered_candidates:
+            return MemoryExtractionResult(ok=True, status="success_empty", candidates=[], error_code=None)
 
-        if not candidates:
-            return MemoryExtractionResult(
-                ok=True,
-                status="success_empty",
-                candidates=[],
-                error_code=None,
-            )
-
-        return MemoryExtractionResult(
-            ok=True,
-            status="success",
-            candidates=candidates,
-            error_code=None,
-        )
+        return MemoryExtractionResult(ok=True, status="success", candidates=filtered_candidates, error_code=None)
 
     def merge_memory_candidates(
         self,
-        db: Session,
+        database_session: Session,
         username: str,
-        candidates: list[MemoryCandidate],
+        candidate_items: list[MemoryCandidate],
     ) -> None:
-        if not candidates:
+        if not candidate_items:
             return
 
-        existing_items: typing.Final = self.get_memory_items(db, username)
-        existing_map: typing.Final = {
-            (item.kind.strip().lower(), item.text.strip().lower()): item for item in existing_items
+        existing_memory_items = self.list_memory_items(database_session, username)
+        existing_memory_by_key = {
+            (one_item.kind.strip().lower(), one_item.text.strip().lower()): one_item
+            for one_item in existing_memory_items
         }
 
-        now: typing.Final = datetime.datetime.now(datetime.UTC)
+        current_timestamp = datetime.datetime.now(datetime.UTC)
+        for one_candidate in candidate_items:
+            candidate_key = (
+                one_candidate.kind.strip().lower(),
+                one_candidate.text.strip().lower(),
+            )
+            existing_memory_item = existing_memory_by_key.get(candidate_key)
+            if existing_memory_item is not None:
+                existing_memory_item.evidence_count += one_candidate.evidence_count
+                existing_memory_item.confidence = max(existing_memory_item.confidence, one_candidate.confidence)
+                existing_memory_item.updated_at = current_timestamp
+                continue
 
-        for candidate in candidates:
-            key = (
-                candidate.kind.strip().lower(),
-                candidate.text.strip().lower(),
+            database_session.add(
+                UserMemoryItem(
+                    username=username,
+                    kind=one_candidate.kind,
+                    text=one_candidate.text,
+                    evidence_count=one_candidate.evidence_count,
+                    confidence=one_candidate.confidence,
+                    created_at=current_timestamp,
+                    updated_at=current_timestamp,
+                )
             )
 
-            existing = existing_map.get(key)
-            if existing is not None:
-                existing.evidence_count += candidate.evidence_count
-                existing.confidence = max(existing.confidence, candidate.confidence)
-                existing.updated_at = now
-            else:
-                new_item = UserMemoryItem(
-                    username=username,
-                    kind=candidate.kind,
-                    text=candidate.text,
-                    evidence_count=candidate.evidence_count,
-                    confidence=candidate.confidence,
-                    created_at=now,
-                    updated_at=now,
-                )
-                db.add(new_item)
+        database_session.flush()
 
-        db.flush()
-
-    def trim_user_memory(self, db: Session, username: str) -> None:
-        items: typing.Final = self.get_memory_items(db, username)
-
-        if len(items) <= settings.user_memory_max_items_per_user:
+    def trim_user_memory(self, database_session: Session, username: str) -> None:  # noqa: COP009
+        memory_items = self.list_memory_items(database_session, username)
+        if len(memory_items) <= settings.user_memory_max_items_per_user:
             return
 
-        to_delete: typing.Final = items[settings.user_memory_max_items_per_user :]
-        ids_to_delete: typing.Final = [item.id for item in to_delete]
-
-        if not ids_to_delete:
+        memory_item_ids_to_delete = [
+            one_item.id for one_item in memory_items[settings.user_memory_max_items_per_user :]
+        ]
+        if not memory_item_ids_to_delete:
             return
 
-        stmt: typing.Final = delete(UserMemoryItem).where(UserMemoryItem.id.in_(ids_to_delete))
-        db.execute(stmt)
-        db.flush()
+        database_session.execute(delete(UserMemoryItem).where(UserMemoryItem.id.in_(memory_item_ids_to_delete)))
+        database_session.flush()
 
-    async def refresh_user_memory_if_needed(self, db: Session, username: str) -> bool:
-        should_refresh, mode = self.should_refresh_user_memory(db, username)
+    async def refresh_user_memory_if_needed(self, database_session: Session, username: str) -> bool:  # noqa: COP009
+        should_refresh, refresh_mode = self.should_refresh_user_memory(database_session, username)
         if not should_refresh:
             app.observability.trace_helpers.trace_info(
                 "user_memory.refresh.skipped",
@@ -269,8 +262,8 @@ class UserMemoryService:
             )
             return False
 
-        messages: typing.Final = self.select_messages_for_refresh(db, username, mode)
-        if not messages:
+        selected_messages = self.select_messages_for_refresh(database_session, username, refresh_mode)
+        if not selected_messages:
             app.observability.trace_helpers.trace_info(
                 "user_memory.refresh.skipped",
                 "user memory refresh skipped: no messages",
@@ -278,60 +271,76 @@ class UserMemoryService:
             )
             return False
 
-        message_ids: typing.Final = [m.id for m in messages]
-        message_texts: typing.Final = [m.text for m in messages]
+        selected_message_ids = [one_message.id for one_message in selected_messages]
+        selected_message_texts = [one_message.text for one_message in selected_messages]
         app.observability.trace_helpers.trace_info(
             "user_memory.refresh.start",
             "user memory refresh started",
-            payload={"username": username, "mode": mode, "messages_count": len(message_texts)},
+            payload={
+                "username": username,
+                "mode": refresh_mode,
+                "messages_count": len(selected_message_texts),
+            },
         )
 
         try:
-            extraction: typing.Final = await self.extract_memory_candidates(db, username, message_texts)
-            self.chat_memory.mark_messages_memory_extraction_attempted(
-                db,
-                message_ids=message_ids,
-                error_code=extraction.error_code,
+            extraction_result = await self.extract_memory_candidates(
+                database_session,
+                username,
+                selected_message_texts,
             )
-            if not extraction.ok:
+            self.chat_memory.mark_messages_memory_extraction_attempted(
+                database_session,
+                message_ids=selected_message_ids,
+                error_code=extraction_result.error_code,
+            )
+            if not extraction_result.ok:
                 app.observability.trace_helpers.trace_failure(
                     "user_memory.extract.failed",
                     "memory extraction failed",
-                    error_code=extraction.error_code or "memory_extraction_failed",
-                    payload={"status": extraction.status, "messages_count": len(message_ids)},
+                    error_code=extraction_result.error_code or "memory_extraction_failed",
+                    payload={
+                        "status": extraction_result.status,
+                        "messages_count": len(selected_message_ids),
+                    },
                 )
-                db.commit()
-                logger.warning(
+                database_session.commit()
+                LOGGER_INSTANCE.warning(
                     "User memory extraction failed: username=%s mode=%s status=%s error_code=%s messages=%s",
                     username,
-                    mode,
-                    extraction.status,
-                    extraction.error_code,
-                    len(messages),
+                    refresh_mode,
+                    extraction_result.status,
+                    extraction_result.error_code,
+                    len(selected_messages),
                 )
                 return False
 
             app.observability.trace_helpers.trace_success(
                 "user_memory.extract.success",
                 "memory extraction finished",
-                payload={"status": extraction.status, "candidates_count": len(extraction.candidates)},
+                payload={
+                    "status": extraction_result.status,
+                    "candidates_count": len(extraction_result.candidates),
+                },
             )
-            self.merge_memory_candidates(db, username, extraction.candidates)
+            self.merge_memory_candidates(database_session, username, extraction_result.candidates)
             app.observability.trace_helpers.trace_success("user_memory.merge.success", "memory merge completed")
-            self.trim_user_memory(db, username)
+            self.trim_user_memory(database_session, username)
             app.observability.trace_helpers.trace_success("user_memory.trim.success", "memory trim completed")
-            self.chat_memory.mark_messages_memory_processed(db, message_ids=message_ids)
+            self.chat_memory.mark_messages_memory_processed(database_session, message_ids=selected_message_ids)
             app.observability.trace_helpers.trace_success(
                 "user_memory.mark_processed.success",
                 "marked messages as processed",
-                payload={"messages_count": len(message_ids)},
+                payload={"messages_count": len(selected_message_ids)},
             )
-            db.commit()
+            database_session.commit()
             app.observability.trace_helpers.trace_success(
-                "user_memory.refresh.success", "user memory refresh committed", payload={"username": username}
+                "user_memory.refresh.success",
+                "user memory refresh committed",
+                payload={"username": username},
             )
         except Exception:
-            db.rollback()
+            database_session.rollback()
             app.observability.trace_helpers.trace_failure(
                 "user_memory.refresh.failed",
                 "user memory refresh failed",
@@ -339,19 +348,19 @@ class UserMemoryService:
             )
             raise
 
-        if extraction.status == "success_empty":
-            logger.info(
+        if extraction_result.status == "success_empty":
+            LOGGER_INSTANCE.info(
                 "User memory extraction succeeded with no candidates: username=%s mode=%s messages=%s",
                 username,
-                mode,
-                len(messages),
+                refresh_mode,
+                len(selected_messages),
             )
         else:
-            logger.info(
+            LOGGER_INSTANCE.info(
                 "User memory refreshed: username=%s mode=%s messages=%s candidates=%s",
                 username,
-                mode,
-                len(messages),
-                len(extraction.candidates),
+                refresh_mode,
+                len(selected_messages),
+                len(extraction_result.candidates),
             )
         return True
