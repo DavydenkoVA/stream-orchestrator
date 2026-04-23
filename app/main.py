@@ -12,9 +12,9 @@ from sqlalchemy import inspect
 import app.models as app_models
 from app.api.admin_routes import router as admin_router
 from app.api.error_handlers import (
-    http_exception_handler,
-    unhandled_exception_handler,
-    validation_exception_handler,
+    handle_http_exception,
+    handle_unhandled_exception,
+    handle_validation_exception,
 )
 from app.api.request_id import generate_request_id, set_request_id
 from app.api.routes import router
@@ -58,13 +58,13 @@ async def request_id_middleware(request: Request, call_next: Callable[[Request],
 
 app.add_exception_handler(
     RequestValidationError,
-    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", validation_exception_handler),
+    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", handle_validation_exception),
 )
 app.add_exception_handler(
     HTTPException,
-    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", http_exception_handler),
+    cast("Callable[[Request, Exception], Response | Awaitable[Response]]", handle_http_exception),
 )
-app.add_exception_handler(Exception, unhandled_exception_handler)
+app.add_exception_handler(Exception, handle_unhandled_exception)
 
 app.include_router(router)
 app.include_router(admin_router)
