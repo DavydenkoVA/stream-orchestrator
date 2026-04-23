@@ -1,7 +1,7 @@
 import typing
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
-from typing import cast
+from contextlib import asynccontextmanager  # noqa: COP002
+from typing import cast  # noqa: COP002
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -29,7 +29,7 @@ _loaded_models = app_models
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:  # noqa: COP009
     inspector: typing.Final = inspect(engine)
 
     if not inspector.get_table_names():
@@ -37,13 +37,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="Stream Orchestrator", lifespan=lifespan)
+app = FastAPI(title="Stream Orchestrator", lifespan=lifespan)  # noqa: COP005
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.middleware("http")
-async def request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+async def request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:  # noqa: COP006
     request_id: typing.Final = generate_request_id()
     set_request_id(request, request_id)
     set_current_request_id(request_id)
