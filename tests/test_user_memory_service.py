@@ -50,9 +50,7 @@ def _save_two_messages(db_session: Session, memory_service: UserMemoryService) -
 
 def _load_messages(db_session: Session) -> list[ChatMessage]:
     return list(
-        db_session.scalars(
-            select(ChatMessage).where(ChatMessage.username == "alice").order_by(ChatMessage.id.asc())
-        )
+        db_session.scalars(select(ChatMessage).where(ChatMessage.username == "alice").order_by(ChatMessage.id.asc()))
     )
 
 
