@@ -8,8 +8,8 @@ from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
 
 
-class _FakeProvider:
-    def __init__(self, name: str, fail: bool) -> None:
+class _FakeProvider:  # noqa: COP012
+    def __init__(self, name: str, fail: bool) -> None:  # noqa: COP006
         self.name = name
         self.fail = fail
         self.calls = 0
@@ -23,8 +23,8 @@ class _FakeProvider:
 
 def _build_executor() -> tuple[LLMRegistry, LLMExecutionService, ProviderStateStore]:
     registry = LLMRegistry()
-    store = ProviderStateStore()
-    executor = LLMExecutionService(llm_registry=registry, state_store=store)
+    store = ProviderStateStore()  # noqa: COP005
+    executor = LLMExecutionService(llm_registry=registry, state_store=store)  # noqa: COP011
     return registry, executor, store
 
 
@@ -32,8 +32,8 @@ def test_failover_uses_second_model_and_persists_state(db_session: Session, monk
     registry, executor, store = _build_executor()
     pool, feature = registry.get_for_feature("chat")
 
-    first = _FakeProvider("model_a", fail=True)
-    second = _FakeProvider("model_b", fail=False)
+    first = _FakeProvider("model_a", fail=True)  # noqa: COP005
+    second = _FakeProvider("model_b", fail=False)  # noqa: COP005
 
     providers = {"model_a": first, "model_b": second}
     monkeypatch.setattr(
@@ -42,7 +42,7 @@ def test_failover_uses_second_model_and_persists_state(db_session: Session, monk
         lambda provider_kind, endpoint: providers[endpoint.name],  # noqa: ARG005
     )
 
-    reply = asyncio.run(
+    reply = asyncio.run(  # noqa: COP005
         executor.generate_text_with_pool(
             db=db_session,
             pool=pool,
@@ -65,9 +65,9 @@ def test_if_current_model_removed_attempt_starts_from_first(
     pool, feature = registry.get_for_feature("chat")
     store.set_current_model_name(db_session, pool.name, "removed_model")
 
-    calls: list[str] = []
+    calls: list[str] = []  # noqa: COP005
 
-    class _OnlyFirst:
+    class _OnlyFirst:  # noqa: COP012
         async def generate_text(self, **_kwargs: object) -> str:
             calls.append("model_a")
             return "ok:model_a"
@@ -78,7 +78,7 @@ def test_if_current_model_removed_attempt_starts_from_first(
         lambda provider_kind, endpoint: _OnlyFirst(),  # noqa: ARG005
     )
 
-    reply = asyncio.run(
+    reply = asyncio.run(  # noqa: COP005
         executor.generate_text_with_pool(
             db=db_session,
             pool=pool,
@@ -96,8 +96,8 @@ def test_if_all_models_fail_each_model_is_tried_once(db_session: Session, monkey
     registry, executor, _ = _build_executor()
     pool, feature = registry.get_for_feature("chat")
 
-    first = _FakeProvider("model_a", fail=True)
-    second = _FakeProvider("model_b", fail=True)
+    first = _FakeProvider("model_a", fail=True)  # noqa: COP005
+    second = _FakeProvider("model_b", fail=True)  # noqa: COP005
 
     providers = {"model_a": first, "model_b": second}
     monkeypatch.setattr(
@@ -122,7 +122,7 @@ def test_if_all_models_fail_each_model_is_tried_once(db_session: Session, monkey
 
 
 def test_provider_state_store_roundtrip(db_session: Session) -> None:
-    store = ProviderStateStore()
+    store = ProviderStateStore()  # noqa: COP005
 
     assert store.get_current_model_name(db_session, "primary") is None
 

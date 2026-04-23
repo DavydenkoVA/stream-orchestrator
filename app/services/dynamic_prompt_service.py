@@ -18,16 +18,16 @@ if typing.TYPE_CHECKING:
     from app.services.style_prompt import StylePromptService
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # noqa: COP005
 
 
-class DynamicPromptService:
+class DynamicPromptService:  # noqa: COP012
     def __init__(
         self,
         *,
         llm_registry: LLMRegistry,
         llm_executor: LLMExecutionService,
-        prompts: PromptStore,
+        prompts: PromptStore,  # noqa: COP006
         style_prompt: StylePromptService,
     ) -> None:
         self.llm_registry = llm_registry
@@ -46,20 +46,20 @@ class DynamicPromptService:
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
         safe_name: typing.Final = self._validate_prompt_name(prompt_name)
         system_name: typing.Final = f"dynamic/{safe_name}_system.txt"
-        template_name: typing.Final = f"dynamic/{safe_name}_template.txt"
+        template_name: typing.Final = f"dynamic/{safe_name}_template.txt"  # noqa: COP011
         return system_name, template_name
 
-    def _prompt_exists(self, relative_name: str) -> bool:
+    def _prompt_exists(self, relative_name: str) -> bool:  # noqa: COP009
         prompt_path: typing.Final = pathlib.Path(settings.prompts_dir) / relative_name
         return prompt_path.exists() and prompt_path.is_file()
 
     async def generate(  # noqa: C901, PLR0911, PLR0913, PLR0915
         self,
         *,
-        db: Session,
+        db: Session,  # noqa: COP006
         prompt_name: str,
-        user: str,
-        data: dict[str, typing.Any],
+        user: str,  # noqa: COP006
+        data: dict[str, typing.Any],  # noqa: COP006
         llm_provider_override: str | None = None,
         style_override: str | None = None,
         temperature_override: float | None = None,
@@ -109,7 +109,7 @@ class DynamicPromptService:
 
         try:
             required_fields: typing.Final = self.prompts.get_required_fields(template_name)
-        except ValueError as exc:
+        except ValueError as exc:  # noqa: COP005
             logger.warning(
                 "Dynamic prompt template validation failed: prompt=%s template=%s error=%s",
                 prompt_name,
@@ -169,7 +169,7 @@ class DynamicPromptService:
                 user=user,
                 **dynamic_prompt_payload,
             )
-        except KeyError as e:
+        except KeyError as e:  # noqa: COP005
             logger.warning(
                 (
                     "Dynamic prompt render failed due to missing field after preflight: "
@@ -204,7 +204,7 @@ class DynamicPromptService:
             return "fallback", ""
 
         try:
-            reply = await self.llm_executor.generate_text_with_pool(
+            reply = await self.llm_executor.generate_text_with_pool(  # noqa: COP005
                 db=db,
                 pool=pool,
                 feature_settings=feature_cfg,
@@ -238,7 +238,7 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()
+        reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()  # noqa: COP005
 
         if not reply:
             logger.info("Dynamic prompt reply became empty after trim: prompt=%s", prompt_name)

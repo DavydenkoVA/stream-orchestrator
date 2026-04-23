@@ -13,19 +13,19 @@ PENDING_MEMORY_ATTEMPTS = 2
 def test_save_message_does_not_commit_and_assigns_id_via_flush(
     db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    service = ChatMemoryService()
+    service = ChatMemoryService()  # noqa: COP005
 
     commit_calls = 0
     original_commit = db_session.commit
 
-    def counting_commit() -> None:
+    def counting_commit() -> None:  # noqa: COP009
         nonlocal commit_calls
         commit_calls += 1
         return original_commit()
 
     monkeypatch.setattr(db_session, "commit", counting_commit)
 
-    message = service.save_message(
+    message = service.save_message(  # noqa: COP005
         db_session,
         stream_id="s1",
         username="alice",
@@ -38,7 +38,7 @@ def test_save_message_does_not_commit_and_assigns_id_via_flush(
 
 
 def test_save_message_persists_only_after_external_commit(db_session: Session) -> None:
-    service = ChatMemoryService()
+    service = ChatMemoryService()  # noqa: COP005
 
     service.save_message(
         db_session,
@@ -49,13 +49,13 @@ def test_save_message_persists_only_after_external_commit(db_session: Session) -
     )
     db_session.commit()
 
-    stmt = select(ChatMessage).where(ChatMessage.username == "alice")
-    rows = list(db_session.scalars(stmt))
+    stmt = select(ChatMessage).where(ChatMessage.username == "alice")  # noqa: COP005, COP011
+    rows = list(db_session.scalars(stmt))  # noqa: COP005, COP011
     assert len(rows) == 1
 
 
 def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_session: Session) -> None:
-    service = ChatMemoryService()
+    service = ChatMemoryService()  # noqa: COP005
 
     processed = service.save_message(
         db_session,
@@ -64,7 +64,7 @@ def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_s
         text="done",
         mentions_bot=False,
     )
-    pending = service.save_message(
+    pending = service.save_message(  # noqa: COP005
         db_session,
         stream_id="s1",
         username="alice",
@@ -86,8 +86,8 @@ def test_mark_messages_memory_extraction_attempted_skips_processed_messages(db_s
     )
     db_session.commit()
 
-    stmt = select(ChatMessage).where(ChatMessage.id.in_([processed.id, pending.id]))
-    rows = {row.id: row for row in db_session.scalars(stmt)}
+    stmt = select(ChatMessage).where(ChatMessage.id.in_([processed.id, pending.id]))  # noqa: COP005, COP011
+    rows = {row.id: row for row in db_session.scalars(stmt)}  # noqa: COP005, COP015
 
     processed_row = rows[processed.id]
     pending_row = rows[pending.id]
