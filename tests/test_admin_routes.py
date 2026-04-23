@@ -1,10 +1,10 @@
 from __future__ import annotations
+import datetime
 import json
 import re
-from datetime import UTC, datetime, timedelta
+import typing
 from http import HTTPStatus
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from fastapi.testclient import TestClient
 
@@ -20,14 +20,14 @@ from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 EXPECTED_RECENT_ITEMS = 2
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from collections.abc import Generator
 
     import pytest
     from sqlalchemy.orm import Session
 
 
-def _minimal_valid_payload() -> dict[str, str]:
+def build_minimal_valid_payload() -> dict[str, str]:
     request_payload = {
         "providers[0][name]": "primary",
         "providers[0][provider]": "mock",
@@ -460,7 +460,7 @@ def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
         route="/events/chat_reply",
         stream_id="stream-page",
         status="success",
-        started_at=datetime.now(UTC),
+        started_at=datetime.datetime.now(datetime.UTC),
     )
     db_session.add(run)
     db_session.commit()
@@ -484,7 +484,7 @@ def test_legacy_get_llm_config_redirects() -> None:
 
 def test_validate_route_returns_errors_for_invalid_payload() -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
     request_payload["providers[0][models][0][api_key]"] = ""
 
     response = test_client.post("/llm-config/validate", data=request_payload)
@@ -496,7 +496,7 @@ def test_validate_route_returns_errors_for_invalid_payload() -> None:
 
 def test_apply_route_applies_new_config() -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
     request_payload["providers[0][models][0][api_key]"] = "admin-applied-key"
 
     response = test_client.post("/llm-config/apply", data=request_payload)
@@ -570,7 +570,7 @@ def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
 
 def test_legacy_validate_route_still_works() -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
 
     response = test_client.post("/admin/llm-config/validate", data=request_payload)
 
@@ -580,7 +580,7 @@ def test_legacy_validate_route_still_works() -> None:
 
 def test_legacy_apply_route_still_works() -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
 
     response = test_client.post("/admin/llm-config/apply", data=request_payload)
 
@@ -590,7 +590,7 @@ def test_legacy_apply_route_still_works() -> None:
 
 def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
 
     response = test_client.post("/llm-config/apply", data=request_payload)
@@ -600,7 +600,7 @@ def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.Monkey
 
 def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
     test_client = TestClient(app)
-    request_payload = _minimal_valid_payload()
+    request_payload = build_minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")
 
     response = test_client.post("/admin/llm-config/apply", data=request_payload)
@@ -609,7 +609,7 @@ def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest
 
 
 def _seed_trace_runs(db_session: Session) -> None:
-    base = datetime(2026, 1, 1, tzinfo=UTC)
+    base = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
     runs = [
         TraceRun(
             trace_id="trace-1",
@@ -619,7 +619,7 @@ def _seed_trace_runs(db_session: Session) -> None:
             status="success",
             summary="done",
             started_at=base,
-            finished_at=base + timedelta(seconds=2),
+            finished_at=base + datetime.timedelta(seconds=2),
         ),
         TraceRun(
             trace_id="trace-2",
@@ -629,8 +629,8 @@ def _seed_trace_runs(db_session: Session) -> None:
             status="failed",
             error_code="internal_error",
             summary="failed",
-            started_at=base + timedelta(minutes=1),
-            finished_at=base + timedelta(minutes=1, seconds=1),
+            started_at=base + datetime.timedelta(minutes=1),
+            finished_at=base + datetime.timedelta(minutes=1, seconds=1),
         ),
         TraceRun(
             trace_id="trace-3",
@@ -638,7 +638,7 @@ def _seed_trace_runs(db_session: Session) -> None:
             route="/events/dynamic_prompt",
             stream_id="stream-a",
             status="running",
-            started_at=base + timedelta(minutes=2),
+            started_at=base + datetime.timedelta(minutes=2),
             finished_at=None,
         ),
     ]
@@ -651,7 +651,7 @@ def _seed_trace_runs(db_session: Session) -> None:
             TraceEvent(
                 trace_run_id=run2.id,
                 seq_no=2,
-                timestamp=base + timedelta(minutes=1, seconds=2),
+                timestamp=base + datetime.timedelta(minutes=1, seconds=2),
                 step="request.finish",
                 status="failed",
                 level="ERROR",
@@ -661,7 +661,7 @@ def _seed_trace_runs(db_session: Session) -> None:
             TraceEvent(
                 trace_run_id=run2.id,
                 seq_no=1,
-                timestamp=base + timedelta(minutes=1, seconds=1),
+                timestamp=base + datetime.timedelta(minutes=1, seconds=1),
                 step="request.start",
                 status="info",
                 level="INFO",
@@ -765,8 +765,8 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
         stream_id="stream-style",
         status="success",
         summary="ok",
-        started_at=datetime.now(UTC),
-        finished_at=datetime.now(UTC),
+        started_at=datetime.datetime.now(datetime.UTC),
+        finished_at=datetime.datetime.now(datetime.UTC),
     )
     db_session.add(run)
     db_session.commit()
@@ -776,7 +776,7 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
         TraceEvent(
             trace_run_id=run.id,
             seq_no=1,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.datetime.now(datetime.UTC),
             step="llm.generate.start",
             status="info",
             level="INFO",
