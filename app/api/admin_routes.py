@@ -5,9 +5,8 @@ import re
 import types
 import typing
 import urllib
-from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -42,7 +41,7 @@ from app.services.styles_admin_service import StylesAdminService
 from app.services.trace_read_service import TraceReadService
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from app.services.style_registry import StyleRegistry
 
 
@@ -174,22 +173,22 @@ def build_view_model() -> dict[str, typing.Any]:
         )
 
     feature_defaults: typing.Final = {
-        feature_name: {
+        one_feature_name: {
             "provider": "",
             "temperature": settings.llm_temperature,
             "max_output_tokens": settings.llm_max_output_tokens,
             "style": "",
         }
-        for feature_name in SUPPORTED_FEATURE_NAMES
+        for one_feature_name in SUPPORTED_FEATURE_NAMES
     }
 
     features_list: typing.Final = []
-    for feature_name in SUPPORTED_FEATURE_NAMES:
-        feature_config = {**feature_defaults[feature_name], **(features.get(feature_name) or {})}
+    for one_feature_name in SUPPORTED_FEATURE_NAMES:
+        feature_config = {**feature_defaults[one_feature_name], **(features.get(one_feature_name) or {})}
         style_value = str(feature_config.get("style", "") or "").strip()
         features_list.append(
             {
-                "name": feature_name,
+                "name": one_feature_name,
                 "provider": feature_config.get("provider", ""),
                 "temperature": feature_config.get("temperature", settings.llm_temperature),
                 "max_output_tokens": feature_config.get("max_output_tokens", settings.llm_max_output_tokens),
@@ -243,25 +242,24 @@ def _resolve_selector_options_with_legacy(
     style_registry: StyleRegistry,
     current_value: str | None,
 ) -> list[dict[str, str]]:
-    options: typing.Final = [dataclasses.asdict(one_option) for one_option in style_registry.selector_options()]
+    selector_options: typing.Final = [
+        dataclasses.asdict(one_option) for one_option in style_registry.selector_options()
+    ]
     normalized_current: typing.Final = (current_value or "").strip().lower()
-    known_values: typing.Final = {one_item["value"] for one_item in options}
-    if normalized_current and normalized_current not in known_values:
-        options.append(
+    if normalized_current and normalized_current not in {one_item["value"] for one_item in selector_options}:
+        selector_options.append(
             {
                 "value": normalized_current,
                 "label": f"[missing: {normalized_current}]",
                 "kind": "missing",
             }
         )
-    return options
+    return selector_options
 
 
-def enforce_config_mutation_access() -> None:
+def validate_config_mutation_access() -> None:
     """Restrict config mutation routes to non-production-style environments."""
-    allowed_envs: typing.Final = {"local", "dev", "test"}
-    current_env: typing.Final = settings.app_env.lower().strip()
-    if current_env not in allowed_envs:
+    if settings.app_env.lower().strip() not in {"local", "dev", "test"}:
         raise HTTPException(
             status_code=403,
             detail=("LLM config mutation routes are disabled outside local/dev/test environments."),
@@ -269,34 +267,31 @@ def enforce_config_mutation_access() -> None:
 
 
 async def _read_form_data(http_request: Request) -> dict[str, str]:
-    request_body: typing.Final = (await http_request.body()).decode("utf-8")
-    return dict(urllib.parse.parse_qsl(request_body, keep_blank_values=True))
+    return dict(urllib.parse.parse_qsl((await http_request.body()).decode("utf-8"), keep_blank_values=True))
 
 
 async def _validate_llm_config_impl(http_request: Request) -> HTMLResponse:
     form_data: typing.Final = await _read_form_data(http_request)
-
-    admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
-    result: typing.Final = admin_service.validate_form_data(form_data)
-
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/_status_panel.html",
-        context={"result": result, "applied": False},
+        context={
+            "result": LLMConfigAdminService(api_routes.service.llm_registry).validate_form_data(form_data),
+            "applied": False,
+        },
     )
 
 
 async def _apply_llm_config_impl(http_request: Request) -> HTMLResponse:
-    enforce_config_mutation_access()
+    validate_config_mutation_access()
     form_data: typing.Final = await _read_form_data(http_request)
-
-    admin_service: typing.Final = LLMConfigAdminService(api_routes.service.llm_registry)
-    result: typing.Final = admin_service.apply_form_data(form_data)
-
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/_status_panel.html",
-        context={"result": result, "applied": True},
+        context={
+            "result": LLMConfigAdminService(api_routes.service.llm_registry).apply_form_data(form_data),
+            "applied": True,
+        },
     )
 
 
@@ -321,8 +316,11 @@ def get_llm_config(http_request: Request) -> HTMLResponse:
 
 
 @router.get("/playground", response_class=HTMLResponse)
-def get_playground(http_request: Request, mode: typing.Annotated[str, Query()] = "chat") -> HTMLResponse:
-    normalized_mode: typing.Final = mode if mode in {"chat", "dynamic", "dossier"} else "chat"
+def get_playground(
+    http_request: Request,
+    playground_mode: typing.Annotated[str, Query(alias="mode")] = "chat",
+) -> HTMLResponse:
+    normalized_mode: typing.Final = playground_mode if playground_mode in {"chat", "dynamic", "dossier"} else "chat"
     style_registry: typing.Final = api_routes.service.style_registry
     raw_config: typing.Final = _read_admin_raw_config(style_registry)
     return jinja_templates.TemplateResponse(
@@ -345,68 +343,69 @@ def get_playground(http_request: Request, mode: typing.Annotated[str, Query()] =
 
 @router.get("/styles", response_class=HTMLResponse)
 def get_styles(http_request: Request) -> HTMLResponse:
-    style_registry: typing.Final = api_routes.service.style_registry
-    styles_service: typing.Final = StylesAdminService(style_registry)
-    styles_collection: typing.Final = styles_service.initial_styles()
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/styles.html",
         context={
             "active_page": "styles",
             "page_title": "Styles",
-            "styles": [dataclasses.asdict(one_style) for one_style in styles_collection],
+            "styles": [
+                dataclasses.asdict(one_style)
+                for one_style in StylesAdminService(api_routes.service.style_registry).initial_styles()
+            ],
         },
     )
 
 
 async def _validate_styles_impl(http_request: Request) -> HTMLResponse:
     form_data: typing.Final = await _read_form_data(http_request)
-    styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
-    result: typing.Final = styles_service.validate_form_data(form_data)
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/_status_panel.html",
-        context={"result": result, "applied": False},
+        context={
+            "result": StylesAdminService(api_routes.service.style_registry).validate_form_data(form_data),
+            "applied": False,
+        },
     )
 
 
 async def _apply_styles_impl(http_request: Request) -> HTMLResponse:
-    enforce_config_mutation_access()
+    validate_config_mutation_access()
     form_data: typing.Final = await _read_form_data(http_request)
-    styles_service: typing.Final = StylesAdminService(api_routes.service.style_registry)
-    result: typing.Final = styles_service.apply_form_data(form_data)
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/_status_panel.html",
-        context={"result": result, "applied": True},
+        context={
+            "result": StylesAdminService(api_routes.service.style_registry).apply_form_data(form_data),
+            "applied": True,
+        },
     )
 
 
 @router.get("/playground/api/dynamic-prompts")
 def get_dynamic_prompt_names() -> dict[str, typing.Any]:
-    prompt_names: typing.Final = list_dynamic_prompt_names()
-    return {"items": [{"name": one_prompt_name} for one_prompt_name in prompt_names]}
+    return {"items": [{"name": one_prompt_name} for one_prompt_name in list_dynamic_prompt_names()]}
 
 
 @router.get("/playground/api/dynamic-prompts/{name}")
-def get_dynamic_prompt_metadata(name: str) -> dict[str, typing.Any]:
-    validated_name: typing.Final = validate_dynamic_prompt_name(name)
+def get_dynamic_prompt_metadata(prompt_name: typing.Annotated[str, Path(alias="name")]) -> dict[str, typing.Any]:
+    validated_name: typing.Final = validate_dynamic_prompt_name(prompt_name)
     if validated_name not in list_dynamic_prompt_names():
         raise HTTPException(status_code=404, detail="Dynamic prompt not found")
 
     system_name: typing.Final = f"dynamic/{validated_name}_system.txt"
     template_name: typing.Final = f"dynamic/{validated_name}_template.txt"
 
-    store: typing.Final = api_routes.service.prompts
+    prompt_store: typing.Final = api_routes.service.prompts
 
     try:
-        required_fields: typing.Final = sorted(store.get_required_fields(template_name))
+        required_fields: typing.Final = sorted(prompt_store.get_required_fields(template_name))
         required_data_fields: typing.Final = [one_field for one_field in required_fields if one_field != "user"]
         data_skeleton: typing.Final = dict.fromkeys(required_data_fields, "")
-        system_prompt: typing.Final = store.read_raw(system_name)
-        template_prompt: typing.Final = store.read_raw(template_name)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Dynamic prompt not found") from exc
+        system_prompt: typing.Final = prompt_store.read_raw(system_name)
+        template_prompt: typing.Final = prompt_store.read_raw(template_name)
+    except FileNotFoundError as exception_obj:
+        raise HTTPException(status_code=404, detail="Dynamic prompt not found") from exception_obj
 
     return {
         "name": validated_name,
@@ -419,10 +418,9 @@ def get_dynamic_prompt_metadata(name: str) -> dict[str, typing.Any]:
 
 
 @router.post("/playground/api/dynamic-prompts/create")
-def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict[str, typing.Any]:
-    validated_name: typing.Final = validate_dynamic_prompt_name(payload.name)
-    existing: typing.Final = set(list_dynamic_prompt_names())
-    if validated_name in existing:
+def create_dynamic_prompt(dynamic_prompt_request: DynamicPromptCreateRequest) -> dict[str, typing.Any]:
+    validated_name: typing.Final = validate_dynamic_prompt_name(dynamic_prompt_request.name)
+    if validated_name in set(list_dynamic_prompt_names()):
         raise HTTPException(status_code=400, detail="Dynamic prompt already exists")
 
     dynamic_root: typing.Final = pathlib.Path(settings.prompts_dir) / "dynamic"
@@ -435,66 +433,73 @@ def create_dynamic_prompt(payload: DynamicPromptCreateRequest) -> dict[str, typi
 
 
 @router.get("/playground/api/prompts/{scope}")
-def get_prompt_sources(scope: str, name: typing.Annotated[str | None, Query()] = None) -> dict[str, typing.Any]:
-    store: typing.Final = api_routes.service.prompts
-    if scope == "dynamic":
-        validated_name: typing.Final = validate_dynamic_prompt_name(name or "")
+def get_prompt_sources(
+    prompt_scope: typing.Annotated[str, Path(alias="scope")],
+    prompt_name: typing.Annotated[str | None, Query(alias="name")] = None,
+) -> dict[str, typing.Any]:
+    prompt_store: typing.Final = api_routes.service.prompts
+    if prompt_scope == "dynamic":
+        validated_name: typing.Final = validate_dynamic_prompt_name(prompt_name or "")
         return {
-            "scope": scope,
+            "scope": prompt_scope,
             "name": validated_name,
             "items": [
                 {
                     "part": "system_prompt",
                     "file": f"dynamic/{validated_name}_system.txt",
-                    "content": store.read_raw(f"dynamic/{validated_name}_system.txt"),
+                    "content": prompt_store.read_raw(f"dynamic/{validated_name}_system.txt"),
                 },
                 {
                     "part": "template_prompt",
                     "file": f"dynamic/{validated_name}_template.txt",
-                    "content": store.read_raw(f"dynamic/{validated_name}_template.txt"),
+                    "content": prompt_store.read_raw(f"dynamic/{validated_name}_template.txt"),
                 },
             ],
         }
-    part_map: typing.Final = PROMPT_PARTS.get(scope)
+    part_map: typing.Final = PROMPT_PARTS.get(prompt_scope)
     if not part_map:
         raise HTTPException(status_code=400, detail="Invalid prompt scope")
-    items: typing.Final = []
-    for part, file_name in part_map.items():
-        items.append({"part": part, "file": file_name, "content": store.read_raw(file_name)})
-    return {"scope": scope, "items": items}
+    prompt_items: typing.Final = []
+    for one_part, one_file_name in part_map.items():
+        prompt_items.append({"part": one_part, "file": one_file_name, "content": prompt_store.read_raw(one_file_name)})
+    return {"scope": prompt_scope, "items": prompt_items}
 
 
 @router.post("/playground/api/prompts/save")
-def save_prompt_source(payload: PromptSaveRequest) -> dict[str, typing.Any]:
+def save_prompt_source(prompt_save_request: PromptSaveRequest) -> dict[str, typing.Any]:
     file_name: typing.Final = get_prompt_file_for(
-        prompt_scope=payload.scope,
-        prompt_part=payload.part,
-        prompt_name=payload.name,
+        prompt_scope=prompt_save_request.scope,
+        prompt_part=prompt_save_request.part,
+        prompt_name=prompt_save_request.name,
     )
-    store: typing.Final = api_routes.service.prompts
-    store.write(file_name, payload.content)
-    return {"saved": True, "scope": payload.scope, "part": payload.part, "name": payload.name}
+    api_routes.service.prompts.write(file_name, prompt_save_request.content)
+    return {
+        "saved": True,
+        "scope": prompt_save_request.scope,
+        "part": prompt_save_request.part,
+        "name": prompt_save_request.name,
+    }
 
 
 @router.post("/playground/api/dossier/run")
 async def run_dossier_from_playground(
-    payload: DossierRunRequest,
+    dossier_run_request: DossierRunRequest,
     http_request: Request,
-    response: Response,
+    http_response: Response,
     database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> dict[str, typing.Any]:
-    start_trace(route=str(http_request.url.path), stream_id=payload.stream_id, db=database_session)
+    start_trace(route=str(http_request.url.path), stream_id=dossier_run_request.stream_id, db=database_session)
     try:
         reply_text, selected_route = await api_routes.service.run_dossier(
             database_session,
-            stream_id=payload.stream_id,
-            username=payload.username,
-            target_username=payload.dossier_target,
+            stream_id=dossier_run_request.stream_id,
+            username=dossier_run_request.username,
+            target_username=dossier_run_request.dossier_target,
         )
         trace_success("request.finish", "dossier playground request finished", payload={"route_result": selected_route})
         trace_run_id: typing.Final = _get_trace_run_id()
         if trace_run_id:
-            response.headers["X-Trace-Id"] = trace_run_id
+            http_response.headers["X-Trace-Id"] = trace_run_id
         finish_trace_success(summary=f"dossier {selected_route}")
         return {"reply_text": reply_text, "route": selected_route, "should_reply": bool(reply_text)}
     except Exception as exception_obj:
@@ -508,9 +513,10 @@ async def run_dossier_from_playground(
 
 @router.post("/playground/api/chat/reset-stream")
 def reset_chat_stream(
-    payload: ResetStreamRequest, database_session: typing.Annotated[Session, Depends(get_db)]
+    reset_stream_request: ResetStreamRequest,
+    database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> dict[str, typing.Any]:
-    stream_id: typing.Final = payload.stream_id.strip()
+    stream_id: typing.Final = reset_stream_request.stream_id.strip()
     if not stream_id:
         raise HTTPException(status_code=422, detail="stream_id must not be empty")
 
@@ -528,14 +534,17 @@ def reset_chat_stream(
 
 
 @router.get("/traces", response_class=HTMLResponse)
-def get_traces(http_request: Request, run_id: typing.Annotated[str | None, Query()] = None) -> HTMLResponse:
+def get_traces(
+    http_request: Request,
+    trace_run_id: typing.Annotated[str | None, Query(alias="run_id")] = None,
+) -> HTMLResponse:
     return jinja_templates.TemplateResponse(
         request=http_request,
         name="admin/traces.html",
         context={
             "active_page": "traces",
             "page_title": "Traces",
-            "selected_run_id": run_id or "",
+            "selected_run_id": trace_run_id or "",
             "trace_status_filter_all": TRACE_STATUS_FILTER_ALL,
             "trace_status_options": TRACE_RUN_ALLOWED_STATUSES,
         },
@@ -545,25 +554,25 @@ def get_traces(http_request: Request, run_id: typing.Annotated[str | None, Query
 @router.get("/traces/api/runs")
 def get_trace_runs(
     database_session: typing.Annotated[Session, Depends(get_db)],
-    limit: typing.Annotated[int, Query(ge=1, le=200)] = 50,
-    stream_id: typing.Annotated[str | None, Query()] = None,
-    status: typing.Annotated[str | None, Query()] = None,
+    result_limit: typing.Annotated[int, Query(alias="limit", ge=1, le=200)] = 50,
+    stream_identifier: typing.Annotated[str | None, Query(alias="stream_id")] = None,
+    status_filter: typing.Annotated[str | None, Query(alias="status")] = None,
 ) -> dict[str, typing.Any]:
     try:
-        normalized_status: typing.Final = normalize_status_filter(status)
-    except TraceStatusValidationError as exc:
+        normalized_status: typing.Final = normalize_status_filter(status_filter)
+    except TraceStatusValidationError as exception_obj:
         raise HTTPException(
             status_code=400,
             detail={
-                "message": str(exc),
+                "message": str(exception_obj),
                 "allowed_statuses": list(TRACE_RUN_ALLOWED_STATUSES),
             },
-        ) from exc
+        ) from exception_obj
 
     trace_items: typing.Final = _trace_read_service.list_runs(
         database_session,
-        limit=limit,
-        stream_id=stream_id,
+        limit=result_limit,
+        stream_id=stream_identifier,
         status=normalized_status,
     )
     return {"items": trace_items}
@@ -571,10 +580,10 @@ def get_trace_runs(
 
 @router.get("/traces/api/runs/{run_id}")
 def get_trace_run_detail(
-    run_id: str,
+    trace_run_id: typing.Annotated[str, Path(alias="run_id")],
     database_session: typing.Annotated[Session, Depends(get_db)],
 ) -> dict[str, typing.Any]:
-    trace_run_detail: typing.Final = _trace_read_service.get_run_detail(database_session, run_id=run_id)
+    trace_run_detail: typing.Final = _trace_read_service.get_run_detail(database_session, run_id=trace_run_id)
     if trace_run_detail is None:
         raise HTTPException(status_code=404, detail="Trace run not found")
     return trace_run_detail

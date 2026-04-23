@@ -180,8 +180,7 @@ async def handle_reply_chat_event(
 
 @api_router.get("/debug/prompts/{name}")
 def read_prompt(name: str) -> dict[str, typing.Any]:  # noqa: COP006
-    prompt_store: typing.Final = PromptStore()
-    return {"name": name, "content": prompt_store.read(name)}
+    return {"name": name, "content": PromptStore().read(name)}
 
 
 @api_router.get("/debug/context")

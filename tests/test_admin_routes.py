@@ -107,8 +107,7 @@ def test_llm_config_js_collects_only_top_level_provider_name_inputs() -> None:
 
 
 def test_get_styles_page_returns_200_and_shows_default() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/styles")
+    response = TestClient(app).get("/styles")
 
     assert response.status_code == HTTPStatus.OK
     assert "Manage configured styles" in response.text
@@ -119,8 +118,7 @@ def test_get_styles_page_returns_200_and_shows_default() -> None:
 
 
 def test_get_styles_page_keeps_non_default_name_editable() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/styles")
+    response = TestClient(app).get("/styles")
 
     assert response.status_code == HTTPStatus.OK
     assert 'name="styles[1][name]" value="fun"' in response.text
@@ -128,8 +126,7 @@ def test_get_styles_page_keeps_non_default_name_editable() -> None:
 
 
 def test_styles_js_does_not_reinitialize_default_name_field() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/static/admin/styles.js")
+    response = TestClient(app).get("/static/admin/styles.js")
 
     assert response.status_code == HTTPStatus.OK
     assert "querySelectorAll('.style-item').forEach(bindRemoveButton);" in response.text
@@ -199,8 +196,7 @@ def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
     response = test_client.get("/playground/api/dynamic-prompts")
 
     assert response.status_code == HTTPStatus.OK
-    prompt_names = [one_item["name"] for one_item in response.json()["items"]]
-    assert prompt_names == ["test", "weekly_summary"]
+    assert [one_item["name"] for one_item in response.json()["items"]] == ["test", "weekly_summary"]
 
 
 def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
@@ -225,9 +221,9 @@ def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"name": "new_prompt", "created": True}
 
-    list_response = test_client.get("/playground/api/dynamic-prompts")
-    prompt_names = [one_item["name"] for one_item in list_response.json()["items"]]
-    assert "new_prompt" in prompt_names
+    assert "new_prompt" in [
+        one_item["name"] for one_item in test_client.get("/playground/api/dynamic-prompts").json()["items"]
+    ]
 
     prompts_payload = test_client.get("/playground/api/prompts/dynamic", params={"name": "new_prompt"}).json()
     assert prompts_payload["items"][0]["content"] == ""
@@ -237,11 +233,15 @@ def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
 def test_create_dynamic_prompt_rejects_invalid_or_duplicate_name() -> None:
     test_client = TestClient(app)
 
-    invalid = test_client.post("/playground/api/dynamic-prompts/create", json={"name": "../bad"})
-    assert invalid.status_code == HTTPStatus.BAD_REQUEST
+    assert (
+        test_client.post("/playground/api/dynamic-prompts/create", json={"name": "../bad"}).status_code
+        == HTTPStatus.BAD_REQUEST
+    )
 
-    duplicate = test_client.post("/playground/api/dynamic-prompts/create", json={"name": "test"})
-    assert duplicate.status_code == HTTPStatus.BAD_REQUEST
+    assert (
+        test_client.post("/playground/api/dynamic-prompts/create", json={"name": "test"}).status_code
+        == HTTPStatus.BAD_REQUEST
+    )
 
 
 def test_playground_prompt_save_updates_runtime_read() -> None:
@@ -261,15 +261,13 @@ def test_playground_prompt_save_updates_runtime_read() -> None:
 def test_playground_chat_and_dossier_prompt_load_routes() -> None:
     test_client = TestClient(app)
 
-    chat = test_client.get("/playground/api/prompts/chat")
-    assert chat.status_code == HTTPStatus.OK
-    chat_parts = {one_item["part"] for one_item in chat.json()["items"]}
-    assert chat_parts == {"system_prompt", "user_template"}
+    chat_response = test_client.get("/playground/api/prompts/chat")
+    assert chat_response.status_code == HTTPStatus.OK
+    assert {one_item["part"] for one_item in chat_response.json()["items"]} == {"system_prompt", "user_template"}
 
-    dossier = test_client.get("/playground/api/prompts/dossier")
-    assert dossier.status_code == HTTPStatus.OK
-    dossier_parts = {one_item["part"] for one_item in dossier.json()["items"]}
-    assert dossier_parts == {"system_prompt", "user_template"}
+    dossier_response = test_client.get("/playground/api/prompts/dossier")
+    assert dossier_response.status_code == HTTPStatus.OK
+    assert {one_item["part"] for one_item in dossier_response.json()["items"]} == {"system_prompt", "user_template"}
 
 
 def test_playground_dossier_run_uses_real_route_and_trace_header(db_session: Session) -> None:
@@ -277,22 +275,20 @@ def test_playground_dossier_run_uses_real_route_and_trace_header(db_session: Ses
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    test_client = TestClient(app)
-    response = test_client.post(
+    response = TestClient(app).post(
         "/playground/api/dossier/run",
         json={"stream_id": "stream_d", "username": "viewer", "dossier_target": "target_user"},
     )
     assert response.status_code == HTTPStatus.OK
     assert response.json()["route"] == "dossier"
-    trace_id = response.headers.get("X-Trace-Id")
-    assert trace_id
-    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
+    trace_identifier = response.headers.get("X-Trace-Id")
+    assert trace_identifier
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_identifier)
     app.dependency_overrides.clear()
 
 
 def test_playground_layout_and_button_classes_present() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/playground")
+    response = TestClient(app).get("/playground")
     assert response.status_code == HTTPStatus.OK
     assert 'class="btn-run"' in response.text
     assert 'class="btn-delete"' in response.text
@@ -303,8 +299,7 @@ def test_playground_layout_and_button_classes_present() -> None:
 
 
 def test_chat_reply_layout_and_context_tabs_and_reply_fields() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/playground", params={"mode": "chat"})
+    response = TestClient(app).get("/playground", params={"mode": "chat"})
     assert response.status_code == HTTPStatus.OK
     assert 'data-context-tab="system_prompt"' not in response.text
     assert 'data-context-tab="user_prompt"' not in response.text
@@ -318,37 +313,34 @@ def test_chat_reply_layout_and_context_tabs_and_reply_fields() -> None:
 
 def test_dynamic_layout_right_column_and_skeleton_logic_present_in_js() -> None:
     test_client = TestClient(app)
-    html = test_client.get("/playground", params={"mode": "dynamic"})
-    assert html.status_code == HTTPStatus.OK
-    assert 'class="playground-col-right"' in html.text
-    assert "Run Result" in html.text
-    assert "Prompts" in html.text
+    dynamic_page_response = test_client.get("/playground", params={"mode": "dynamic"})
+    assert dynamic_page_response.status_code == HTTPStatus.OK
+    assert 'class="playground-col-right"' in dynamic_page_response.text
+    assert "Run Result" in dynamic_page_response.text
+    assert "Prompts" in dynamic_page_response.text
 
-    js = test_client.get("/static/admin/playground.js")
-    assert js.status_code == HTTPStatus.OK
-    assert "function buildDynamicDataSkeleton" in js.text
-    assert "field !== 'user'" in js.text
-    assert "dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));" in js.text
+    javascript_response = test_client.get("/static/admin/playground.js")
+    assert javascript_response.status_code == HTTPStatus.OK
+    assert "function buildDynamicDataSkeleton" in javascript_response.text
+    assert "field !== 'user'" in javascript_response.text
+    assert "dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));" in javascript_response.text
 
 
 def test_playground_css_uses_vertical_resize() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/static/admin/console.css")
+    response = TestClient(app).get("/static/admin/console.css")
     assert response.status_code == HTTPStatus.OK
     assert "resize: vertical;" in response.text
 
 
 def test_playground_copy_feedback_is_transient() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/static/admin/playground.js")
+    response = TestClient(app).get("/static/admin/playground.js")
     assert response.status_code == HTTPStatus.OK
     assert "setTimeout" in response.text
     assert "dynamicCopyStatus.hidden = true" in response.text
 
 
 def test_trace_link_source_uses_response_header() -> None:
-    test_client = TestClient(app)
-    response = test_client.get("/static/admin/playground.js")
+    response = TestClient(app).get("/static/admin/playground.js")
     assert response.status_code == HTTPStatus.OK
     assert "response.headers.get('X-Trace-Id')" in response.text
 
@@ -376,10 +368,10 @@ def test_reset_stream_deletes_messages_and_is_idempotent(db_session: Session) ->
     assert context_before.status_code == HTTPStatus.OK
     assert len(context_before.json()["global_recent"]) == EXPECTED_RECENT_ITEMS
 
-    first = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
-    assert first.status_code == HTTPStatus.OK
-    assert first.json()["deleted"] is True
-    assert first.json()["deleted_count"] == EXPECTED_RECENT_ITEMS
+    first_reset_response = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert first_reset_response.status_code == HTTPStatus.OK
+    assert first_reset_response.json()["deleted"] is True
+    assert first_reset_response.json()["deleted_count"] == EXPECTED_RECENT_ITEMS
 
     context_after = test_client.get(
         "/debug/context",
@@ -388,10 +380,10 @@ def test_reset_stream_deletes_messages_and_is_idempotent(db_session: Session) ->
     assert context_after.status_code == HTTPStatus.OK
     assert context_after.json()["global_recent"] == []
 
-    second = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
-    assert second.status_code == HTTPStatus.OK
-    assert second.json()["deleted"] is True
-    assert second.json()["deleted_count"] == 0
+    second_reset_response = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert second_reset_response.status_code == HTTPStatus.OK
+    assert second_reset_response.json()["deleted"] is True
+    assert second_reset_response.json()["deleted_count"] == 0
 
     untouched_context = test_client.get(
         "/debug/context",
@@ -443,8 +435,8 @@ def test_get_traces_returns_200_with_empty_state() -> None:
     assert 'id="traces-status"' in response.text
     assert '<input id="traces-status"' not in response.text
     assert f'<option value="{TRACE_STATUS_FILTER_ALL}">{TRACE_STATUS_FILTER_ALL}</option>' in response.text
-    for status in TRACE_RUN_ALLOWED_STATUSES:
-        assert f'<option value="{status}">{status}</option>' in response.text
+    for one_status in TRACE_RUN_ALLOWED_STATUSES:
+        assert f'<option value="{one_status}">{one_status}</option>' in response.text
 
 
 def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
@@ -454,7 +446,7 @@ def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
     app.dependency_overrides[get_db] = override_get_db
     test_client = TestClient(app)
 
-    run = TraceRun(
+    trace_run_record = TraceRun(
         trace_id="trace-page-run",
         request_id="req-page-run",
         route="/events/chat_reply",
@@ -462,7 +454,7 @@ def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
         status="success",
         started_at=datetime.datetime.now(datetime.UTC),
     )
-    db_session.add(run)
+    db_session.add(trace_run_record)
     db_session.commit()
 
     response = test_client.get("/traces", params={"run_id": "trace-page-run"})
@@ -504,8 +496,7 @@ def test_apply_route_applies_new_config() -> None:
     assert response.status_code == HTTPStatus.OK
     assert "Apply success" in response.text
 
-    page = test_client.get("/llm-config")
-    assert "admin-applied-key" in page.text
+    assert "admin-applied-key" in test_client.get("/llm-config").text
 
 
 def test_styles_validate_and_apply_routes_work() -> None:
@@ -528,10 +519,10 @@ def test_styles_validate_and_apply_routes_work() -> None:
     assert apply_response.status_code == HTTPStatus.OK
     assert "Apply success" in apply_response.text
 
-    page = test_client.get("/styles")
-    assert "cinematic" in page.text
-    assert "Default title updated" in page.text
-    assert "Default instruction updated" in page.text
+    styles_page_response = test_client.get("/styles")
+    assert "cinematic" in styles_page_response.text
+    assert "Default title updated" in styles_page_response.text
+    assert "Default instruction updated" in styles_page_response.text
 
 
 def test_styles_validate_rejects_missing_default() -> None:
@@ -608,9 +599,9 @@ def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-def _seed_trace_runs(db_session: Session) -> None:
-    base = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
-    runs = [
+def build_seeded_trace_runs(db_session: Session) -> None:
+    baseline_timestamp = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    trace_runs = [
         TraceRun(
             trace_id="trace-1",
             request_id="req-1",
@@ -618,8 +609,8 @@ def _seed_trace_runs(db_session: Session) -> None:
             stream_id="stream-a",
             status="success",
             summary="done",
-            started_at=base,
-            finished_at=base + datetime.timedelta(seconds=2),
+            started_at=baseline_timestamp,
+            finished_at=baseline_timestamp + datetime.timedelta(seconds=2),
         ),
         TraceRun(
             trace_id="trace-2",
@@ -629,8 +620,8 @@ def _seed_trace_runs(db_session: Session) -> None:
             status="failed",
             error_code="internal_error",
             summary="failed",
-            started_at=base + datetime.timedelta(minutes=1),
-            finished_at=base + datetime.timedelta(minutes=1, seconds=1),
+            started_at=baseline_timestamp + datetime.timedelta(minutes=1),
+            finished_at=baseline_timestamp + datetime.timedelta(minutes=1, seconds=1),
         ),
         TraceRun(
             trace_id="trace-3",
@@ -638,20 +629,20 @@ def _seed_trace_runs(db_session: Session) -> None:
             route="/events/dynamic_prompt",
             stream_id="stream-a",
             status="running",
-            started_at=base + datetime.timedelta(minutes=2),
+            started_at=baseline_timestamp + datetime.timedelta(minutes=2),
             finished_at=None,
         ),
     ]
-    db_session.add_all(runs)
+    db_session.add_all(trace_runs)
     db_session.commit()
 
-    run2 = db_session.query(TraceRun).filter(TraceRun.trace_id == "trace-2").one()
+    trace_run_two = db_session.query(TraceRun).filter(TraceRun.trace_id == "trace-2").one()
     db_session.add_all(
         [
             TraceEvent(
-                trace_run_id=run2.id,
+                trace_run_id=trace_run_two.id,
                 seq_no=2,
-                timestamp=base + datetime.timedelta(minutes=1, seconds=2),
+                timestamp=baseline_timestamp + datetime.timedelta(minutes=1, seconds=2),
                 step="request.finish",
                 status="failed",
                 level="ERROR",
@@ -659,9 +650,9 @@ def _seed_trace_runs(db_session: Session) -> None:
                 payload_json=json.dumps({"error": "[redacted_prompt length=5]"}),
             ),
             TraceEvent(
-                trace_run_id=run2.id,
+                trace_run_id=trace_run_two.id,
                 seq_no=1,
-                timestamp=base + datetime.timedelta(minutes=1, seconds=1),
+                timestamp=baseline_timestamp + datetime.timedelta(minutes=1, seconds=1),
                 step="request.start",
                 status="info",
                 level="INFO",
@@ -678,7 +669,7 @@ def test_traces_api_runs_returns_newest_first_and_limit(db_session: Session) -> 
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
+    build_seeded_trace_runs(db_session)
     test_client = TestClient(app)
 
     response = test_client.get("/traces/api/runs", params={"limit": 2})
@@ -696,7 +687,7 @@ def test_traces_api_runs_filter_by_stream_id_and_status(db_session: Session) -> 
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
+    build_seeded_trace_runs(db_session)
     test_client = TestClient(app)
 
     stream_response = test_client.get("/traces/api/runs", params={"stream_id": "stream-a"})
@@ -720,8 +711,7 @@ def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session: 
     response = test_client.get("/traces/api/runs", params={"status": "unknown_status"})
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
-    request_payload = response.json()
-    assert request_payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
+    assert response.json()["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
 
     app.dependency_overrides.clear()
 
@@ -731,7 +721,7 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session: Sessio
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
+    build_seeded_trace_runs(db_session)
     test_client = TestClient(app)
 
     response = test_client.get("/traces/api/runs/trace-2")
@@ -742,7 +732,7 @@ def test_traces_api_run_detail_returns_run_and_ordered_events(db_session: Sessio
     assert "applied_style" not in request_payload["run"]
     assert "requested_style" not in request_payload["run"]
     assert "style_resolution_status" not in request_payload["run"]
-    assert [event["seq_no"] for event in request_payload["events"]] == [1, 2]
+    assert [one_event["seq_no"] for one_event in request_payload["events"]] == [1, 2]
     assert request_payload["events"][0]["tone"] == "info"
     assert request_payload["events"][0]["style_resolution"] is None
     assert request_payload["events"][1]["tone"] == "failure"
@@ -758,7 +748,7 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
     app.dependency_overrides[get_db] = override_get_db
     test_client = TestClient(app)
 
-    run = TraceRun(
+    trace_run_record = TraceRun(
         trace_id="trace-style-1",
         request_id="req-style-1",
         route="/events/chat_reply",
@@ -768,13 +758,13 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
         started_at=datetime.datetime.now(datetime.UTC),
         finished_at=datetime.datetime.now(datetime.UTC),
     )
-    db_session.add(run)
+    db_session.add(trace_run_record)
     db_session.commit()
-    db_session.refresh(run)
+    db_session.refresh(trace_run_record)
 
     db_session.add(
         TraceEvent(
-            trace_run_id=run.id,
+            trace_run_id=trace_run_record.id,
             seq_no=1,
             timestamp=datetime.datetime.now(datetime.UTC),
             step="llm.generate.start",
@@ -851,16 +841,16 @@ def test_non_regression_core_routes_still_work(db_session: Session) -> None:
 
 
 def test_traces_js_contains_style_resolution_block_rendering() -> None:
-    script = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
-    assert "Style resolution" in script
-    assert "requested:" in script
-    assert "applied:" in script
-    assert "result:" in script
-    assert "event.style_resolution" in script
+    traces_script_content = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
+    assert "Style resolution" in traces_script_content
+    assert "requested:" in traces_script_content
+    assert "applied:" in traces_script_content
+    assert "result:" in traces_script_content
+    assert "event.style_resolution" in traces_script_content
 
 
 def test_console_css_contains_style_resolution_tones() -> None:
-    css = Path("app/static/admin/console.css").read_text(encoding="utf-8")
-    assert ".traces-style-resolution--success" in css
-    assert ".traces-style-resolution--failure" in css
-    assert ".traces-style-resolution--neutral" in css
+    console_css_content = Path("app/static/admin/console.css").read_text(encoding="utf-8")
+    assert ".traces-style-resolution--success" in console_css_content
+    assert ".traces-style-resolution--failure" in console_css_content
+    assert ".traces-style-resolution--neutral" in console_css_content
