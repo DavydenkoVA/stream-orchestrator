@@ -1,5 +1,7 @@
+import pytest
+
 from app.services.style_prompt import StylePromptService
-from app.services.style_registry import StyleRegistry
+from app.services.style_registry import StyleDefinition, StyleRegistry
 
 
 def test_style_registry_resolves_default_and_named_styles() -> None:
@@ -7,49 +9,49 @@ def test_style_registry_resolves_default_and_named_styles() -> None:
 
     default_style = registry.resolve(None)
     fun_style = registry.resolve("fun")
-    unknown = registry.resolve("unknown")
+    unknown = registry.resolve("unknown")  # noqa: COP005
 
     assert default_style.key == "default"
     assert fun_style.key == "fun"
     assert unknown.key == "default"
 
 
-def test_style_registry_random_selects_new_style_each_call(monkeypatch) -> None:
+def test_style_registry_random_selects_new_style_each_call(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     returned = iter(["fun", "strict"])
 
-    def fake_choice(candidates):
+    def fake_choice(candidates: list[StyleDefinition]) -> StyleDefinition:  # noqa: COP009
         selected_key = next(returned)
-        for candidate in candidates:
+        for candidate in candidates:  # noqa: COP015
             if candidate.key == selected_key:
                 return candidate
         raise AssertionError("candidate not found")
 
     monkeypatch.setattr("app.services.style_registry.random.choice", fake_choice)
 
-    first = registry.resolve("random")
-    second = registry.resolve("random")
+    first = registry.resolve("random")  # noqa: COP005
+    second = registry.resolve("random")  # noqa: COP005
 
     assert first.key == "fun"
     assert second.key == "strict"
 
 
 def test_style_prompt_service_applies_instruction() -> None:
-    service = StylePromptService(StyleRegistry())
+    service = StylePromptService(StyleRegistry())  # noqa: COP005
 
-    styled = service.apply_style("system-base", "strict")
+    styled = service.apply_style("system-base", "strict")  # noqa: COP005
 
     assert "system-base" in styled
     assert "Дополнительная стилистическая инструкция" in styled
 
 
-def test_style_resolution_random_default_invalid(monkeypatch) -> None:
+def test_style_resolution_random_default_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     registry = StyleRegistry()
 
     monkeypatch.setattr(
         "app.services.style_registry.random.choice",
-        lambda candidates: next(candidate for candidate in candidates if candidate.key == "fun"),
+        lambda candidates: next(candidate for candidate in candidates if candidate.key == "fun"),  # noqa: COP015
     )
     random_resolution = registry.resolve_with_metadata("random")
     assert random_resolution.requested_style == "random"

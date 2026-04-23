@@ -1,7 +1,9 @@
 from __future__ import annotations
+import datetime
 import json
 import re
-from datetime import UTC, datetime, timedelta
+import typing
+from http import HTTPStatus
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,8 +17,18 @@ from app.observability.trace_status import TRACE_RUN_ALLOWED_STATUSES, TRACE_STA
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 
 
-def _minimal_valid_payload() -> dict[str, str]:
-    payload = {
+EXPECTED_RECENT_ITEMS = 2
+
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Generator
+
+    import pytest
+    from sqlalchemy.orm import Session
+
+
+def build_minimal_valid_payload() -> dict[str, str]:
+    request_payload = {
         "providers[0][name]": "primary",
         "providers[0][provider]": "mock",
         "providers[0][models][0][name]": "model_a",
@@ -26,21 +38,21 @@ def _minimal_valid_payload() -> dict[str, str]:
     }
 
     for idx, feature_name in enumerate(SUPPORTED_FEATURE_NAMES):
-        payload[f"feature_settings[{idx}][name]"] = feature_name
-        payload[f"feature_settings[{idx}][provider]"] = "primary"
-        payload[f"feature_settings[{idx}][temperature]"] = "0.7"
-        payload[f"feature_settings[{idx}][max_output_tokens]"] = "200"
-        payload[f"feature_settings[{idx}][style]"] = "default"
+        request_payload[f"feature_settings[{idx}][name]"] = feature_name
+        request_payload[f"feature_settings[{idx}][provider]"] = "primary"
+        request_payload[f"feature_settings[{idx}][temperature]"] = "0.7"
+        request_payload[f"feature_settings[{idx}][max_output_tokens]"] = "200"
+        request_payload[f"feature_settings[{idx}][style]"] = "default"
 
-    return payload
+    return request_payload
 
 
 def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/")
+    response = test_client.get("/")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Operator Console" in response.text
     assert "LLM Config" in response.text
     assert "Styles" in response.text
@@ -49,20 +61,20 @@ def test_get_console_root_returns_200_with_sidebar_and_llm_screen() -> None:
 
 
 def test_get_llm_config_page_returns_200() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/llm-config")
+    response = test_client.get("/llm-config")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "LLM Config" in response.text
 
 
 def test_llm_config_renders_operator_safe_controls() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/llm-config")
+    response = test_client.get("/llm-config")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Provider type" in response.text
     assert 'class="provider-type-select"' in response.text
     assert "+ Add feature" not in response.text
@@ -74,31 +86,30 @@ def test_llm_config_renders_operator_safe_controls() -> None:
 
 
 def test_llm_config_provider_options_use_top_level_provider_names_only() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/llm-config")
+    response = test_client.get("/llm-config")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert 'providerOptions: ["primary"]' in response.text
     assert 'providerOptions: ["primary", "model_a"]' not in response.text
     assert 'providerOptions: ["primary", "model_b"]' not in response.text
 
 
 def test_llm_config_js_collects_only_top_level_provider_name_inputs() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/static/admin/llm_config.js")
+    response = test_client.get("/static/admin/llm_config.js")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "document.querySelectorAll('.provider-item .provider-name-input')" in response.text
     assert "document.querySelectorAll('.provider-item input[name$=\"[name]\"]')" not in response.text
 
 
 def test_get_styles_page_returns_200_and_shows_default() -> None:
-    client = TestClient(app)
-    response = client.get("/styles")
+    response = TestClient(app).get("/styles")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Manage configured styles" in response.text
     assert 'id="add-style-btn"' in response.text
     assert '<input value="default" disabled>' in response.text
@@ -107,30 +118,28 @@ def test_get_styles_page_returns_200_and_shows_default() -> None:
 
 
 def test_get_styles_page_keeps_non_default_name_editable() -> None:
-    client = TestClient(app)
-    response = client.get("/styles")
+    response = TestClient(app).get("/styles")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert 'name="styles[1][name]" value="fun"' in response.text
     assert 'name="styles[1][name]" value="fun" disabled' not in response.text
 
 
 def test_styles_js_does_not_reinitialize_default_name_field() -> None:
-    client = TestClient(app)
-    response = client.get("/static/admin/styles.js")
+    response = TestClient(app).get("/static/admin/styles.js")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "querySelectorAll('.style-item').forEach(bindRemoveButton);" in response.text
     assert "readonly" not in response.text
     assert "removeAttribute" not in response.text
 
 
 def test_get_playground_returns_200() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground")
+    response = test_client.get("/playground")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Chat Reply" in response.text
     assert "Dynamic Prompt" in response.text
     assert "Dossier" in response.text
@@ -138,11 +147,11 @@ def test_get_playground_returns_200() -> None:
 
 
 def test_get_playground_with_dynamic_mode_returns_200() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground", params={"mode": "dynamic"})
+    response = test_client.get("/playground", params={"mode": "dynamic"})
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert 'data-initial-mode="dynamic"' in response.text
     assert "Payload template" in response.text
     assert 'id="dynamic-copy-template-btn"' in response.text
@@ -150,11 +159,11 @@ def test_get_playground_with_dynamic_mode_returns_200() -> None:
 
 
 def test_playground_dynamic_override_renders_select_and_slider() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground", params={"mode": "dynamic"})
+    response = test_client.get("/playground", params={"mode": "dynamic"})
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert 'id="dynamic-provider-select"' in response.text
     assert '<select name="provider" id="dynamic-provider-select">' in response.text
     assert 'id="dynamic-style-select"' in response.text
@@ -164,124 +173,123 @@ def test_playground_dynamic_override_renders_select_and_slider() -> None:
 
 
 def test_playground_dynamic_provider_options_exclude_model_names() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground", params={"mode": "dynamic"})
+    response = test_client.get("/playground", params={"mode": "dynamic"})
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert '<option value="primary">primary</option>' in response.text
     assert '<option value="model_a">model_a</option>' not in response.text
     assert '<option value="model_b">model_b</option>' not in response.text
 
 
 def test_get_dynamic_prompt_names_endpoint_filters_incomplete_pairs(
-    temp_prompts_dir,
+    temp_prompts_dir: Path,
 ) -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
     dynamic_dir = temp_prompts_dir / "dynamic"
     (dynamic_dir / "weekly_summary_system.txt").write_text("system", encoding="utf-8")
     (dynamic_dir / "weekly_summary_template.txt").write_text("hello {foo}", encoding="utf-8")
     (dynamic_dir / "incomplete_system.txt").write_text("system", encoding="utf-8")
 
-    response = client.get("/playground/api/dynamic-prompts")
+    response = test_client.get("/playground/api/dynamic-prompts")
 
-    assert response.status_code == 200
-    names = [item["name"] for item in response.json()["items"]]
-    assert names == ["test", "weekly_summary"]
+    assert response.status_code == HTTPStatus.OK
+    assert [one_item["name"] for one_item in response.json()["items"]] == ["test", "weekly_summary"]
 
 
 def test_get_dynamic_prompt_metadata_returns_full_payload() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground/api/dynamic-prompts/test")
+    response = test_client.get("/playground/api/dynamic-prompts/test")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["name"] == "test"
-    assert payload["required_fields"] == ["loot", "user"]
-    assert payload["required_data_fields"] == ["loot"]
-    assert payload["data_skeleton"] == {"loot": ""}
-    assert payload["system_prompt"] == "dynamic system"
-    assert payload["template_prompt"] == "hello {user}, loot={loot}"
+    assert response.status_code == HTTPStatus.OK
+    request_payload = response.json()
+    assert request_payload["name"] == "test"
+    assert request_payload["required_fields"] == ["loot", "user"]
+    assert request_payload["required_data_fields"] == ["loot"]
+    assert request_payload["data_skeleton"] == {"loot": ""}
+    assert request_payload["system_prompt"] == "dynamic system"
+    assert request_payload["template_prompt"] == "hello {user}, loot={loot}"
 
 
 def test_create_dynamic_prompt_creates_both_files_and_lists() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.post("/playground/api/dynamic-prompts/create", json={"name": "new_prompt"})
-    assert response.status_code == 200
+    response = test_client.post("/playground/api/dynamic-prompts/create", json={"name": "new_prompt"})
+    assert response.status_code == HTTPStatus.OK
     assert response.json() == {"name": "new_prompt", "created": True}
 
-    list_response = client.get("/playground/api/dynamic-prompts")
-    names = [item["name"] for item in list_response.json()["items"]]
-    assert "new_prompt" in names
+    assert "new_prompt" in [
+        one_item["name"] for one_item in test_client.get("/playground/api/dynamic-prompts").json()["items"]
+    ]
 
-    prompts_payload = client.get("/playground/api/prompts/dynamic", params={"name": "new_prompt"}).json()
+    prompts_payload = test_client.get("/playground/api/prompts/dynamic", params={"name": "new_prompt"}).json()
     assert prompts_payload["items"][0]["content"] == ""
     assert prompts_payload["items"][1]["content"] == ""
 
 
 def test_create_dynamic_prompt_rejects_invalid_or_duplicate_name() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    invalid = client.post("/playground/api/dynamic-prompts/create", json={"name": "../bad"})
-    assert invalid.status_code == 400
+    assert (
+        test_client.post("/playground/api/dynamic-prompts/create", json={"name": "../bad"}).status_code
+        == HTTPStatus.BAD_REQUEST
+    )
 
-    duplicate = client.post("/playground/api/dynamic-prompts/create", json={"name": "test"})
-    assert duplicate.status_code == 400
+    assert (
+        test_client.post("/playground/api/dynamic-prompts/create", json={"name": "test"}).status_code
+        == HTTPStatus.BAD_REQUEST
+    )
 
 
 def test_playground_prompt_save_updates_runtime_read() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    save_response = client.post(
+    save_response = test_client.post(
         "/playground/api/prompts/save",
         json={"scope": "chat", "part": "system_prompt", "content": "UPDATED CHAT SYSTEM"},
     )
-    assert save_response.status_code == 200
+    assert save_response.status_code == HTTPStatus.OK
 
-    debug_prompt = client.get("/debug/prompts/chat_system.txt")
-    assert debug_prompt.status_code == 200
+    debug_prompt = test_client.get("/debug/prompts/chat_system.txt")
+    assert debug_prompt.status_code == HTTPStatus.OK
     assert debug_prompt.json()["content"] == "UPDATED CHAT SYSTEM"
 
 
 def test_playground_chat_and_dossier_prompt_load_routes() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    chat = client.get("/playground/api/prompts/chat")
-    assert chat.status_code == 200
-    chat_parts = {item["part"] for item in chat.json()["items"]}
-    assert chat_parts == {"system_prompt", "user_template"}
+    chat_response = test_client.get("/playground/api/prompts/chat")
+    assert chat_response.status_code == HTTPStatus.OK
+    assert {one_item["part"] for one_item in chat_response.json()["items"]} == {"system_prompt", "user_template"}
 
-    dossier = client.get("/playground/api/prompts/dossier")
-    assert dossier.status_code == 200
-    dossier_parts = {item["part"] for item in dossier.json()["items"]}
-    assert dossier_parts == {"system_prompt", "user_template"}
+    dossier_response = test_client.get("/playground/api/prompts/dossier")
+    assert dossier_response.status_code == HTTPStatus.OK
+    assert {one_item["part"] for one_item in dossier_response.json()["items"]} == {"system_prompt", "user_template"}
 
 
-def test_playground_dossier_run_uses_real_route_and_trace_header(db_session) -> None:
-    def override_get_db():
+def test_playground_dossier_run_uses_real_route_and_trace_header(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-    response = client.post(
+    response = TestClient(app).post(
         "/playground/api/dossier/run",
         json={"stream_id": "stream_d", "username": "viewer", "dossier_target": "target_user"},
     )
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert response.json()["route"] == "dossier"
-    trace_id = response.headers.get("X-Trace-Id")
-    assert trace_id
-    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
+    trace_identifier = response.headers.get("X-Trace-Id")
+    assert trace_identifier
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_identifier)
     app.dependency_overrides.clear()
 
 
 def test_playground_layout_and_button_classes_present() -> None:
-    client = TestClient(app)
-    response = client.get("/playground")
-    assert response.status_code == 200
+    response = TestClient(app).get("/playground")
+    assert response.status_code == HTTPStatus.OK
     assert 'class="btn-run"' in response.text
     assert 'class="btn-delete"' in response.text
     assert 'class="btn-reset"' in response.text
@@ -291,9 +299,8 @@ def test_playground_layout_and_button_classes_present() -> None:
 
 
 def test_chat_reply_layout_and_context_tabs_and_reply_fields() -> None:
-    client = TestClient(app)
-    response = client.get("/playground", params={"mode": "chat"})
-    assert response.status_code == 200
+    response = TestClient(app).get("/playground", params={"mode": "chat"})
+    assert response.status_code == HTTPStatus.OK
     assert 'data-context-tab="system_prompt"' not in response.text
     assert 'data-context-tab="user_prompt"' not in response.text
     assert 'name="reply_to_message_id"' in response.text
@@ -305,48 +312,45 @@ def test_chat_reply_layout_and_context_tabs_and_reply_fields() -> None:
 
 
 def test_dynamic_layout_right_column_and_skeleton_logic_present_in_js() -> None:
-    client = TestClient(app)
-    html = client.get("/playground", params={"mode": "dynamic"})
-    assert html.status_code == 200
-    assert 'class="playground-col-right"' in html.text
-    assert "Run Result" in html.text
-    assert "Prompts" in html.text
+    test_client = TestClient(app)
+    dynamic_page_response = test_client.get("/playground", params={"mode": "dynamic"})
+    assert dynamic_page_response.status_code == HTTPStatus.OK
+    assert 'class="playground-col-right"' in dynamic_page_response.text
+    assert "Run Result" in dynamic_page_response.text
+    assert "Prompts" in dynamic_page_response.text
 
-    js = client.get("/static/admin/playground.js")
-    assert js.status_code == 200
-    assert "function buildDynamicDataSkeleton" in js.text
-    assert "field !== 'user'" in js.text
-    assert "dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));" in js.text
+    javascript_response = test_client.get("/static/admin/playground.js")
+    assert javascript_response.status_code == HTTPStatus.OK
+    assert "function buildDynamicDataSkeleton" in javascript_response.text
+    assert "field !== 'user'" in javascript_response.text
+    assert "dynamicData.value = formatPayload(buildDynamicDataSkeleton(dynamicPromptMeta));" in javascript_response.text
 
 
 def test_playground_css_uses_vertical_resize() -> None:
-    client = TestClient(app)
-    response = client.get("/static/admin/console.css")
-    assert response.status_code == 200
+    response = TestClient(app).get("/static/admin/console.css")
+    assert response.status_code == HTTPStatus.OK
     assert "resize: vertical;" in response.text
 
 
 def test_playground_copy_feedback_is_transient() -> None:
-    client = TestClient(app)
-    response = client.get("/static/admin/playground.js")
-    assert response.status_code == 200
+    response = TestClient(app).get("/static/admin/playground.js")
+    assert response.status_code == HTTPStatus.OK
     assert "setTimeout" in response.text
     assert "dynamicCopyStatus.hidden = true" in response.text
 
 
 def test_trace_link_source_uses_response_header() -> None:
-    client = TestClient(app)
-    response = client.get("/static/admin/playground.js")
-    assert response.status_code == 200
+    response = TestClient(app).get("/static/admin/playground.js")
+    assert response.status_code == HTTPStatus.OK
     assert "response.headers.get('X-Trace-Id')" in response.text
 
 
-def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
-    def override_get_db():
+def test_reset_stream_deletes_messages_and_is_idempotent(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
     db_session.add_all(
         [
@@ -357,148 +361,147 @@ def test_reset_stream_deletes_messages_and_is_idempotent(db_session) -> None:
     )
     db_session.commit()
 
-    context_before = client.get(
+    context_before = test_client.get(
         "/debug/context",
         params={"stream_id": "stream_a", "username": "u1", "text": "ping"},
     )
-    assert context_before.status_code == 200
-    assert len(context_before.json()["global_recent"]) == 2
+    assert context_before.status_code == HTTPStatus.OK
+    assert len(context_before.json()["global_recent"]) == EXPECTED_RECENT_ITEMS
 
-    first = client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
-    assert first.status_code == 200
-    assert first.json()["deleted"] is True
-    assert first.json()["deleted_count"] == 2
+    first_reset_response = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert first_reset_response.status_code == HTTPStatus.OK
+    assert first_reset_response.json()["deleted"] is True
+    assert first_reset_response.json()["deleted_count"] == EXPECTED_RECENT_ITEMS
 
-    context_after = client.get(
+    context_after = test_client.get(
         "/debug/context",
         params={"stream_id": "stream_a", "username": "u1", "text": "ping"},
     )
-    assert context_after.status_code == 200
+    assert context_after.status_code == HTTPStatus.OK
     assert context_after.json()["global_recent"] == []
 
-    second = client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
-    assert second.status_code == 200
-    assert second.json()["deleted"] is True
-    assert second.json()["deleted_count"] == 0
+    second_reset_response = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": "stream_a"})
+    assert second_reset_response.status_code == HTTPStatus.OK
+    assert second_reset_response.json()["deleted"] is True
+    assert second_reset_response.json()["deleted_count"] == 0
 
-    untouched_context = client.get(
+    untouched_context = test_client.get(
         "/debug/context",
         params={"stream_id": "stream_b", "username": "u2", "text": "ping"},
     )
-    assert untouched_context.status_code == 200
+    assert untouched_context.status_code == HTTPStatus.OK
     assert len(untouched_context.json()["global_recent"]) == 1
 
     app.dependency_overrides.clear()
 
 
-def test_reset_stream_rejects_empty_stream_id(db_session) -> None:
-    def override_get_db():
+def test_reset_stream_rejects_empty_stream_id(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.post("/playground/api/chat/reset-stream", json={"stream_id": ""})
+    response = test_client.post("/playground/api/chat/reset-stream", json={"stream_id": ""})
 
-    assert response.status_code == 422
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
     app.dependency_overrides.clear()
 
 
 def test_get_dynamic_prompt_metadata_invalid_name_returns_400() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground/api/dynamic-prompts/bad.name")
+    response = test_client.get("/playground/api/dynamic-prompts/bad.name")
 
-    assert response.status_code == 400
+    assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 def test_get_dynamic_prompt_metadata_missing_prompt_returns_404() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/playground/api/dynamic-prompts/missing")
+    response = test_client.get("/playground/api/dynamic-prompts/missing")
 
-    assert response.status_code == 404
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 def test_get_traces_returns_200_with_empty_state() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/traces")
+    response = test_client.get("/traces")
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Select a trace run to inspect details" in response.text
     assert 'id="traces-status"' in response.text
     assert '<input id="traces-status"' not in response.text
     assert f'<option value="{TRACE_STATUS_FILTER_ALL}">{TRACE_STATUS_FILTER_ALL}</option>' in response.text
-    for status in TRACE_RUN_ALLOWED_STATUSES:
-        assert f'<option value="{status}">{status}</option>' in response.text
+    for one_status in TRACE_RUN_ALLOWED_STATUSES:
+        assert f'<option value="{one_status}">{one_status}</option>' in response.text
 
 
-def test_get_traces_with_run_id_returns_200(db_session) -> None:
-    def override_get_db():
+def test_get_traces_with_run_id_returns_200(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    run = TraceRun(
+    trace_run_record = TraceRun(
         trace_id="trace-page-run",
         request_id="req-page-run",
         route="/events/chat_reply",
         stream_id="stream-page",
         status="success",
-        started_at=datetime.now(UTC),
+        started_at=datetime.datetime.now(datetime.UTC),
     )
-    db_session.add(run)
+    db_session.add(trace_run_record)
     db_session.commit()
 
-    response = client.get("/traces", params={"run_id": "trace-page-run"})
+    response = test_client.get("/traces", params={"run_id": "trace-page-run"})
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert 'data-selected-run-id="trace-page-run"' in response.text
 
     app.dependency_overrides.clear()
 
 
 def test_legacy_get_llm_config_redirects() -> None:
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/admin/llm-config", follow_redirects=False)
+    response = test_client.get("/admin/llm-config", follow_redirects=False)
 
-    assert response.status_code == 307
+    assert response.status_code == HTTPStatus.TEMPORARY_REDIRECT
     assert response.headers["location"] == "/llm-config"
 
 
 def test_validate_route_returns_errors_for_invalid_payload() -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
-    payload["providers[0][models][0][api_key]"] = ""
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
+    request_payload["providers[0][models][0][api_key]"] = ""
 
-    response = client.post("/llm-config/validate", data=payload)
+    response = test_client.post("/llm-config/validate", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
     assert "api_key is empty" in response.text
 
 
 def test_apply_route_applies_new_config() -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
-    payload["providers[0][models][0][api_key]"] = "admin-applied-key"
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
+    request_payload["providers[0][models][0][api_key]"] = "admin-applied-key"
 
-    response = client.post("/llm-config/apply", data=payload)
+    response = test_client.post("/llm-config/apply", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Apply success" in response.text
 
-    page = client.get("/llm-config")
-    assert "admin-applied-key" in page.text
+    assert "admin-applied-key" in test_client.get("/llm-config").text
 
 
 def test_styles_validate_and_apply_routes_work() -> None:
-    client = TestClient(app)
-    payload = {
+    test_client = TestClient(app)
+    request_payload = {
         "styles[0][name]": "default",
         "styles[0][system]": "default",
         "styles[0][title]": "Default title updated",
@@ -508,38 +511,38 @@ def test_styles_validate_and_apply_routes_work() -> None:
         "styles[1][instruction]": "Use cinematic language.",
     }
 
-    validate_response = client.post("/styles/validate", data=payload)
-    assert validate_response.status_code == 200
+    validate_response = test_client.post("/styles/validate", data=request_payload)
+    assert validate_response.status_code == HTTPStatus.OK
     assert "Validation success" in validate_response.text
 
-    apply_response = client.post("/styles/apply", data=payload)
-    assert apply_response.status_code == 200
+    apply_response = test_client.post("/styles/apply", data=request_payload)
+    assert apply_response.status_code == HTTPStatus.OK
     assert "Apply success" in apply_response.text
 
-    page = client.get("/styles")
-    assert "cinematic" in page.text
-    assert "Default title updated" in page.text
-    assert "Default instruction updated" in page.text
+    styles_page_response = test_client.get("/styles")
+    assert "cinematic" in styles_page_response.text
+    assert "Default title updated" in styles_page_response.text
+    assert "Default instruction updated" in styles_page_response.text
 
 
 def test_styles_validate_rejects_missing_default() -> None:
-    client = TestClient(app)
-    payload = {
+    test_client = TestClient(app)
+    request_payload = {
         "styles[0][name]": "fun",
         "styles[0][system]": "default",
         "styles[0][title]": "Fun",
         "styles[0][instruction]": "Add jokes.",
     }
-    response = client.post("/styles/validate", data=payload)
+    response = test_client.post("/styles/validate", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
     assert "default style is required" in response.text
 
 
 def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
-    client = TestClient(app)
-    payload = {
+    test_client = TestClient(app)
+    request_payload = {
         "styles[0][name]": "renamed",
         "styles[0][system]": "default",
         "styles[0][title]": "Default",
@@ -549,56 +552,56 @@ def test_styles_validate_rejects_default_rename_via_direct_post() -> None:
         "styles[1][instruction]": "Add jokes.",
     }
 
-    response = client.post("/styles/validate", data=payload)
+    response = test_client.post("/styles/validate", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Validation failed" in response.text
     assert "default style name cannot be changed" in response.text
 
 
 def test_legacy_validate_route_still_works() -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
 
-    response = client.post("/admin/llm-config/validate", data=payload)
+    response = test_client.post("/admin/llm-config/validate", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Validation success" in response.text
 
 
 def test_legacy_apply_route_still_works() -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
 
-    response = client.post("/admin/llm-config/apply", data=payload)
+    response = test_client.post("/admin/llm-config/apply", data=request_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     assert "Apply success" in response.text
 
 
-def test_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
+def test_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "prod")
 
-    response = client.post("/llm-config/apply", data=payload)
+    response = test_client.post("/llm-config/apply", data=request_payload)
 
-    assert response.status_code == 403
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch) -> None:
-    client = TestClient(app)
-    payload = _minimal_valid_payload()
+def test_legacy_apply_route_forbidden_outside_local_dev_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    test_client = TestClient(app)
+    request_payload = build_minimal_valid_payload()
     monkeypatch.setattr("app.api.admin_routes.settings.app_env", "staging")
 
-    response = client.post("/admin/llm-config/apply", data=payload)
+    response = test_client.post("/admin/llm-config/apply", data=request_payload)
 
-    assert response.status_code == 403
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-def _seed_trace_runs(db_session) -> None:
-    base = datetime(2026, 1, 1, tzinfo=UTC)
-    runs = [
+def build_seeded_trace_runs(db_session: Session) -> None:
+    baseline_timestamp = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    trace_runs = [
         TraceRun(
             trace_id="trace-1",
             request_id="req-1",
@@ -606,8 +609,8 @@ def _seed_trace_runs(db_session) -> None:
             stream_id="stream-a",
             status="success",
             summary="done",
-            started_at=base,
-            finished_at=base + timedelta(seconds=2),
+            started_at=baseline_timestamp,
+            finished_at=baseline_timestamp + datetime.timedelta(seconds=2),
         ),
         TraceRun(
             trace_id="trace-2",
@@ -617,8 +620,8 @@ def _seed_trace_runs(db_session) -> None:
             status="failed",
             error_code="internal_error",
             summary="failed",
-            started_at=base + timedelta(minutes=1),
-            finished_at=base + timedelta(minutes=1, seconds=1),
+            started_at=baseline_timestamp + datetime.timedelta(minutes=1),
+            finished_at=baseline_timestamp + datetime.timedelta(minutes=1, seconds=1),
         ),
         TraceRun(
             trace_id="trace-3",
@@ -626,20 +629,20 @@ def _seed_trace_runs(db_session) -> None:
             route="/events/dynamic_prompt",
             stream_id="stream-a",
             status="running",
-            started_at=base + timedelta(minutes=2),
+            started_at=baseline_timestamp + datetime.timedelta(minutes=2),
             finished_at=None,
         ),
     ]
-    db_session.add_all(runs)
+    db_session.add_all(trace_runs)
     db_session.commit()
 
-    run2 = db_session.query(TraceRun).filter(TraceRun.trace_id == "trace-2").one()
+    trace_run_two = db_session.query(TraceRun).filter(TraceRun.trace_id == "trace-2").one()
     db_session.add_all(
         [
             TraceEvent(
-                trace_run_id=run2.id,
+                trace_run_id=trace_run_two.id,
                 seq_no=2,
-                timestamp=base + timedelta(minutes=1, seconds=2),
+                timestamp=baseline_timestamp + datetime.timedelta(minutes=1, seconds=2),
                 step="request.finish",
                 status="failed",
                 level="ERROR",
@@ -647,9 +650,9 @@ def _seed_trace_runs(db_session) -> None:
                 payload_json=json.dumps({"error": "[redacted_prompt length=5]"}),
             ),
             TraceEvent(
-                trace_run_id=run2.id,
+                trace_run_id=trace_run_two.id,
                 seq_no=1,
-                timestamp=base + timedelta(minutes=1, seconds=1),
+                timestamp=baseline_timestamp + datetime.timedelta(minutes=1, seconds=1),
                 step="request.start",
                 status="info",
                 level="INFO",
@@ -661,110 +664,109 @@ def _seed_trace_runs(db_session) -> None:
     db_session.commit()
 
 
-def test_traces_api_runs_returns_newest_first_and_limit(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_returns_newest_first_and_limit(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
-    client = TestClient(app)
+    build_seeded_trace_runs(db_session)
+    test_client = TestClient(app)
 
-    response = client.get("/traces/api/runs", params={"limit": 2})
+    response = test_client.get("/traces/api/runs", params={"limit": 2})
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert [item["id"] for item in payload["items"]] == ["trace-3", "trace-2"]
-    assert len(payload["items"]) == 2
+    assert response.status_code == HTTPStatus.OK
+    request_payload = response.json()
+    assert [one_item["id"] for one_item in request_payload["items"]] == ["trace-3", "trace-2"]
+    assert len(request_payload["items"]) == EXPECTED_RECENT_ITEMS
 
     app.dependency_overrides.clear()
 
 
-def test_traces_api_runs_filter_by_stream_id_and_status(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_filter_by_stream_id_and_status(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
-    client = TestClient(app)
+    build_seeded_trace_runs(db_session)
+    test_client = TestClient(app)
 
-    stream_response = client.get("/traces/api/runs", params={"stream_id": "stream-a"})
-    assert stream_response.status_code == 200
-    assert [item["id"] for item in stream_response.json()["items"]] == ["trace-3", "trace-1"]
+    stream_response = test_client.get("/traces/api/runs", params={"stream_id": "stream-a"})
+    assert stream_response.status_code == HTTPStatus.OK
+    assert [one_item["id"] for one_item in stream_response.json()["items"]] == ["trace-3", "trace-1"]
 
-    status_response = client.get("/traces/api/runs", params={"status": "failed"})
-    assert status_response.status_code == 200
-    assert [item["id"] for item in status_response.json()["items"]] == ["trace-2"]
+    status_response = test_client.get("/traces/api/runs", params={"status": "failed"})
+    assert status_response.status_code == HTTPStatus.OK
+    assert [one_item["id"] for one_item in status_response.json()["items"]] == ["trace-2"]
 
     app.dependency_overrides.clear()
 
 
-def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session) -> None:
-    def override_get_db():
+def test_traces_api_runs_rejects_unknown_status_with_allowed_values(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    response = client.get("/traces/api/runs", params={"status": "unknown_status"})
+    response = test_client.get("/traces/api/runs", params={"status": "unknown_status"})
 
-    assert response.status_code == 400
-    payload = response.json()
-    assert payload["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.json()["details"]["allowed_statuses"] == list(TRACE_RUN_ALLOWED_STATUSES)
 
     app.dependency_overrides.clear()
 
 
-def test_traces_api_run_detail_returns_run_and_ordered_events(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_returns_run_and_ordered_events(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    _seed_trace_runs(db_session)
-    client = TestClient(app)
+    build_seeded_trace_runs(db_session)
+    test_client = TestClient(app)
 
-    response = client.get("/traces/api/runs/trace-2")
+    response = test_client.get("/traces/api/runs/trace-2")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run"]["id"] == "trace-2"
-    assert "applied_style" not in payload["run"]
-    assert "requested_style" not in payload["run"]
-    assert "style_resolution_status" not in payload["run"]
-    assert [event["seq_no"] for event in payload["events"]] == [1, 2]
-    assert payload["events"][0]["tone"] == "info"
-    assert payload["events"][0]["style_resolution"] is None
-    assert payload["events"][1]["tone"] == "failure"
-    assert payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
+    assert response.status_code == HTTPStatus.OK
+    request_payload = response.json()
+    assert request_payload["run"]["id"] == "trace-2"
+    assert "applied_style" not in request_payload["run"]
+    assert "requested_style" not in request_payload["run"]
+    assert "style_resolution_status" not in request_payload["run"]
+    assert [one_event["seq_no"] for one_event in request_payload["events"]] == [1, 2]
+    assert request_payload["events"][0]["tone"] == "info"
+    assert request_payload["events"][0]["style_resolution"] is None
+    assert request_payload["events"][1]["tone"] == "failure"
+    assert request_payload["events"][1]["payload"]["error"] == "[redacted_prompt length=5]"
 
     app.dependency_overrides.clear()
 
 
-def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    run = TraceRun(
+    trace_run_record = TraceRun(
         trace_id="trace-style-1",
         request_id="req-style-1",
         route="/events/chat_reply",
         stream_id="stream-style",
         status="success",
         summary="ok",
-        started_at=datetime.now(UTC),
-        finished_at=datetime.now(UTC),
+        started_at=datetime.datetime.now(datetime.UTC),
+        finished_at=datetime.datetime.now(datetime.UTC),
     )
-    db_session.add(run)
+    db_session.add(trace_run_record)
     db_session.commit()
-    db_session.refresh(run)
+    db_session.refresh(trace_run_record)
 
     db_session.add(
         TraceEvent(
-            trace_run_id=run.id,
+            trace_run_id=trace_run_record.id,
             seq_no=1,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.datetime.now(datetime.UTC),
             step="llm.generate.start",
             status="info",
             level="INFO",
@@ -783,69 +785,72 @@ def test_traces_api_run_detail_exposes_applied_style_from_event_payload(db_sessi
     )
     db_session.commit()
 
-    response = client.get("/traces/api/runs/trace-style-1")
+    response = test_client.get("/traces/api/runs/trace-style-1")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["run"]["requested_style"] == "random"
-    assert payload["run"]["applied_style"] == "absurd"
-    assert payload["run"]["style_resolution_status"] == "success"
-    assert payload["run"]["style_resolution_reason"] == "random_resolved"
-    assert payload["events"][0]["payload"]["requested_style"] == "random"
-    assert payload["events"][0]["payload"]["style"] == "absurd"
-    assert payload["events"][0]["style_resolution"]["requested"] == "random"
-    assert payload["events"][0]["style_resolution"]["applied"] == "absurd"
-    assert payload["events"][0]["style_resolution"]["result"] == "resolved"
-    assert payload["events"][0]["style_resolution"]["tone"] == "success"
-
-    app.dependency_overrides.clear()
-
-
-def test_traces_api_run_detail_not_found_returns_404(db_session) -> None:
-    def override_get_db():
-        yield db_session
-
-    app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-
-    response = client.get("/traces/api/runs/unknown-run")
-
-    assert response.status_code == 404
+    assert response.status_code == HTTPStatus.OK
+    request_payload = response.json()
+    assert request_payload["run"]["requested_style"] == "random"
+    assert request_payload["run"]["applied_style"] == "absurd"
+    assert request_payload["run"]["style_resolution_status"] == "success"
+    assert request_payload["run"]["style_resolution_reason"] == "random_resolved"
+    assert request_payload["events"][0]["payload"]["requested_style"] == "random"
+    assert request_payload["events"][0]["payload"]["style"] == "absurd"
+    assert request_payload["events"][0]["style_resolution"]["requested"] == "random"
+    assert request_payload["events"][0]["style_resolution"]["applied"] == "absurd"
+    assert request_payload["events"][0]["style_resolution"]["result"] == "resolved"
+    assert request_payload["events"][0]["style_resolution"]["tone"] == "success"
 
     app.dependency_overrides.clear()
 
 
-def test_non_regression_core_routes_still_work(db_session) -> None:
-    def override_get_db():
+def test_traces_api_run_detail_not_found_returns_404(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
+    test_client = TestClient(app)
 
-    assert client.get("/playground").status_code == 200
-    assert client.get("/").status_code == 200
-    assert client.get("/debug/context", params={"stream_id": "s", "username": "u", "text": "t"}).status_code == 200
+    response = test_client.get("/traces/api/runs/unknown-run")
 
-    event_response = client.post(
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+    app.dependency_overrides.clear()
+
+
+def test_non_regression_core_routes_still_work(db_session: Session) -> None:
+    def override_get_db() -> Generator[Session, None, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    test_client = TestClient(app)
+
+    assert test_client.get("/playground").status_code == HTTPStatus.OK
+    assert test_client.get("/").status_code == HTTPStatus.OK
+    assert (
+        test_client.get("/debug/context", params={"stream_id": "s", "username": "u", "text": "t"}).status_code
+        == HTTPStatus.OK
+    )
+
+    event_response = test_client.post(
         "/events/chat_ingest",
         json={"stream_id": "nr", "username": "u", "text": "hello", "mentions_bot": False, "role": "viewer"},
     )
-    assert event_response.status_code == 200
+    assert event_response.status_code == HTTPStatus.OK
 
     app.dependency_overrides.clear()
 
 
 def test_traces_js_contains_style_resolution_block_rendering() -> None:
-    script = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
-    assert "Style resolution" in script
-    assert "requested:" in script
-    assert "applied:" in script
-    assert "result:" in script
-    assert "event.style_resolution" in script
+    traces_script_content = Path("app/static/admin/traces.js").read_text(encoding="utf-8")
+    assert "Style resolution" in traces_script_content
+    assert "requested:" in traces_script_content
+    assert "applied:" in traces_script_content
+    assert "result:" in traces_script_content
+    assert "event.style_resolution" in traces_script_content
 
 
 def test_console_css_contains_style_resolution_tones() -> None:
-    css = Path("app/static/admin/console.css").read_text(encoding="utf-8")
-    assert ".traces-style-resolution--success" in css
-    assert ".traces-style-resolution--failure" in css
-    assert ".traces-style-resolution--neutral" in css
+    console_css_content = Path("app/static/admin/console.css").read_text(encoding="utf-8")
+    assert ".traces-style-resolution--success" in console_css_content
+    assert ".traces-style-resolution--failure" in console_css_content
+    assert ".traces-style-resolution--neutral" in console_css_content

@@ -1,8 +1,7 @@
 from __future__ import annotations
-from typing import Any
-from uuid import uuid4
-
-from sqlalchemy.orm import Session
+import typing
+from typing import TYPE_CHECKING, Any  # noqa: COP002
+from uuid import uuid4  # noqa: COP002
 
 from app.observability.request_context import get_current_request_id
 from app.observability.trace_context import TraceState, clear_trace_state, get_trace_state, set_trace_state
@@ -10,11 +9,15 @@ from app.observability.trace_recorder import TraceRecorder
 from app.observability.trace_status import TRACE_RUN_STATUS_FAILED
 
 
-def start_trace(*, route: str, stream_id: str | None = None, db: Session | None = None) -> str:
-    request_id = get_current_request_id() or uuid4().hex
-    trace_id = uuid4().hex
-    recorder = TraceRecorder.from_db_session(db) if db is not None else TraceRecorder()
-    trace_run_id = recorder.start_run(
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+
+def start_trace(*, route: str, stream_id: str | None = None, db: Session | None = None) -> str:  # noqa: COP006
+    request_id: typing.Final = get_current_request_id() or uuid4().hex
+    trace_id: typing.Final = uuid4().hex
+    recorder: typing.Final = TraceRecorder.from_db_session(db) if db is not None else TraceRecorder()
+    trace_run_id: typing.Final = recorder.start_run(
         trace_id=trace_id,
         request_id=request_id,
         route=route,
@@ -33,36 +36,36 @@ def start_trace(*, route: str, stream_id: str | None = None, db: Session | None 
     return trace_id
 
 
-def trace_info(step: str, message: str, payload: dict[str, Any] | None = None) -> None:
+def trace_info(step: str, message: str, payload: dict[str, Any] | None = None) -> None:  # noqa: COP006, COP009
     _append(step=step, status="info", level="INFO", message=message, payload=payload)
 
 
-def trace_success(step: str, message: str, payload: dict[str, Any] | None = None) -> None:
+def trace_success(step: str, message: str, payload: dict[str, Any] | None = None) -> None:  # noqa: COP006, COP009
     _append(step=step, status="success", level="INFO", message=message, payload=payload)
 
 
-def trace_failure(
-    step: str,
-    message: str,
-    payload: dict[str, Any] | None = None,
+def trace_failure(  # noqa: COP009
+    step: str,  # noqa: COP006
+    message: str,  # noqa: COP006
+    payload: dict[str, Any] | None = None,  # noqa: COP006
     error_code: str | None = None,
 ) -> None:
-    merged = dict(payload or {})
+    merged: typing.Final = dict(payload or {})  # noqa: COP005
     if error_code:
         merged["error_code"] = error_code
     _append(step=step, status="failed", level="ERROR", message=message, payload=merged or None)
 
 
-def finish_trace_success(summary: str | None = None) -> None:
-    state = get_trace_state()
+def finish_trace_success(summary: str | None = None) -> None:  # noqa: COP006, COP009
+    state: typing.Final = get_trace_state()  # noqa: COP005
     if state is None:
         return
     state.recorder.finish_run_success(trace_run_id=state.trace_run_id, summary=summary)
     clear_trace_state()
 
 
-def finish_trace_failure(error_code: str, summary: str | None = None) -> None:
-    state = get_trace_state()
+def finish_trace_failure(error_code: str, summary: str | None = None) -> None:  # noqa: COP006, COP009
+    state: typing.Final = get_trace_state()  # noqa: COP005
     if state is None:
         return
     state.recorder.finish_run(
@@ -74,15 +77,15 @@ def finish_trace_failure(error_code: str, summary: str | None = None) -> None:
     clear_trace_state()
 
 
-def _append(
+def _append(  # noqa: COP009
     *,
-    step: str,
-    status: str,
-    level: str,
-    message: str,
-    payload: dict[str, Any] | None,
+    step: str,  # noqa: COP006
+    status: str,  # noqa: COP006
+    level: str,  # noqa: COP006
+    message: str,  # noqa: COP006
+    payload: dict[str, Any] | None,  # noqa: COP006
 ) -> None:
-    state = get_trace_state()
+    state: typing.Final = get_trace_state()  # noqa: COP005
     if state is None:
         return
     state.seq_no += 1

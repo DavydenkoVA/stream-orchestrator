@@ -1,29 +1,33 @@
-from datetime import UTC, datetime
-from typing import cast
+import typing
+from datetime import UTC, datetime  # noqa: COP002
+from typing import TYPE_CHECKING, cast  # noqa: COP002
 
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.engine import CursorResult
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
 
 
-class ChatMemoryService:
-    def save_message(
+if TYPE_CHECKING:
+    from sqlalchemy.engine import CursorResult
+
+
+class ChatMemoryService:  # noqa: COP012
+    def save_message(  # noqa: PLR0913
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         stream_id: str,
         username: str,
-        text: str,
+        text: str,  # noqa: COP006
         mentions_bot: bool,
-        role: str = "viewer",
+        role: str = "viewer",  # noqa: COP006
         message_id: str | None = None,
         reply_to_message_id: str | None = None,
         reply_to_username: str | None = None,
         reply_to_text: str | None = None,
     ) -> ChatMessage:
-        message = ChatMessage(
+        message: typing.Final = ChatMessage(  # noqa: COP005
             stream_id=stream_id,
             username=username,
             role=role,
@@ -38,14 +42,14 @@ class ChatMemoryService:
         db.flush()
         return message
 
-    def recent_messages(
+    def recent_messages(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         stream_id: str,
-        limit: int = 20,
+        limit: int = 20,  # noqa: COP006
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             select(ChatMessage)
             .where(ChatMessage.stream_id == stream_id)
             .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
@@ -53,15 +57,15 @@ class ChatMemoryService:
         )
         return list(reversed(list(db.scalars(stmt))))
 
-    def recent_user_messages(
+    def recent_user_messages(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         stream_id: str,
         username: str,
-        limit: int = 8,
+        limit: int = 8,  # noqa: COP006
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             select(ChatMessage)
             .where(
                 ChatMessage.stream_id == stream_id,
@@ -72,17 +76,15 @@ class ChatMemoryService:
         )
         return list(reversed(list(db.scalars(stmt))))
 
-    def recent_dialog_messages(
+    def recent_dialog_messages(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         stream_id: str,
         username: str,
-        limit: int = 12,
+        limit: int = 12,  # noqa: COP006
     ) -> list[ChatMessage]:
-        from sqlalchemy import or_
-
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             select(ChatMessage)
             .where(
                 ChatMessage.stream_id == stream_id,
@@ -98,11 +100,11 @@ class ChatMemoryService:
 
     def count_user_messages(
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         username: str,
     ) -> int:
-        stmt = select(func.count(ChatMessage.id)).where(
+        stmt: typing.Final = select(func.count(ChatMessage.id)).where(  # noqa: COP005
             ChatMessage.username == username,
             ChatMessage.role == "viewer",
         )
@@ -110,25 +112,25 @@ class ChatMemoryService:
 
     def count_unprocessed_user_messages(
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         username: str,
     ) -> int:
-        stmt = select(func.count(ChatMessage.id)).where(
+        stmt: typing.Final = select(func.count(ChatMessage.id)).where(  # noqa: COP005
             ChatMessage.username == username,
             ChatMessage.role == "viewer",
             ChatMessage.is_memory_processed.is_(False),
         )
         return int(db.scalar(stmt) or 0)
 
-    def recent_user_messages_for_memory(
+    def recent_user_messages_for_memory(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         username: str,
-        limit: int,
+        limit: int,  # noqa: COP006
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             select(ChatMessage)
             .where(
                 ChatMessage.username == username,
@@ -139,14 +141,14 @@ class ChatMemoryService:
         )
         return list(reversed(list(db.scalars(stmt))))
 
-    def unprocessed_user_messages_for_memory(
+    def unprocessed_user_messages_for_memory(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         username: str,
-        limit: int,
+        limit: int,  # noqa: COP006
     ) -> list[ChatMessage]:
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             select(ChatMessage)
             .where(
                 ChatMessage.username == username,
@@ -158,16 +160,16 @@ class ChatMemoryService:
         )
         return list(db.scalars(stmt))
 
-    def mark_messages_memory_processed(
+    def mark_messages_memory_processed(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         message_ids: list[int],
     ) -> None:
         if not message_ids:
             return
 
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             update(ChatMessage)
             .where(ChatMessage.id.in_(message_ids))
             .values(
@@ -177,9 +179,9 @@ class ChatMemoryService:
         )
         db.execute(stmt)
 
-    def mark_messages_memory_extraction_attempted(
+    def mark_messages_memory_extraction_attempted(  # noqa: COP009
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         message_ids: list[int],
         error_code: str | None,
@@ -187,7 +189,7 @@ class ChatMemoryService:
         if not message_ids:
             return
 
-        stmt = (
+        stmt: typing.Final = (  # noqa: COP005
             update(ChatMessage)
             .where(
                 ChatMessage.id.in_(message_ids),
@@ -203,10 +205,10 @@ class ChatMemoryService:
 
     def delete_stream_messages(
         self,
-        db: Session,
+        db: Session,  # noqa: COP006
         *,
         stream_id: str,
     ) -> int:
-        stmt = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)
-        result = db.execute(stmt)
-        return int(cast(CursorResult[object], result).rowcount or 0)
+        stmt: typing.Final = delete(ChatMessage).where(ChatMessage.stream_id == stream_id)  # noqa: COP005, COP011
+        result: typing.Final = db.execute(stmt)  # noqa: COP005, COP011
+        return int(cast("CursorResult[object]", result).rowcount or 0)

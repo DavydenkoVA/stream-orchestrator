@@ -1,9 +1,9 @@
-from typing import Literal
+from typing import Literal  # noqa: COP002
 
 from pydantic import BaseModel, Field
 
 
-class ChatEvent(BaseModel):
+class ChatEvent(BaseModel):  # noqa: COP012
     stream_id: str = Field(min_length=1)
     username: str = Field(min_length=1)
     text: str = Field(min_length=1)

@@ -1,13 +1,17 @@
 from __future__ import annotations
-from pathlib import Path
+from typing import TYPE_CHECKING  # noqa: COP002
 
 from app.services.llm_config_admin_service import LLMConfigAdminService
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 from app.services.llm_registry import LLMRegistry
 
 
-def _valid_form_data() -> dict[str, str]:
-    payload = {
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def _valid_form_data() -> dict[str, str]:  # noqa: COP009
+    payload = {  # noqa: COP005
         "providers[0][name]": "primary",
         "providers[0][provider]": "mock",
         "providers[0][models][0][name]": "model_a",
@@ -27,40 +31,40 @@ def _valid_form_data() -> dict[str, str]:
 
 
 def test_form_validation_returns_human_errors() -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
     form_data["providers[0][models][0][api_key]"] = ""
 
-    result = admin_service.validate_form_data(form_data)
+    result = admin_service.validate_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
     assert "api_key is empty" in result.errors
 
 
 def test_apply_does_not_write_file_when_invalid(temp_llm_profiles: Path) -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
 
     original_content = temp_llm_profiles.read_text(encoding="utf-8")
     form_data = _valid_form_data()
     form_data["feature_settings[0][provider]"] = "missing"
 
-    result = admin_service.apply_form_data(form_data)
+    result = admin_service.apply_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
     assert temp_llm_profiles.read_text(encoding="utf-8") == original_content
 
 
 def test_apply_writes_file_when_valid(temp_llm_profiles: Path) -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
 
-    form_data = _valid_form_data()
-    result = admin_service.apply_form_data(form_data)
+    form_data = _valid_form_data()  # noqa: COP011
+    result = admin_service.apply_form_data(form_data)  # noqa: COP005
 
     assert result.valid is True
-    content = temp_llm_profiles.read_text(encoding="utf-8")
+    content = temp_llm_profiles.read_text(encoding="utf-8")  # noqa: COP005
     assert "new-key-a" in content
     assert "max_output_tokens: 300" in content
 
@@ -73,7 +77,7 @@ def test_reload_does_not_break_active_snapshot_on_invalid_candidate() -> None:
     form_data = _valid_form_data()
     form_data["feature_settings[0][provider]"] = "unknown_provider"
 
-    result = admin_service.apply_form_data(form_data)
+    result = admin_service.apply_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
     pool_after = registry.get_provider_pool("primary")
@@ -83,56 +87,56 @@ def test_reload_does_not_break_active_snapshot_on_invalid_candidate() -> None:
 
 def test_missing_config_file_read_and_apply_creates_path(tmp_path: Path) -> None:
     config_path = tmp_path / "nested" / "llm_profiles.yml"
-    registry = LLMRegistry(config_path=str(config_path))
+    registry = LLMRegistry(config_path=str(config_path))  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
 
-    raw = admin_service.read_raw_config()
+    raw = admin_service.read_raw_config()  # noqa: COP005, COP011
     assert raw == {}
 
-    result = admin_service.apply_form_data(_valid_form_data())
+    result = admin_service.apply_form_data(_valid_form_data())  # noqa: COP005
 
     assert result.valid is True
     assert config_path.exists()
-    payload = config_path.read_text(encoding="utf-8")
+    payload = config_path.read_text(encoding="utf-8")  # noqa: COP005
     assert "providers:" in payload
     assert "feature_settings:" in payload
 
-    reread = admin_service.read_raw_config()
+    reread = admin_service.read_raw_config()  # noqa: COP005
     assert reread["providers"]["primary"]["provider"] == "mock"
     assert set(reread["feature_settings"].keys()) == set(SUPPORTED_FEATURE_NAMES)
 
 
 def test_validate_rejects_unknown_provider_type() -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
     form_data["providers[0][provider]"] = "unknown"
 
-    result = admin_service.validate_form_data(form_data)
+    result = admin_service.validate_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
-    assert any("unsupported provider type" in error for error in result.errors)
+    assert any("unsupported provider type" in error for error in result.errors)  # noqa: COP005, COP015
 
 
 def test_validate_rejects_out_of_range_temperature() -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
     form_data["feature_settings[0][temperature]"] = "1.5"
 
-    result = admin_service.validate_form_data(form_data)
+    result = admin_service.validate_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
     assert "invalid temperature" in result.errors
 
 
 def test_validate_rejects_unknown_style_reference() -> None:
-    registry = LLMRegistry()
+    registry = LLMRegistry()  # noqa: COP011
     admin_service = LLMConfigAdminService(registry)
     form_data = _valid_form_data()
     form_data["feature_settings[0][style]"] = "missing_style"
 
-    result = admin_service.validate_form_data(form_data)
+    result = admin_service.validate_form_data(form_data)  # noqa: COP005
 
     assert result.valid is False
     assert "feature 'chat': unknown style reference: missing_style" in result.errors

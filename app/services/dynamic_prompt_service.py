@@ -4,27 +4,30 @@ import pathlib
 import re
 import typing
 
-from sqlalchemy.orm import Session
-
 import app.observability.trace_helpers
 from app.config import settings
-from app.prompt_store import PromptStore
-from app.services.llm_execution_service import LLMExecutionService
-from app.services.llm_registry import LLMRegistry
-from app.services.style_prompt import StylePromptService
 from app.text_utils import prepare_chat_text
 
 
-logger = logging.getLogger(__name__)
+if typing.TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.prompt_store import PromptStore
+    from app.services.llm_execution_service import LLMExecutionService
+    from app.services.llm_registry import LLMRegistry
+    from app.services.style_prompt import StylePromptService
 
 
-class DynamicPromptService:
+logger = logging.getLogger(__name__)  # noqa: COP005
+
+
+class DynamicPromptService:  # noqa: COP012
     def __init__(
         self,
         *,
         llm_registry: LLMRegistry,
         llm_executor: LLMExecutionService,
-        prompts: PromptStore,
+        prompts: PromptStore,  # noqa: COP006
         style_prompt: StylePromptService,
     ) -> None:
         self.llm_registry = llm_registry
@@ -41,22 +44,22 @@ class DynamicPromptService:
         return prompt_name
 
     def _resolve_prompt_names(self, prompt_name: str) -> tuple[str, str]:
-        safe_name = self._validate_prompt_name(prompt_name)
-        system_name = f"dynamic/{safe_name}_system.txt"
-        template_name = f"dynamic/{safe_name}_template.txt"
+        safe_name: typing.Final = self._validate_prompt_name(prompt_name)
+        system_name: typing.Final = f"dynamic/{safe_name}_system.txt"
+        template_name: typing.Final = f"dynamic/{safe_name}_template.txt"  # noqa: COP011
         return system_name, template_name
 
-    def _prompt_exists(self, relative_name: str) -> bool:
-        prompt_path = pathlib.Path(settings.prompts_dir) / relative_name
+    def _prompt_exists(self, relative_name: str) -> bool:  # noqa: COP009
+        prompt_path: typing.Final = pathlib.Path(settings.prompts_dir) / relative_name
         return prompt_path.exists() and prompt_path.is_file()
 
-    async def generate(
+    async def generate(  # noqa: C901, PLR0911, PLR0913, PLR0915
         self,
         *,
-        db: Session,
+        db: Session,  # noqa: COP006
         prompt_name: str,
-        user: str,
-        data: dict[str, typing.Any],
+        user: str,  # noqa: COP006
+        data: dict[str, typing.Any],  # noqa: COP006
         llm_provider_override: str | None = None,
         style_override: str | None = None,
         temperature_override: float | None = None,
@@ -95,7 +98,7 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        dynamic_prompt_payload = data
+        dynamic_prompt_payload: typing.Final = data
         if not isinstance(dynamic_prompt_payload, dict):
             app.observability.trace_helpers.trace_info(
                 "dynamic_prompt.fallback",
@@ -105,8 +108,8 @@ class DynamicPromptService:
             return "fallback", ""
 
         try:
-            required_fields = self.prompts.get_required_fields(template_name)
-        except ValueError as exc:
+            required_fields: typing.Final = self.prompts.get_required_fields(template_name)
+        except ValueError as exc:  # noqa: COP005
             logger.warning(
                 "Dynamic prompt template validation failed: prompt=%s template=%s error=%s",
                 prompt_name,
@@ -125,8 +128,8 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        available_fields = {"user", *dynamic_prompt_payload.keys()}
-        missing_fields = sorted(required_fields - available_fields)
+        available_fields: typing.Final = {"user", *dynamic_prompt_payload.keys()}
+        missing_fields: typing.Final = sorted(required_fields - available_fields)
         if missing_fields:
             logger.warning(
                 "Dynamic prompt preflight failed: prompt=%s template=%s missing_fields=%s available_keys=%s",
@@ -155,18 +158,18 @@ class DynamicPromptService:
         )
 
         try:
-            base_system_prompt = self.prompts.read(system_name)
-            style_result = self.style_prompt.apply_style_with_resolution(
+            base_system_prompt: typing.Final = self.prompts.read(system_name)
+            style_result: typing.Final = self.style_prompt.apply_style_with_resolution(
                 base_system_prompt,
                 feature_cfg.style,
             )
-            system_prompt = style_result.system_prompt
-            user_prompt = self.prompts.render(
+            system_prompt: typing.Final = style_result.system_prompt
+            user_prompt: typing.Final = self.prompts.render(
                 template_name,
                 user=user,
                 **dynamic_prompt_payload,
             )
-        except KeyError as e:
+        except KeyError as e:  # noqa: COP005
             logger.warning(
                 (
                     "Dynamic prompt render failed due to missing field after preflight: "
@@ -201,7 +204,7 @@ class DynamicPromptService:
             return "fallback", ""
 
         try:
-            reply = await self.llm_executor.generate_text_with_pool(
+            reply = await self.llm_executor.generate_text_with_pool(  # noqa: COP005
                 db=db,
                 pool=pool,
                 feature_settings=feature_cfg,
@@ -235,7 +238,7 @@ class DynamicPromptService:
             )
             return "fallback", ""
 
-        reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()
+        reply = prepare_chat_text(reply, settings.twitch_message_limit).strip()  # noqa: COP005
 
         if not reply:
             logger.info("Dynamic prompt reply became empty after trim: prompt=%s", prompt_name)

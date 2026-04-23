@@ -1,7 +1,7 @@
 import logging
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(level: str = "INFO") -> None:  # noqa: COP006, COP009
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

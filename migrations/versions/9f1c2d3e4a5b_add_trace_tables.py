@@ -1,4 +1,4 @@
-"""add trace tables
+"""add trace tables.
 
 Revision ID: 9f1c2d3e4a5b
 Revises: 67a6d3ac58d2
@@ -13,13 +13,13 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = "9f1c2d3e4a5b"
+revision: str = "9f1c2d3e4a5b"  # noqa: COP003
 down_revision: str | Sequence[str] | None = "67a6d3ac58d2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: COP007
     op.create_table(
         "trace_runs",
         sa.Column("id", sa.Integer(), nullable=False),

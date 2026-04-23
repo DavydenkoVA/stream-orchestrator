@@ -1,4 +1,4 @@
-"""add memory extraction attempt fields
+"""add memory extraction attempt fields.
 
 Revision ID: b2c4d6e8f0a1
 Revises: 9f1c2d3e4a5b
@@ -13,13 +13,13 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = "b2c4d6e8f0a1"
+revision: str = "b2c4d6e8f0a1"  # noqa: COP003
 down_revision: str | Sequence[str] | None = "9f1c2d3e4a5b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: COP007
     """Upgrade schema."""
     op.add_column(
         "chat_messages", sa.Column("memory_process_attempts", sa.Integer(), nullable=False, server_default="0")

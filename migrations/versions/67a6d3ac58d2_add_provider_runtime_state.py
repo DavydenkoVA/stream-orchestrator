@@ -1,4 +1,4 @@
-"""add provider runtime state
+"""add provider runtime state.
 
 Revision ID: 67a6d3ac58d2
 Revises: c1d1b5fb56d4
@@ -13,13 +13,13 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = "67a6d3ac58d2"
+revision: str = "67a6d3ac58d2"  # noqa: COP003
 down_revision: str | Sequence[str] | None = "c1d1b5fb56d4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: COP007
     op.create_table(
         "provider_runtime_states",
         sa.Column("id", sa.Integer(), nullable=False),
