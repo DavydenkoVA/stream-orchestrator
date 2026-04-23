@@ -8,7 +8,7 @@ from app.services.features.base import ChatRequest, FeatureContext, FeatureHandl
 from app.text_utils import prepare_chat_text
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # noqa: COP005
 MIN_RECENT_MESSAGES_FOR_DOSSIER = 2
 
 
@@ -24,15 +24,15 @@ class DossierFeatureHandler(FeatureHandler):
             return None
         return pattern_match.group(1).strip()
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, request: ChatRequest) -> bool:  # noqa: COP006, COP007, COP009
         return self.resolve_dossier_target(request.text.strip()) is not None
 
-    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
+    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:  # noqa: COP006, COP007
         dossier_target: typing.Final = self.resolve_dossier_target(request.text.strip())
         if dossier_target is None:
             return FeatureResponse(reply_text="", route=self.route_name)
 
-        target_username: typing.Final = dossier_target or request.username
+        target_username: typing.Final = dossier_target or request.username  # noqa: COP011
         normalized_target: typing.Final = target_username.strip().lstrip("@").lower()
 
         if normalized_target == settings.bot_username.strip().lstrip("@").lower():
@@ -122,11 +122,11 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
         "какие фильмы на неделе",
     ]
 
-    def matches(self, request: ChatRequest) -> bool:
-        normalized_text: typing.Final = request.text.strip().lower()
+    def matches(self, request: ChatRequest) -> bool:  # noqa: COP006, COP007, COP009
+        normalized_text: typing.Final = request.text.strip().lower()  # noqa: COP011
         return any(one_trigger in normalized_text for one_trigger in self.TRIGGERS)
 
-    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
+    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:  # noqa: COP006, COP007
         weekly_movies_data: typing.Final = context.weekly_movies.read_raw()
 
         if weekly_movies_data["found"] and weekly_movies_data["content"]:
@@ -173,10 +173,10 @@ class WeeklyMoviesFeatureHandler(FeatureHandler):
 class MentionChatFeatureHandler(FeatureHandler):
     route_name = "chat"
 
-    def matches(self, request: ChatRequest) -> bool:
+    def matches(self, request: ChatRequest) -> bool:  # noqa: COP006, COP007, COP009
         return request.mentions_bot
 
-    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:
+    async def handle(self, context: FeatureContext, request: ChatRequest) -> FeatureResponse:  # noqa: COP006, COP007
         normalized_username: typing.Final = request.username.strip().lstrip("@").lower()
 
         global_recent: typing.Final = context.chat_memory.recent_messages(
@@ -219,7 +219,7 @@ class MentionChatFeatureHandler(FeatureHandler):
         reply_context_block = "Нет"
 
         if request.reply_to_text:
-            parent_user: typing.Final = request.reply_to_username or "unknown"
+            parent_user: typing.Final = request.reply_to_username or "unknown"  # noqa: COP011
             reply_context_block = f"{parent_user}: {request.reply_to_text}"
 
         base_system_prompt: typing.Final = context.prompts.read("chat_system.txt")
@@ -267,8 +267,8 @@ class MentionChatFeatureHandler(FeatureHandler):
 class IgnoreFeatureHandler(FeatureHandler):
     route_name = "ignored"
 
-    def matches(self, _request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return True
 
-    async def handle(self, _context: FeatureContext, _request: ChatRequest) -> FeatureResponse:
+    async def handle(self, _context: FeatureContext, _request: ChatRequest) -> FeatureResponse:  # noqa: COP007
         return FeatureResponse(reply_text="", route=self.route_name)

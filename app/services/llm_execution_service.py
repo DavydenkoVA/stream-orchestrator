@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import typing
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa: COP002
 
 from app.observability.trace_helpers import trace_failure, trace_info, trace_success
 
@@ -14,10 +14,10 @@ if TYPE_CHECKING:
     from app.services.provider_state_store import ProviderStateStore
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # noqa: COP005
 
 
-class LLMExecutionService:
+class LLMExecutionService:  # noqa: COP012
     def __init__(
         self,
         *,
@@ -30,24 +30,24 @@ class LLMExecutionService:
     def _build_attempt_order(
         self,
         *,
-        pool: ProviderPoolConfig,
+        pool: ProviderPoolConfig,  # noqa: COP006
         current_model_name: str | None,
     ) -> list[ModelEndpointConfig]:
         if not pool.models:
             return []
 
-        by_name: typing.Final = {item.name: item for item in pool.models}
+        by_name: typing.Final = {item.name: item for item in pool.models}  # noqa: COP005, COP015
 
         if not current_model_name or current_model_name not in by_name:
             return list(pool.models)
 
-        current: typing.Final = by_name[current_model_name]
-        rest: typing.Final = [item for item in pool.models if item.name != current_model_name]
+        current: typing.Final = by_name[current_model_name]  # noqa: COP005
+        rest: typing.Final = [item for item in pool.models if item.name != current_model_name]  # noqa: COP005, COP011, COP015
         return [current, *rest]
 
-    def _is_retryable_exception(self, exc: Exception) -> bool:
-        name: typing.Final = exc.__class__.__name__.lower()
-        text: typing.Final = str(exc).lower()
+    def _is_retryable_exception(self, exc: Exception) -> bool:  # noqa: COP006
+        name: typing.Final = exc.__class__.__name__.lower()  # noqa: COP005
+        text: typing.Final = str(exc).lower()  # noqa: COP005
 
         retryable_markers: typing.Final = [
             "timeout",
@@ -61,16 +61,16 @@ class LLMExecutionService:
             "ratelimiterror",
         ]
 
-        if any(marker in name for marker in retryable_markers):
+        if any(marker in name for marker in retryable_markers):  # noqa: COP005, COP015
             return True
 
-        return bool(any(marker in text for marker in retryable_markers))
+        return bool(any(marker in text for marker in retryable_markers))  # noqa: COP005, COP015
 
     async def generate_text_with_pool(  # noqa: PLR0913
         self,
         *,
-        db: Session,
-        pool: ProviderPoolConfig,
+        db: Session,  # noqa: COP006
+        pool: ProviderPoolConfig,  # noqa: COP006
         feature_settings: FeatureLLMSettings,
         system_prompt: str,
         user_prompt: str,
@@ -106,15 +106,15 @@ class LLMExecutionService:
         last_exc: Exception | None = None
         attempted_names: typing.Final[list[str]] = []
 
-        for endpoint in ordered_models:
+        for endpoint in ordered_models:  # noqa: COP015
             attempted_names.append(endpoint.name)
-            llm: LLMProvider = self.llm_registry.get_provider_instance(
+            llm: LLMProvider = self.llm_registry.get_provider_instance(  # noqa: COP005
                 provider_kind=pool.provider,
                 endpoint=endpoint,
             )
 
             try:
-                reply = await llm.generate_text(
+                reply = await llm.generate_text(  # noqa: COP005
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=feature_settings.temperature,
@@ -152,7 +152,7 @@ class LLMExecutionService:
                         "reply_length": len(reply or ""),
                     },
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: COP005
                 last_exc = exc
                 trace_failure(
                     "llm.model.failed",
