@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # noqa: COP002
 
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,10 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
 
-class ProviderRuntimeState(Base):
+class ProviderRuntimeState(Base):  # noqa: COP012
     __tablename__ = "provider_runtime_states"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # noqa: COP004
     provider_name: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     current_model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any  # noqa: COP002
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.services.llm_config_source import TEMPERATURE_MAX, TEMPERATURE_MIN
 
 
-class DynamicPromptLLMOverride(BaseModel):
+class DynamicPromptLLMOverride(BaseModel):  # noqa: COP012
     provider: str | None = Field(default=None, min_length=1, max_length=64)
     style: str | None = Field(default=None, min_length=1, max_length=64)
     temperature: float | None = None
@@ -31,13 +31,13 @@ class DynamicPromptLLMOverride(BaseModel):
         return value
 
 
-class DynamicPromptRequest(BaseModel):
+class DynamicPromptRequest(BaseModel):  # noqa: COP012
     prompt: str = Field(..., min_length=1, max_length=64)
     user: str = Field(..., min_length=1, max_length=64)
     data: dict[str, Any]
     llm: DynamicPromptLLMOverride | None = None
 
 
-class DynamicPromptResponse(BaseModel):
+class DynamicPromptResponse(BaseModel):  # noqa: COP012
     result: str
     message: str

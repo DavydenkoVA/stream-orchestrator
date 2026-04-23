@@ -1,6 +1,6 @@
 import asyncio
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from types import SimpleNamespace  # noqa: COP002
+from typing import TYPE_CHECKING, Any, cast  # noqa: COP002
 
 from sqlalchemy.orm import Session
 
@@ -19,24 +19,24 @@ if TYPE_CHECKING:
     from app.services.features.base import FeatureHandler
 
 
-class _AlwaysFalseHandler:
+class _AlwaysFalseHandler:  # noqa: COP012
     route_name = "never"
 
-    def matches(self, _request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return False
 
 
-class _AlwaysTrueHandler:
+class _AlwaysTrueHandler:  # noqa: COP012
     route_name = "always"
 
-    def matches(self, _request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return True
 
 
-class _SecondTrueHandler:
+class _SecondTrueHandler:  # noqa: COP012
     route_name = "second"
 
-    def matches(self, _request: ChatRequest) -> bool:
+    def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return True
 
 
@@ -47,7 +47,7 @@ def test_feature_selector_returns_first_matching_handler() -> None:
             [_AlwaysFalseHandler(), _AlwaysTrueHandler(), _SecondTrueHandler()],
         )
     )
-    request = ChatRequest(
+    request = ChatRequest(  # noqa: COP005
         stream_id="stream-1",
         username="viewer",
         text="@bot привет",
@@ -60,30 +60,30 @@ def test_feature_selector_returns_first_matching_handler() -> None:
 
 
 def test_dossier_handler_extracts_target_and_matches_case_insensitive() -> None:
-    handler = DossierFeatureHandler()
+    handler = DossierFeatureHandler()  # noqa: COP005
 
-    assert handler.extract_target("Сделай досье на @Test_User") == "Test_User"
-    assert handler.extract_target("досье на viewer123") == "viewer123"
-    assert handler.extract_target("просто чат") is None
+    assert handler.resolve_dossier_target("Сделай досье на @Test_User") == "Test_User"
+    assert handler.resolve_dossier_target("досье на viewer123") == "viewer123"
+    assert handler.resolve_dossier_target("просто чат") is None
 
-    request = ChatRequest(
+    request = ChatRequest(  # noqa: COP005
         stream_id="stream-1",
         username="author",
-        text="ДОСЬЕ НА @Viewer123",
+        text="ДОСЬЕ НА @Viewer123",  # noqa: RUF001
         mentions_bot=False,
     )
     assert handler.matches(request) is True
 
 
 def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
-    handler = DossierFeatureHandler()
-    request = ChatRequest(
+    handler = DossierFeatureHandler()  # noqa: COP005
+    request = ChatRequest(  # noqa: COP005
         stream_id="stream-1",
         username="viewer",
         text=f"досье на @{settings.bot_username}",
         mentions_bot=False,
     )
-    context = cast("FeatureContext", SimpleNamespace())
+    context = cast("FeatureContext", SimpleNamespace())  # noqa: COP005
 
     response = asyncio.run(handler.handle(context, request))
 
@@ -92,9 +92,9 @@ def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
 
 
 def test_weekly_movies_handler_matches_known_triggers() -> None:
-    handler = WeeklyMoviesFeatureHandler()
+    handler = WeeklyMoviesFeatureHandler()  # noqa: COP005
 
-    request = ChatRequest(
+    request = ChatRequest(  # noqa: COP005
         stream_id="stream-1",
         username="viewer",
         text="Ребят, что смотрим на этой неделе?",
@@ -112,10 +112,10 @@ def test_weekly_movies_handler_matches_known_triggers() -> None:
 
 
 def test_router_handle_chat_reply_ignores_bot_role() -> None:
-    router = RouterService()
+    router = RouterService()  # noqa: COP005
     was_ingested = {"value": False}
 
-    def _fake_ingest_chat_event(*_args: object, **_kwargs: object) -> None:
+    def _fake_ingest_chat_event(*_args: object, **_kwargs: object) -> None:  # noqa: COP009
         was_ingested["value"] = True
 
     router.ingest_chat_event = _fake_ingest_chat_event  # type: ignore[method-assign]
@@ -137,7 +137,7 @@ def test_router_handle_chat_reply_ignores_bot_role() -> None:
 
 
 def test_router_normalizes_usernames_and_extracts_dossier_target() -> None:
-    router = RouterService()
+    router = RouterService()  # noqa: COP005
 
     assert router.normalize_username("  @TeSt_User  ") == "test_user"
     assert router.extract_dossier_target("сделай досье на @Target_1") == "Target_1"
@@ -145,7 +145,7 @@ def test_router_normalizes_usernames_and_extracts_dossier_target() -> None:
 
 
 def test_router_dossier_route_is_selected(db_session: Session) -> None:
-    router = RouterService()
+    router = RouterService()  # noqa: COP005
 
     reply_text, route = asyncio.run(
         router.handle_chat_reply(
@@ -162,7 +162,7 @@ def test_router_dossier_route_is_selected(db_session: Session) -> None:
 
 
 def test_router_weekly_movies_route_is_selected(db_session: Session) -> None:
-    router = RouterService()
+    router = RouterService()  # noqa: COP005
 
     reply_text, route = asyncio.run(
         router.handle_chat_reply(

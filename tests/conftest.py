@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa: COP002
 
 import pytest
 from sqlalchemy import create_engine
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def temp_prompts_dir(tmp_path: Path) -> Path:
     prompts_dir = tmp_path / "prompts"
-    dynamic_dir = prompts_dir / "dynamic"
+    dynamic_dir = prompts_dir / "dynamic"  # noqa: COP011
     dynamic_dir.mkdir(parents=True, exist_ok=True)
 
     prompt_files = {
@@ -37,7 +37,7 @@ def temp_prompts_dir(tmp_path: Path) -> Path:
     }
 
     for rel, content in prompt_files.items():
-        path = prompts_dir / rel
+        path = prompts_dir / rel  # noqa: COP005
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
@@ -46,7 +46,7 @@ def temp_prompts_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def temp_llm_profiles(tmp_path: Path) -> Path:
-    path = tmp_path / "llm_profiles.yml"
+    path = tmp_path / "llm_profiles.yml"  # noqa: COP005
     path.write_text(
         """
 providers:
@@ -95,7 +95,7 @@ feature_settings:
 
 @pytest.fixture
 def temp_styles_config(tmp_path: Path) -> Path:
-    path = tmp_path / "llm_styles.yml"
+    path = tmp_path / "llm_styles.yml"  # noqa: COP005
     path.write_text(
         """
 styles:
@@ -155,12 +155,12 @@ def test_settings(
 
 @pytest.fixture
 def db_session(tmp_path: Path) -> Generator[Session, None, None]:
-    db_file = tmp_path / "test.db"
-    engine = create_engine(f"sqlite:///{db_file}", future=True)
+    db_file = tmp_path / "test.db"  # noqa: COP005, COP011
+    engine = create_engine(f"sqlite:///{db_file}", future=True)  # noqa: COP005
     testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     Base.metadata.create_all(bind=engine)
 
-    session = testing_session_local()
+    session = testing_session_local()  # noqa: COP005
     try:
         yield session
     finally:

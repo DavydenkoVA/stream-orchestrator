@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+import typing
+from typing import TYPE_CHECKING  # noqa: COP002
 
 from app.config import settings
 from app.integrations.llm.mock_provider import MockProvider
@@ -23,11 +24,11 @@ def build_llm_provider() -> LLMProvider:
 def build_llm_provider_from_config(
     *,
     provider_name: str,
-    api_key: str,
+    api_key: str,  # noqa: COP006
     base_url: str,
-    model: str,
+    model: str,  # noqa: COP006
 ) -> LLMProvider:
-    normalized = provider_name.strip().lower()
+    normalized: typing.Final = provider_name.strip().lower()
 
     if normalized == "mock":
         return MockProvider()

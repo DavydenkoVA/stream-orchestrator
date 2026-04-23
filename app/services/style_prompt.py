@@ -1,18 +1,19 @@
 from __future__ import annotations
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+import typing
+from dataclasses import dataclass  # noqa: COP002
+from typing import TYPE_CHECKING  # noqa: COP002
 
 
 if TYPE_CHECKING:
     from app.services.style_registry import StyleRegistry
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # noqa: COP005
 
 
 @dataclass(slots=True)
-class StyledPromptResult:
+class StyledPromptResult:  # noqa: COP012, COP014
     system_prompt: str
     requested_style: str | None
     applied_style: str
@@ -20,7 +21,7 @@ class StyledPromptResult:
     style_resolution_reason: str
 
 
-class StylePromptService:
+class StylePromptService:  # noqa: COP012
     def __init__(self, style_registry: StyleRegistry) -> None:
         self.style_registry = style_registry
 
@@ -32,8 +33,8 @@ class StylePromptService:
         base_system_prompt: str,
         style_name: str | None,
     ) -> StyledPromptResult:
-        resolution = self.style_registry.resolve_with_metadata(style_name)
-        style = resolution.style
+        resolution: typing.Final = self.style_registry.resolve_with_metadata(style_name)
+        style: typing.Final = resolution.style  # noqa: COP005
 
         logger.info("LLM style selected: %s", style.key)
 

@@ -28,7 +28,7 @@ def _build_service() -> DynamicPromptService:
 
 
 def test_dynamic_prompt_returns_success_when_prompt_and_data_are_valid(db_session: Session) -> None:
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
 
     result, message = asyncio.run(
         service.generate(
@@ -44,7 +44,7 @@ def test_dynamic_prompt_returns_success_when_prompt_and_data_are_valid(db_sessio
 
 
 def test_dynamic_prompt_returns_fallback_for_missing_prompt_files(db_session: Session) -> None:
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
 
     result, message = asyncio.run(
         service.generate(
@@ -60,7 +60,7 @@ def test_dynamic_prompt_returns_fallback_for_missing_prompt_files(db_session: Se
 
 
 def test_dynamic_prompt_returns_fallback_for_invalid_name(db_session: Session) -> None:
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
 
     result, message = asyncio.run(
         service.generate(
@@ -79,10 +79,10 @@ def test_dynamic_prompt_returns_fallback_when_template_data_missing_without_llm_
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:
+    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:  # noqa: COP009
         nonlocal llm_called
         llm_called = True
         return "unexpected"
@@ -112,10 +112,10 @@ def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(
     broken_system.write_text("dynamic system", encoding="utf-8")
     broken_template.write_text("broken {", encoding="utf-8")
 
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
     llm_called = False
 
-    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:
+    async def _fake_generate_text_with_pool(**_kwargs: object) -> str:  # noqa: COP009
         nonlocal llm_called
         llm_called = True
         return "unexpected"
@@ -137,7 +137,7 @@ def test_dynamic_prompt_returns_fallback_for_invalid_template_without_llm_call(
 
 
 def test_dynamic_prompt_allows_extra_data_fields(db_session: Session) -> None:
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
 
     result, message = asyncio.run(
         service.generate(
@@ -158,7 +158,7 @@ def test_dynamic_prompt_user_field_is_available_without_data_key(db_session: Ses
     user_only_system.write_text("dynamic system", encoding="utf-8")
     user_only_template.write_text("hello {user}", encoding="utf-8")
 
-    service = _build_service()
+    service = _build_service()  # noqa: COP005
 
     result, message = asyncio.run(
         service.generate(

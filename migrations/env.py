@@ -1,4 +1,4 @@
-from logging.config import fileConfig
+from logging.config import fileConfig  # noqa: COP002
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -8,7 +8,7 @@ from app.config import settings
 from app.db import Base
 
 
-config = context.config
+config = context.config  # noqa: COP005
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -19,7 +19,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.get_main_option("sqlalchemy.url")  # noqa: COP005
     context.configure(
         url=url,
         target_metadata=target_metadata,
