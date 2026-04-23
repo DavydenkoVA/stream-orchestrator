@@ -22,7 +22,7 @@ TEMPERATURE_MAX: typing.Final = 1.0
 TEMPERATURE_STEP: typing.Final = 0.01
 
 
-def default_feature_settings() -> dict[str, dict[str, float | int | str | None]]:
+def default_feature_settings() -> dict[str, dict[str, float | int | str | None]]:  # noqa: COP009
     return {
         feature_name: {
             "provider": None,
@@ -30,5 +30,5 @@ def default_feature_settings() -> dict[str, dict[str, float | int | str | None]]
             "max_output_tokens": settings.llm_max_output_tokens,
             "style": "default",
         }
-        for feature_name in SUPPORTED_FEATURE_NAMES
+        for feature_name in SUPPORTED_FEATURE_NAMES  # noqa: COP015
     }

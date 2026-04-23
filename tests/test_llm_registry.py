@@ -35,10 +35,10 @@ def test_llm_registry_applies_overrides() -> None:
 
 def test_llm_registry_reuses_cached_provider_instance() -> None:
     registry = LLMRegistry()
-    pool = registry.get_provider_pool("primary")
+    pool = registry.get_provider_pool("primary")  # noqa: COP005
     endpoint = pool.models[0]
 
-    first = registry.get_provider_instance(provider_kind=pool.provider, endpoint=endpoint)
-    second = registry.get_provider_instance(provider_kind=pool.provider, endpoint=endpoint)
+    first = registry.get_provider_instance(provider_kind=pool.provider, endpoint=endpoint)  # noqa: COP005
+    second = registry.get_provider_instance(provider_kind=pool.provider, endpoint=endpoint)  # noqa: COP005
 
     assert first is second

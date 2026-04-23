@@ -1,7 +1,7 @@
 import typing
 
 
-class MockProvider:
+class MockProvider:  # noqa: COP012
     async def generate_text(
         self,
         *,

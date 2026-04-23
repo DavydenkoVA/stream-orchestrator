@@ -9,14 +9,14 @@ DATA_DIR: typing.Final = BASE_DIR / "data" / "sqlite"
 DEFAULT_DB_PATH: typing.Final = DATA_DIR / "app.db"
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # noqa: COP012
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    app_env: str = "dev"
+    app_env: str = "dev"  # noqa: COP004
     app_host: str = "127.0.0.1"
     app_port: int = 8000
     log_level: str = "INFO"

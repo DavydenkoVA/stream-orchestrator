@@ -1,12 +1,12 @@
 import typing
 from pathlib import Path
-from typing import TypeAlias
+from typing import TypeAlias  # noqa: COP002
 
 
 WeeklyMoviesRawResponse: TypeAlias = dict[str, bool | str | None]
 
 
-class WeeklyMoviesFileService:
+class WeeklyMoviesFileService:  # noqa: COP012
     def __init__(self, file_path: str) -> None:
         self.file_path = Path(file_path)
 
@@ -25,7 +25,7 @@ class WeeklyMoviesFileService:
                 "message": f"Файл не найден: {self.file_path}",
             }
 
-        content: typing.Final = self.file_path.read_text(encoding="utf-8").strip()
+        content: typing.Final = self.file_path.read_text(encoding="utf-8").strip()  # noqa: COP005
 
         if not content:
             return {

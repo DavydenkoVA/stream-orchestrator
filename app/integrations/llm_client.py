@@ -3,7 +3,7 @@ import typing
 
 @typing.final
 class MemoryItemPayload(typing.TypedDict):
-    text: str
+    text: str  # noqa: COP004
 
 
 @typing.final
@@ -22,5 +22,5 @@ class LLMClient:
         memory_items: typing.Final = dossier_context["memory_items"][:3]
         if not memory_items:
             return f"На @{username} пока мало данных. Нужна история чата."  # noqa: RUF001
-        memory_bullets: typing.Final = "; ".join(one_item["text"] for one_item in memory_items)
+        memory_bullets: typing.Final = "; ".join(one_item["text"] for one_item in memory_items)  # noqa: COP011
         return f"Досье на @{username}: {memory_bullets}."
