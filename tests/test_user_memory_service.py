@@ -1,11 +1,15 @@
 import asyncio
+import sqlite3
 import typing
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.models.chat import ChatMessage
+from app.observability import trace_helpers
+from app.observability.trace_recorder import TraceRecorder
 from app.prompt_store import PromptStore
 from app.services.chat_memory import ChatMemoryService
 from app.services.llm_execution_service import LLMExecutionService
@@ -227,3 +231,63 @@ def test_refresh_user_memory_if_needed_rolls_back_on_error_before_mark_processed
     stored_messages = _load_messages(db_session)
     assert all(not one_message.is_memory_processed for one_message in stored_messages)
     assert all(one_message.memory_process_attempts == 0 for one_message in stored_messages)
+
+
+def test_refresh_user_memory_if_needed_ignores_trace_operational_error(db_session: Session) -> None:
+    memory_service = _build_service()
+    _save_two_messages(db_session, memory_service)
+
+    async def generate_text_with_pool_stub(**_unused_kwargs: object) -> str:
+        return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
+
+    memory_service.llm_executor.generate_text_with_pool = generate_text_with_pool_stub  # type: ignore[method-assign]
+
+    def _raise_locked(*_args: object, **_kwargs: object) -> typing.Never:
+        raise OperationalError(
+            statement="INSERT INTO trace_events ...",
+            params={},
+            orig=sqlite3.OperationalError("database is locked"),
+        )
+
+    trace_helpers.start_trace(route="/events/chat_reply", stream_id="s1", db=db_session)
+    try:
+        with pytest.MonkeyPatch.context() as local_monkeypatch:
+            local_monkeypatch.setattr(TraceRecorder, "append_event", _raise_locked)
+            assert asyncio.run(memory_service.refresh_user_memory_if_needed(db_session, "alice")) is True
+    finally:
+        trace_helpers.finish_trace_success("ok")
+
+    assert all(one_message.is_memory_processed for one_message in _load_messages(db_session))
+
+
+def test_refresh_user_memory_if_needed_business_error_still_raises_with_trace_failures(db_session: Session) -> None:
+    memory_service = _build_service()
+    _save_two_messages(db_session, memory_service)
+
+    async def generate_text_with_pool_stub(**_unused_kwargs: object) -> str:
+        return '[{"kind":"preference","text":"любит sci-fi","evidence_count":2,"confidence":0.95}]'
+
+    memory_service.llm_executor.generate_text_with_pool = generate_text_with_pool_stub  # type: ignore[method-assign]
+
+    def raise_trim_failure(*_unused_args: object, **_unused_kwargs: object) -> typing.Never:
+        raise RuntimeError("trim failed")
+
+    def _raise_locked(*_args: object, **_kwargs: object) -> typing.Never:
+        raise OperationalError(
+            statement="INSERT INTO trace_events ...",
+            params={},
+            orig=sqlite3.OperationalError("database is locked"),
+        )
+
+    memory_service.trim_user_memory = raise_trim_failure  # type: ignore[method-assign]
+
+    trace_helpers.start_trace(route="/events/chat_reply", stream_id="s1", db=db_session)
+    try:
+        with pytest.MonkeyPatch.context() as local_monkeypatch:
+            local_monkeypatch.setattr(TraceRecorder, "append_event", _raise_locked)
+            with pytest.raises(RuntimeError, match="trim failed"):
+                asyncio.run(memory_service.refresh_user_memory_if_needed(db_session, "alice"))
+    finally:
+        trace_helpers.finish_trace_failure("internal_error", "failed")
+
+    assert all(not one_message.is_memory_processed for one_message in _load_messages(db_session))
