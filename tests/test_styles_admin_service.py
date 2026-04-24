@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING  # noqa: COP002
+import typing
 
 from app.services.style_registry import StyleRegistry
 from app.services.styles_admin_service import StylesAdminService
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from pathlib import Path
 
 
