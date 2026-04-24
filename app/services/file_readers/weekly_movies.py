@@ -6,7 +6,8 @@ from typing import TypeAlias  # noqa: COP002
 WeeklyMoviesRawResponse: TypeAlias = dict[str, bool | str | None]
 
 
-class WeeklyMoviesFileService:  # noqa: COP012
+@typing.final
+class WeeklyMoviesFileService:
     def __init__(self, file_path: str) -> None:
         self.file_path = Path(file_path)
 

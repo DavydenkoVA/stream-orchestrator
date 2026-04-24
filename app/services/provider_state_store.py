@@ -12,7 +12,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-class ProviderStateStore:  # noqa: COP012
+@typing.final
+class ProviderStateStore:
     def get_current_model_name(self, db: Session, provider_name: str) -> str | None:  # noqa: COP006
         stmt: typing.Final = select(ProviderRuntimeState).where(ProviderRuntimeState.provider_name == provider_name)  # noqa: COP005, COP011
         row: typing.Final = db.scalar(stmt)  # noqa: COP005

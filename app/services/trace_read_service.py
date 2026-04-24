@@ -22,7 +22,8 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-class TraceReadService:  # noqa: COP012
+@typing.final
+class TraceReadService:
     """Read-only access layer for trace runs and events used by admin UI/API."""
 
     def list_runs(
