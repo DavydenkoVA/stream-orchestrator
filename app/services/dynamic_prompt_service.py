@@ -21,7 +21,8 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger(__name__)  # noqa: COP005
 
 
-class DynamicPromptService:  # noqa: COP012
+@typing.final
+class DynamicPromptService:
     def __init__(
         self,
         *,

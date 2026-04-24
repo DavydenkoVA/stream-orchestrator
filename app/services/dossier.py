@@ -11,7 +11,8 @@ def normalize_username(username: str) -> str:  # noqa: COP009
     return username.strip().lstrip("@").lower()
 
 
-class DossierService:  # noqa: COP012
+@typing.final
+class DossierService:
     def build_context(self, db: Session, username: str) -> dict[str, object]:  # noqa: COP006
         normalized_username: typing.Final = normalize_username(username)
 

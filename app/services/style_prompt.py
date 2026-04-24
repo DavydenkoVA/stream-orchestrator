@@ -21,7 +21,8 @@ class StyledPromptResult:  # noqa: COP012, COP014
     style_resolution_reason: str
 
 
-class StylePromptService:  # noqa: COP012
+@typing.final
+class StylePromptService:
     def __init__(self, style_registry: StyleRegistry) -> None:
         self.style_registry = style_registry
 

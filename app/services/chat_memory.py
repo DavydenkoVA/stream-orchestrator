@@ -12,7 +12,8 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import CursorResult
 
 
-class ChatMemoryService:  # noqa: COP012
+@typing.final
+class ChatMemoryService:
     def save_message(  # noqa: PLR0913
         self,
         db: Session,  # noqa: COP006

@@ -13,7 +13,8 @@ class StylesValidationResult:  # noqa: COP012, COP014
     styles: list[StyleDefinition] | None = None  # noqa: COP004
 
 
-class StylesAdminService:  # noqa: COP012
+@typing.final
+class StylesAdminService:
     STYLE_PATTERN = re.compile(r"^styles\[(\d+)\]\[(name|title|instruction|system)\]$")
 
     def __init__(self, style_registry: StyleRegistry) -> None:
