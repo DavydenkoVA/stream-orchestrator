@@ -1,4 +1,5 @@
 import re
+import sqlite3
 import typing
 from http import HTTPStatus
 
@@ -9,10 +10,12 @@ if typing.TYPE_CHECKING:
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
+from app.observability.trace_recorder import TraceRecorder
 
 
 REQUEST_ID_HEX_LENGTH = 32
@@ -89,6 +92,39 @@ def test_chat_reply_routes_dossier_and_weekly_movies(db_session: Session) -> Non
     assert weekly_response.status_code == HTTPStatus.OK
     assert weekly_response.json()["route"] == "weekly_movies"
 
+    app.dependency_overrides.clear()
+
+
+def test_chat_reply_dossier_survives_trace_operational_error(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def override_get_db() -> "Generator[Session, None, None]":
+        yield db_session
+
+    def _raise_locked(*_args: object, **_kwargs: object) -> typing.Never:
+        raise OperationalError(
+            statement="INSERT INTO trace_events ...",
+            params={},
+            orig=sqlite3.OperationalError("database is locked"),
+        )
+
+    monkeypatch.setattr(TraceRecorder, "append_event", _raise_locked)
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app, raise_server_exceptions=False)  # noqa: COP005
+
+    response = client.post(
+        "/events/chat_reply",
+        json={
+            "stream_id": "s_trace_locked",
+            "username": "viewer",
+            "text": "досье на @target_user",
+            "mentions_bot": False,
+            "role": "viewer",
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["route"] == "dossier"
     app.dependency_overrides.clear()
 
 
