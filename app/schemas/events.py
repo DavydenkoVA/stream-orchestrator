@@ -1,15 +1,16 @@
-from typing import Literal  # noqa: COP002
+import typing
 
 from pydantic import BaseModel, Field
 
 
-class ChatEvent(BaseModel):  # noqa: COP012
+@typing.final
+class ChatEvent(BaseModel):
     stream_id: str = Field(min_length=1)
     username: str = Field(min_length=1)
     text: str = Field(min_length=1)
     mentions_bot: bool = False
 
-    role: Literal["viewer", "bot", "broadcaster", "system"] = "viewer"
+    role: typing.Literal["viewer", "bot", "broadcaster", "system"] = "viewer"
 
     channel: str | None = None
     message_id: str | None = None

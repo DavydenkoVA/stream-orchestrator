@@ -11,14 +11,16 @@ from app.services.llm_config_source import (
 )
 
 
-class AdminModelConfig(BaseModel):  # noqa: COP012
+@typing.final
+class AdminModelConfig(BaseModel):
     name: str = Field(min_length=1)
     api_key: str = Field(min_length=1)
     base_url: str = ""
     model: str = Field(min_length=1)
 
 
-class AdminProviderConfig(BaseModel):  # noqa: COP012
+@typing.final
+class AdminProviderConfig(BaseModel):
     name: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     models: list[AdminModelConfig] = Field(default_factory=list)
@@ -39,7 +41,8 @@ class AdminProviderConfig(BaseModel):  # noqa: COP012
         return value
 
 
-class AdminFeatureSetting(BaseModel):  # noqa: COP012
+@typing.final
+class AdminFeatureSetting(BaseModel):
     name: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     temperature: float
@@ -61,7 +64,8 @@ class AdminFeatureSetting(BaseModel):  # noqa: COP012
         return value
 
 
-class AdminLLMConfig(BaseModel):  # noqa: COP012
+@typing.final
+class AdminLLMConfig(BaseModel):
     providers: list[AdminProviderConfig] = Field(default_factory=list)
     feature_settings: list[AdminFeatureSetting] = Field(default_factory=list)
 
