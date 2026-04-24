@@ -1,10 +1,10 @@
 import asyncio
 import json
+import typing
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Never  # noqa: COP002
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from collections.abc import Generator
 
 import pytest
@@ -35,7 +35,8 @@ from app.services.provider_state_store import ProviderStateStore
 REQUEST_ID_HEX_LENGTH = 32
 
 
-class _Provider:  # noqa: COP012
+@typing.final
+class _Provider:
     def __init__(self, *, fail: bool) -> None:  # noqa: COP006
         self.fail = fail
 
@@ -88,7 +89,7 @@ def test_trace_run_success_and_event_order(db_session: Session) -> None:
 
 
 def test_trace_run_failed_created_on_error(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def crash(*_args: object, **_kwargs: object) -> Never:  # noqa: COP007, COP009
+    async def crash(*_args: object, **_kwargs: object) -> typing.Never:  # noqa: COP007, COP009
         raise RuntimeError("boom")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -299,7 +300,7 @@ def test_dynamic_prompt_service_traces_fallback(db_session: Session) -> None:
 
 
 def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
-    def _explode_start_trace(*_args: object, **_kwargs: object) -> Never:  # noqa: COP009
+    def _explode_start_trace(*_args: object, **_kwargs: object) -> typing.Never:  # noqa: COP009
         raise RuntimeError("trace table unavailable")
 
     monkeypatch.setattr("app.api.routes.start_trace", _explode_start_trace)
@@ -331,7 +332,7 @@ def test_chat_ingest_succeeds_when_trace_start_fails(db_session: Session, monkey
 def test_chat_ingest_succeeds_when_post_commit_trace_write_fails(
     db_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def _explode_trace_success(*_args: object, **_kwargs: object) -> Never:  # noqa: COP009
+    def _explode_trace_success(*_args: object, **_kwargs: object) -> typing.Never:  # noqa: COP009
         raise RuntimeError("trace insert failed")
 
     monkeypatch.setattr("app.services.router.trace_success", _explode_trace_success)

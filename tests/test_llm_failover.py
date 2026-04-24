@@ -1,4 +1,5 @@
 import asyncio
+import typing
 
 import pytest
 from sqlalchemy.orm import Session
@@ -8,7 +9,8 @@ from app.services.llm_registry import LLMRegistry
 from app.services.provider_state_store import ProviderStateStore
 
 
-class _FakeProvider:  # noqa: COP012
+@typing.final
+class _FakeProvider:
     def __init__(self, name: str, fail: bool) -> None:  # noqa: COP006
         self.name = name
         self.fail = fail
@@ -67,7 +69,8 @@ def test_if_current_model_removed_attempt_starts_from_first(
 
     calls: list[str] = []  # noqa: COP005
 
-    class _OnlyFirst:  # noqa: COP012
+    @typing.final
+    class _OnlyFirst:
         async def generate_text(self, **_kwargs: object) -> str:
             calls.append("model_a")
             return "ok:model_a"
