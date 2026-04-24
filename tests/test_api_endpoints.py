@@ -1,9 +1,9 @@
 import re
+import typing
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Never  # noqa: COP002
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from collections.abc import Generator
 
 import pytest
@@ -193,7 +193,7 @@ def test_chat_reply_unhandled_exception_is_sanitized(db_session: Session, monkey
     def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def crash(*_args: object, **_kwargs: object) -> Never:  # noqa: COP007, COP009
+    async def crash(*_args: object, **_kwargs: object) -> typing.Never:  # noqa: COP007, COP009
         raise RuntimeError("provider_key=secret-key stack exploded")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", crash)
@@ -254,7 +254,7 @@ def test_chat_reply_http_exception_is_sanitized(db_session: Session, monkeypatch
     def override_get_db() -> "Generator[Session, None, None]":
         yield db_session
 
-    async def fail_with_http(*_args: object, **_kwargs: object) -> Never:  # noqa: COP009
+    async def fail_with_http(*_args: object, **_kwargs: object) -> typing.Never:  # noqa: COP009
         raise HTTPException(status_code=400, detail="internal failure details should stay private")
 
     monkeypatch.setattr("app.api.routes.service.handle_chat_reply", fail_with_http)

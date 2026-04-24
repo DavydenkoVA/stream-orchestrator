@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING  # noqa: COP002
+import typing
 
 import pytest
 from sqlalchemy import create_engine
@@ -12,7 +12,7 @@ from app.services.dynamic_prompt_service import DynamicPromptService
 from app.services.router import RouterService
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 

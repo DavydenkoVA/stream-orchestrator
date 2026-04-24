@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING  # noqa: COP002
+import typing
 
 from app.services.llm_config_admin_service import LLMConfigAdminService
 from app.services.llm_config_source import SUPPORTED_FEATURE_NAMES
 from app.services.llm_registry import LLMRegistry
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from pathlib import Path
 
 
