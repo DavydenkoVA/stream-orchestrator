@@ -1,8 +1,8 @@
 from __future__ import annotations
-from contextvars import ContextVar  # noqa: COP002
+import contextvars
 
 
-_request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
+_request_id_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_id", default=None)
 
 
 def set_current_request_id(request_id: str) -> None:

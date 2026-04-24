@@ -1,6 +1,6 @@
 import asyncio
-from types import SimpleNamespace  # noqa: COP002
-from typing import TYPE_CHECKING, Any, cast  # noqa: COP002
+import types
+import typing
 
 from sqlalchemy.orm import Session
 
@@ -15,25 +15,28 @@ from app.services.features import (
 from app.services.router import RouterService
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from app.services.features.base import FeatureHandler
 
 
-class _AlwaysFalseHandler:  # noqa: COP012
+@typing.final
+class _AlwaysFalseHandler:
     route_name = "never"
 
     def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return False
 
 
-class _AlwaysTrueHandler:  # noqa: COP012
+@typing.final
+class _AlwaysTrueHandler:
     route_name = "always"
 
     def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
         return True
 
 
-class _SecondTrueHandler:  # noqa: COP012
+@typing.final
+class _SecondTrueHandler:
     route_name = "second"
 
     def matches(self, _request: ChatRequest) -> bool:  # noqa: COP007, COP009
@@ -42,7 +45,7 @@ class _SecondTrueHandler:  # noqa: COP012
 
 def test_feature_selector_returns_first_matching_handler() -> None:
     selector = FeatureSelector(
-        cast(
+        typing.cast(
             "list[FeatureHandler]",
             [_AlwaysFalseHandler(), _AlwaysTrueHandler(), _SecondTrueHandler()],
         )
@@ -83,7 +86,7 @@ def test_dossier_handler_returns_conflict_message_for_bot_target() -> None:
         text=f"досье на @{settings.bot_username}",
         mentions_bot=False,
     )
-    context = cast("FeatureContext", SimpleNamespace())  # noqa: COP005
+    context = typing.cast("FeatureContext", types.SimpleNamespace())  # noqa: COP005
 
     response = asyncio.run(handler.handle(context, request))
 
@@ -122,7 +125,7 @@ def test_router_handle_chat_reply_ignores_bot_role() -> None:
 
     reply, route = asyncio.run(
         router.handle_chat_reply(
-            db=cast("Any", None),
+            db=typing.cast("typing.Any", None),
             stream_id="stream-1",
             username="stream_bot",
             text="service message",

@@ -1,15 +1,16 @@
 from __future__ import annotations
-from contextvars import ContextVar  # noqa: COP002
-from dataclasses import dataclass  # noqa: COP002
-from typing import TYPE_CHECKING  # noqa: COP002
+import contextvars
+import dataclasses
+import typing
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from app.observability.trace_recorder import TraceRecorder
 
 
-@dataclass
-class TraceState:  # noqa: COP012, COP014
+@dataclasses.dataclass
+@typing.final
+class TraceState:  # noqa: COP014
     trace_id: str
     request_id: str
     route: str  # noqa: COP004
@@ -19,7 +20,7 @@ class TraceState:  # noqa: COP012, COP014
     seq_no: int = 0  # noqa: COP004
 
 
-_trace_ctx: ContextVar[TraceState | None] = ContextVar("trace_state", default=None)
+_trace_ctx: contextvars.ContextVar[TraceState | None] = contextvars.ContextVar("trace_state", default=None)
 
 
 def set_trace_state(state: TraceState) -> None:  # noqa: COP006
